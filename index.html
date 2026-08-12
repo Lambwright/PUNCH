@@ -351,6 +351,20 @@ function PunchBubbles() {
   const [recurringTasks, setRecurringTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  // Shadows the module-level WIDTH/HEIGHT (620x480 default) with the actual
+  // available window width, so the bubble canvas isn't stuck in a fixed box
+  // with dead space on either side.
+  const [WIDTH, setWIDTH] = useState(() => typeof window === "undefined" ? 620 : Math.max(620, Math.min(window.innerWidth - 80, 1400)));
+  const [HEIGHT, setHEIGHT] = useState(() => Math.round(WIDTH * (480 / 620)));
+  useEffect(() => {
+    function handleResize() {
+      const w = Math.max(620, Math.min(window.innerWidth - 80, 1400));
+      setWIDTH(w);
+      setHEIGHT(Math.round(w * (480 / 620)));
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const [tab, setTab] = useState("inbox");
   const [selected, setSelected] = useState(null);
   const [note, setNote] = useState(""); // shared: resolve reason, defer reason, and copilot context
@@ -1340,7 +1354,7 @@ function PunchBubbles() {
           dragMoved.current = false;
           return;
         }
-        openDetail(n);
+        openDetail((tab === "recurring" ? recurringTasks : tasks).find(t => t.id === n.id) || n);
       }
     }, /*#__PURE__*/React.createElement("g", {
       style: {
@@ -1720,7 +1734,19 @@ function PunchBubbles() {
       outline: "none"
     },
     onFocus: e => e.target.style.border = "1px solid #C9C0AC"
-  }), /*#__PURE__*/React.createElement("div", {
+  }), selected.history && selected.history.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 10.5,
+      color: "#8A8375",
+      marginBottom: 10,
+      lineHeight: 1.4
+    }
+  }, new Date(selected.history[selected.history.length - 1].at).toLocaleDateString(), " · ", selected.history[selected.history.length - 1].type.replace("_", " ").toUpperCase(), ": ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#5C5850"
+    }
+  }, selected.history[selected.history.length - 1].text)), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -2012,7 +2038,19 @@ function PunchBubbles() {
       outline: "none"
     },
     onFocus: e => e.target.style.border = "1px solid #C9C0AC"
-  }), /*#__PURE__*/React.createElement("div", {
+  }), selected.history && selected.history.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 10.5,
+      color: "#8A8375",
+      marginBottom: 10,
+      lineHeight: 1.4
+    }
+  }, new Date(selected.history[selected.history.length - 1].at).toLocaleDateString(), " · ", selected.history[selected.history.length - 1].type.replace("_", " ").toUpperCase(), ": ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#5C5850"
+    }
+  }, selected.history[selected.history.length - 1].text)), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
