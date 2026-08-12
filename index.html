@@ -990,7 +990,6 @@ function PunchBubbles() {
     }
   }, "Check the Worker's deployed, CORS is open, and the URL in API_BASE is correct.")) : /*#__PURE__*/React.createElement("div", {
     style: {
-      maxWidth: WIDTH,
       margin: "0"
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -1295,7 +1294,12 @@ function PunchBubbles() {
       fontSize: 11,
       cursor: pickedRecordIdx === "" ? "not-allowed" : "pointer"
     }
-  }, "ADD"))), activeTasks.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, "ADD"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      maxWidth: WIDTH,
+      margin: "0 auto"
+    }
+  }, activeTasks.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'JetBrains Mono', monospace",
       color: "#5C5850",
@@ -1561,7 +1565,7 @@ function PunchBubbles() {
       borderRadius: "50%",
       background: c
     }
-  }), k.toUpperCase())))), selected && /*#__PURE__*/React.createElement("div", {
+  }), k.toUpperCase()))))), selected && /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
       inset: 0,
