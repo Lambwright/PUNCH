@@ -352,15 +352,31 @@ function PunchBubbles() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   // Shadows the module-level WIDTH/HEIGHT (620x480 default) with the actual
-  // available window width, so the bubble canvas isn't stuck in a fixed box
-  // with dead space on either side.
-  const [WIDTH, setWIDTH] = useState(() => typeof window === "undefined" ? 620 : Math.max(620, Math.min(window.innerWidth - 80, 1400)));
-  const [HEIGHT, setHEIGHT] = useState(() => Math.round(WIDTH * (480 / 620)));
+  // available window size, so the bubble canvas isn't stuck in a fixed box
+  // with dead space on either side, and can't extend below the visible page.
+  function computeCanvasSize() {
+    if (typeof window === "undefined") return {
+      w: 620,
+      h: 480
+    };
+    const w = Math.max(620, Math.min(window.innerWidth - 80, 1400));
+    const aspectH = Math.round(w * (480 / 620));
+    const maxViewportH = Math.max(320, window.innerHeight - 280); // room for header/tabs/legend
+    return {
+      w,
+      h: Math.min(aspectH, maxViewportH)
+    };
+  }
+  const [WIDTH, setWIDTH] = useState(() => computeCanvasSize().w);
+  const [HEIGHT, setHEIGHT] = useState(() => computeCanvasSize().h);
   useEffect(() => {
     function handleResize() {
-      const w = Math.max(620, Math.min(window.innerWidth - 80, 1400));
+      const {
+        w,
+        h
+      } = computeCanvasSize();
       setWIDTH(w);
-      setHEIGHT(Math.round(w * (480 / 620)));
+      setHEIGHT(h);
     }
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -1413,16 +1429,17 @@ function PunchBubbles() {
     const hoveredNode = nodes.find(n => n.id === hoveredId);
     if (!hoveredNode) return null;
     const color = tab === "snoozed" ? "#6B7A8C" : priorityColor[hoveredNode.effPriority];
+    const latest = hoveredNode.history && hoveredNode.history.length > 0 ? hoveredNode.history[hoveredNode.history.length - 1] : null;
     return /*#__PURE__*/React.createElement("g", {
       transform: `translate(${hoveredNode.x},${hoveredNode.y})`,
       style: {
-        pointerEvents: "none"
+        pointerEvents: "auto"
       }
     }, /*#__PURE__*/React.createElement("foreignObject", {
       x: -110,
       y: hoveredNode.r + 8,
       width: 220,
-      height: 70
+      height: latest ? 118 : 78
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         background: "#F1ECE1",
@@ -1433,19 +1450,45 @@ function PunchBubbles() {
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 3
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: 9,
         fontWeight: 700,
-        color,
-        marginBottom: 3
+        color
       }
-    }, hoveredNode.category.toUpperCase()), /*#__PURE__*/React.createElement("div", {
+    }, hoveredNode.category.toUpperCase()), hoveredNode.sourceUrl && /*#__PURE__*/React.createElement("a", {
+      href: hoveredNode.sourceUrl,
+      target: "_blank",
+      rel: "noreferrer",
+      style: {
+        display: "flex",
+        color: "#6B7A8C"
+      },
+      title: "View source record"
+    }, /*#__PURE__*/React.createElement(LinkIcon, {
+      size: 11
+    }))), /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 11.5,
         color: "#2A2419",
-        lineHeight: 1.3
+        lineHeight: 1.3,
+        marginBottom: latest ? 6 : 0
       }
-    }, hoveredNode.summary))));
+    }, hoveredNode.summary), latest && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 9.5,
+        color: "#8A8375",
+        lineHeight: 1.3,
+        borderTop: "1px dashed #C9C0AC",
+        paddingTop: 4
+      }
+    }, new Date(latest.at).toLocaleDateString(), " · ", latest.type.replace("_", " ").toUpperCase(), ": ", latest.text.length > 60 ? latest.text.slice(0, 60) + "…" : latest.text))));
   })()) : currentTab.view === "recurring" ? /*#__PURE__*/React.createElement("div", null, activeTasks.map(rt => {
     const due = daysUntilDue(rt);
     const isOverdue = due < 0;
