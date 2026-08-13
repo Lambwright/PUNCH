@@ -391,6 +391,18 @@ function PunchBubbles() {
   const [note, setNote] = useState(""); // shared: resolve reason, defer reason, and copilot context
   const [link, setLink] = useState("");
   const [hoveredId, setHoveredId] = useState(null);
+  const hoverLeaveTimeout = useRef(null);
+  function handleHoverEnter(id, e) {
+    // Touch has no real "hover" — a tap fires enter/down/up almost simultaneously,
+    // which was colliding with drag-detection on the very first tap after a reload.
+    // Mouse/pen still get the hover tooltip; touch goes straight to tap-to-open.
+    if (e && e.pointerType === "touch") return;
+    if (hoverLeaveTimeout.current) clearTimeout(hoverLeaveTimeout.current);
+    setHoveredId(id);
+  }
+  function handleHoverLeave() {
+    hoverLeaveTimeout.current = setTimeout(() => setHoveredId(null), 150);
+  }
   const [draftSummary, setDraftSummary] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
   const [availableRecords, setAvailableRecords] = useState(initialAvailableRecords);
@@ -1609,14 +1621,13 @@ function PunchBubbles() {
     const daysUntilDue = n.dueDate ? Math.ceil((new Date(n.dueDate) - now) / 86400000) : null;
     const hovered = hoveredId === n.id;
     return /*#__PURE__*/React.createElement("g", {
-      key: n.id,
       transform: `translate(${n.x},${n.y})`,
       style: {
         cursor: "grab"
       },
       onPointerDown: e => handlePointerDown(e, n),
-      onPointerEnter: () => setHoveredId(n.id),
-      onPointerLeave: () => setHoveredId(null),
+      onPointerEnter: e => handleHoverEnter(n.id, e),
+      onPointerLeave: handleHoverLeave,
       onClick: () => {
         if (dragMoved.current) {
           dragMoved.current = false;
@@ -1626,10 +1637,7 @@ function PunchBubbles() {
       }
     }, /*#__PURE__*/React.createElement("g", {
       style: {
-        animation: newlyAddedIds.has(n.id) ? "inflate 0.5s cubic-bezier(0.34,1.56,0.64,1) both" : undefined,
-        transform: hovered ? "scale(1.15)" : "scale(1)",
-        transformOrigin: "center",
-        transition: "transform 0.15s ease-out"
+        animation: newlyAddedIds.has(n.id) ? "inflate 0.5s cubic-bezier(0.34,1.56,0.64,1) both" : undefined
       }
     }, /*#__PURE__*/React.createElement("circle", {
       r: n.r,
@@ -1685,7 +1693,9 @@ function PunchBubbles() {
       transform: `translate(${hoveredNode.x},${hoveredNode.y})`,
       style: {
         pointerEvents: "auto"
-      }
+      },
+      onPointerEnter: e => handleHoverEnter(hoveredNode.id, e),
+      onPointerLeave: handleHoverLeave
     }, /*#__PURE__*/React.createElement("foreignObject", {
       x: -110,
       y: hoveredNode.r + 8,
@@ -2426,37 +2436,70 @@ function PunchBubbles() {
       fontWeight: 700,
       padding: "0 4px"
     }
-  }, "+")), selected.sourceUrl && /*#__PURE__*/React.createElement("a", {
+  }, "+"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: 10,
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 10.5,
+      color: "#6B7A8C",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement(Bot, {
+    size: 11
+  }), " ", (selected.source || "unknown").toUpperCase()), /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement(User, {
+    size: 11
+  }), " ", selected.person ? selected.person.toUpperCase() : "UNKNOWN SENDER"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement(Clock, {
+    size: 11
+  }), selected.createdAt ? new Date(selected.createdAt).toLocaleString([], {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }) : "UNKNOWN TIME")), selected.sourceUrl && /*#__PURE__*/React.createElement("a", {
     href: selected.sourceUrl,
     target: "_blank",
     rel: "noreferrer",
     style: {
       display: "flex",
       alignItems: "center",
-      gap: 4,
+      justifyContent: "center",
+      gap: 6,
+      width: "100%",
+      padding: "8px 0",
+      marginBottom: 18,
+      background: "#E9E2D2",
+      border: "1px solid #C9C0AC",
+      borderRadius: 4,
       fontFamily: "'JetBrains Mono', monospace",
-      fontSize: 10,
-      color: "#6B7A8C",
-      textDecoration: "none",
-      flexShrink: 0
+      fontWeight: 700,
+      fontSize: 11,
+      color: "#2A2419",
+      textDecoration: "none"
     }
   }, /*#__PURE__*/React.createElement(LinkIcon, {
-    size: 10
-  }), " VIEW RECORD")), selected.person && /*#__PURE__*/React.createElement("div", {
+    size: 12
+  }), " OPEN SOURCE RECORD"), !selected.sourceUrl && /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 4,
-      fontFamily: "'JetBrains Mono', monospace",
-      fontSize: 10.5,
-      color: "#6B7A8C",
-      marginBottom: 18
-    }
-  }, /*#__PURE__*/React.createElement(User, {
-    size: 11
-  }), " ", selected.person.toUpperCase()), !selected.person && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 18
+      marginBottom: 4
     }
   }), selected.checklist && /*#__PURE__*/React.createElement("div", {
     style: {
