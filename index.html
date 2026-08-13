@@ -390,7 +390,6 @@ function PunchBubbles() {
   const [selected, setSelected] = useState(null);
   const [note, setNote] = useState(""); // shared: resolve reason, defer reason, and copilot context
   const [link, setLink] = useState("");
-  const [dragPositions, setDragPositions] = useState({});
   const [hoveredId, setHoveredId] = useState(null);
   const [draftSummary, setDraftSummary] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
@@ -528,7 +527,42 @@ function PunchBubbles() {
   const inboxOpenCount = tasks.filter(t => t.status === "open" && t.list === "inbox").length;
 
   // Physics only reruns when the task list itself changes — not on every drag move.
+  const POSITIONS_KEY = "punch_bubble_positions";
+  const [positions, setPositions] = useState(() => {
+    try {
+      const raw = localStorage.getItem(POSITIONS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const positionsRef = useRef(positions);
+  useEffect(() => {
+    positionsRef.current = positions;
+  }, [positions]);
+  function persistPositions(next) {
+    setPositions(next);
+    try {
+      localStorage.setItem(POSITIONS_KEY, JSON.stringify(next));
+    } catch (e) {
+      // ignore storage errors (e.g. private browsing quota)
+    }
+  }
+  function updatePosition(id, x, y) {
+    persistPositions({
+      ...positionsRef.current,
+      [id]: {
+        x,
+        y
+      }
+    });
+  }
+
+  // Only tasks with no remembered position get physics-placed; anything already
+  // known (dragged or previously settled) is pinned via fx/fy so it never moves
+  // again on its own — new arrivals just find open space around it.
   const settledNodes = useMemo(() => {
+    const known = positionsRef.current;
     const simNodes = activeTasks.map((t, i) => {
       const angle = i * 2.399963; // golden angle, avoids uniform rings
       const startRadius = 20 + i * 12;
@@ -536,12 +570,19 @@ function PunchBubbles() {
       // Snoozed bubbles render small and flat regardless of priority/age —
       // visually "parked," not competing for attention like Inbox does.
       const r = tab === "snoozed" ? 20 : radiusFor(t);
+      const saved = known[t.id];
+      const x = saved ? saved.x : WIDTH / 2 + Math.cos(angle) * startRadius;
+      const y = saved ? saved.y : HEIGHT / 2 + Math.sin(angle) * startRadius;
       return {
         ...t,
         r,
         effPriority,
-        x: WIDTH / 2 + Math.cos(angle) * startRadius,
-        y: HEIGHT / 2 + Math.sin(angle) * startRadius
+        x,
+        y,
+        ...(saved ? {
+          fx: saved.x,
+          fy: saved.y
+        } : {})
       };
     });
     const sim = d3.forceSimulation(simNodes).force("charge", d3.forceManyBody().strength(-25)) // negative = repel
@@ -550,16 +591,33 @@ function PunchBubbles() {
     simNodes.forEach(n => {
       n.x = Math.max(n.r + 4, Math.min(WIDTH - n.r - 4, n.x));
       n.y = Math.max(n.r + 4, Math.min(HEIGHT - n.r - 4, n.y));
+      delete n.fx;
+      delete n.fy;
     });
     return simNodes;
-  }, [tab, activeTasks.map(t => t.id + t.priority).join(",")]);
+  }, [tab, activeTasks.map(t => t.id + t.priority).join(","), WIDTH, HEIGHT]);
 
-  // Cheap per-render overlay: apply any manual drag positions on top of the settled layout.
-  const nodes = settledNodes.map(n => dragPositions[n.id] ? {
-    ...n,
-    x: dragPositions[n.id].x,
-    y: dragPositions[n.id].y
-  } : n);
+  // Remember any newly-placed bubbles so they stay put next time, without
+  // touching positions that were already known (avoids an update loop).
+  useEffect(() => {
+    const known = positionsRef.current;
+    const additions = {};
+    let hasNew = false;
+    settledNodes.forEach(n => {
+      if (!known[n.id]) {
+        additions[n.id] = {
+          x: n.x,
+          y: n.y
+        };
+        hasNew = true;
+      }
+    });
+    if (hasNew) persistPositions({
+      ...known,
+      ...additions
+    });
+  }, [settledNodes]);
+  const nodes = settledNodes;
   function handlePointerDown(e, node) {
     e.stopPropagation();
     draggingId.current = node.id;
@@ -576,13 +634,7 @@ function PunchBubbles() {
     const rawX = (e.clientX - rect.left) * scaleX;
     const rawY = (e.clientY - rect.top) * scaleY;
     dragMoved.current = true;
-    setDragPositions(prev => ({
-      ...prev,
-      [draggingId.current]: {
-        x: Math.max(r + 4, Math.min(WIDTH - r - 4, rawX)),
-        y: Math.max(r + 4, Math.min(HEIGHT - r - 4, rawY))
-      }
-    }));
+    updatePosition(draggingId.current, Math.max(r + 4, Math.min(WIDTH - r - 4, rawX)), Math.max(r + 4, Math.min(HEIGHT - r - 4, rawY)));
   }
   function handleSvgPointerUp() {
     draggingId.current = null;
@@ -1079,7 +1131,6 @@ function PunchBubbles() {
     }
   }, /*#__PURE__*/React.createElement("style", null, `
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap');
-        @keyframes drift { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-4px); } }
         @keyframes inflate { 0% { transform: scale(0); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
         @keyframes rowIn { 0% { opacity: 0; transform: scale(0.9) translateY(-4px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -1575,8 +1626,7 @@ function PunchBubbles() {
       }
     }, /*#__PURE__*/React.createElement("g", {
       style: {
-        animation: newlyAddedIds.has(n.id) ? `inflate 0.5s cubic-bezier(0.34,1.56,0.64,1) both, drift ${4 + i % 3}s ease-in-out infinite 0.5s` : `drift ${4 + i % 3}s ease-in-out infinite`,
-        animationDelay: newlyAddedIds.has(n.id) ? undefined : `${i * 0.3}s`,
+        animation: newlyAddedIds.has(n.id) ? "inflate 0.5s cubic-bezier(0.34,1.56,0.64,1) both" : undefined,
         transform: hovered ? "scale(1.15)" : "scale(1)",
         transformOrigin: "center",
         transition: "transform 0.15s ease-out"
