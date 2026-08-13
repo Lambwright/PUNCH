@@ -31,6 +31,7 @@ const User = (props) => React.createElement(IconBase, props, React.createElement
 const HistoryIcon = (props) => React.createElement(IconBase, props, React.createElement("path", { d: "M3 12a9 9 0 1 0 3-6.7L3 8" }), React.createElement("path", { d: "M3 3v5h5" }), React.createElement("path", { d: "M12 7v5l4 2" }));
 const TrendingUp = (props) => React.createElement(IconBase, props, React.createElement("polyline", { points: "22 7 13.5 15.5 8.5 10.5 2 17" }), React.createElement("polyline", { points: "16 7 22 7 22 13" }));
 const HelpCircle = (props) => React.createElement(IconBase, props, React.createElement("circle", { cx: "12", cy: "12", r: "10" }), React.createElement("path", { d: "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" }), React.createElement("path", { d: "M12 17h.01" }));
+const RefreshIcon = (props) => React.createElement(IconBase, props, React.createElement("path", { d: "M21 12a9 9 0 1 1-3-6.7" }), React.createElement("path", { d: "M21 3v6h-6" }));
 
 const API_BASE = "https://punch-worker.ben-a90.workers.dev";
 async function apiGet(path) {
@@ -323,6 +324,10 @@ const tabs = [{
   id: "snoozed",
   label: "SNOOZED",
   view: "bubbles"
+}, {
+  id: "digest",
+  label: "DIGEST",
+  view: "digest"
 }];
 const WIDTH = 620;
 const HEIGHT = 480;
@@ -418,14 +423,41 @@ function PunchBubbles() {
   const svgRef = useRef(null);
   const draggingId = useRef(null);
   const dragMoved = useRef(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [digests, setDigests] = useState([]);
+  const [digestLoading, setDigestLoading] = useState(false);
+  const [digestGenerating, setDigestGenerating] = useState(false);
+  const [digestError, setDigestError] = useState(null);
+  const [digestsFetched, setDigestsFetched] = useState(false);
+  async function fetchAndMergeTasks(replaceAll) {
+    const [openRows, snoozedRows, recurRows] = await Promise.all([apiGet("/tasks?status=open"), apiGet("/tasks?status=snoozed"), apiGet("/recurring")]);
+    const normalizedTasks = [...openRows, ...snoozedRows].map(normalizeTask);
+    const normalizedRecur = recurRows.map(normalizeRecurring);
+    if (replaceAll) {
+      setTasks(normalizedTasks);
+      setRecurringTasks(normalizedRecur);
+      return;
+    }
+
+    // Merge-only for polling/manual refresh: add anything new, never overwrite
+    // a task the user might have mid-open in the detail panel right now.
+    setTasks(prev => {
+      const existingIds = new Set(prev.map(t => t.id));
+      const newOnes = normalizedTasks.filter(t => !existingIds.has(t.id));
+      newOnes.forEach(t => flashNewlyAdded(t.id));
+      return [...prev, ...newOnes];
+    });
+    setRecurringTasks(prev => {
+      const existingIds = new Set(prev.map(t => t.id));
+      const newOnes = normalizedRecur.filter(t => !existingIds.has(t.id));
+      return [...prev, ...newOnes];
+    });
+  }
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [openRows, snoozedRows, recurRows] = await Promise.all([apiGet("/tasks?status=open"), apiGet("/tasks?status=snoozed"), apiGet("/recurring")]);
-        if (cancelled) return;
-        setTasks([...openRows, ...snoozedRows].map(normalizeTask));
-        setRecurringTasks(recurRows.map(normalizeRecurring));
+        await fetchAndMergeTasks(true);
       } catch (err) {
         if (!cancelled) setLoadError(err.message);
       } finally {
@@ -437,6 +469,59 @@ function PunchBubbles() {
       cancelled = true;
     };
   }, []);
+
+  // Poll every 45s for new tasks (new emails/Teams messages) without a manual reload.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAndMergeTasks(false).catch(err => console.error("Background refresh failed:", err));
+    }, 45000);
+    return () => clearInterval(interval);
+  }, []);
+  async function manualRefresh() {
+    setIsRefreshing(true);
+    try {
+      await fetchAndMergeTasks(false);
+    } catch (err) {
+      console.error("Manual refresh failed:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
+  async function loadDigests() {
+    setDigestLoading(true);
+    setDigestError(null);
+    try {
+      const rows = await apiGet("/digest");
+      setDigests(rows);
+    } catch (err) {
+      setDigestError(err.message);
+    } finally {
+      setDigestLoading(false);
+      setDigestsFetched(true);
+    }
+  }
+  async function generateDigest() {
+    setDigestGenerating(true);
+    setDigestError(null);
+    try {
+      const result = await apiPost("/digest/generate", {});
+      if (result.message) {
+        // Nothing new since last digest — no row was created.
+        setDigestError(result.message);
+      } else {
+        setDigests(prev => [result, ...prev]);
+      }
+    } catch (err) {
+      setDigestError(err.message);
+    } finally {
+      setDigestGenerating(false);
+    }
+  }
+  useEffect(() => {
+    if (tab === "digest" && !digestsFetched) {
+      loadDigests();
+    }
+  }, [tab, digestsFetched]);
   const currentTab = tabs.find(t => t.id === tab);
   const snoozedTasks = tasks.filter(t => t.status === "snoozed");
   const activeTasks = tab === "snoozed" ? snoozedTasks : tab === "recurring" ? [...recurringTasks].sort((a, b) => daysUntilDue(a) - daysUntilDue(b)) : tasks.filter(t => t.status === "open" && t.list === tab);
@@ -997,6 +1082,7 @@ function PunchBubbles() {
         @keyframes drift { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-4px); } }
         @keyframes inflate { 0% { transform: scale(0); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
         @keyframes rowIn { 0% { opacity: 0; transform: scale(0.9) translateY(-4px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `), loading ? /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'JetBrains Mono', monospace",
@@ -1024,15 +1110,43 @@ function PunchBubbles() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 4
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
       fontFamily: "'Oswald', sans-serif",
       fontWeight: 700,
       fontSize: 36,
       letterSpacing: "0.04em",
       color: "#F1ECE1",
-      textTransform: "uppercase",
-      marginBottom: 4
+      textTransform: "uppercase"
     }
-  }, "Punch"), /*#__PURE__*/React.createElement("div", {
+  }, "Punch"), /*#__PURE__*/React.createElement("button", {
+    onClick: manualRefresh,
+    disabled: isRefreshing,
+    title: "Check for new tasks now",
+    style: {
+      background: "transparent",
+      border: "1px solid #3A3733",
+      borderRadius: "50%",
+      width: 28,
+      height: 28,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#8B8680",
+      cursor: isRefreshing ? "default" : "pointer",
+      marginTop: 6
+    }
+  }, /*#__PURE__*/React.createElement(RefreshIcon, {
+    size: 14,
+    style: isRefreshing ? {
+      animation: "spin 0.8s linear infinite"
+    } : undefined
+  }))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 4,
@@ -1061,7 +1175,7 @@ function PunchBubbles() {
         cursor: "pointer"
       }
     }, t.label, " (", count, ")");
-  }), tab !== "snoozed" && /*#__PURE__*/React.createElement("button", {
+  }), tab !== "snoozed" && tab !== "digest" && /*#__PURE__*/React.createElement("button", {
     onClick: () => setAddPanelOpen(v => !v),
     "aria-label": "Add",
     style: {
@@ -1077,7 +1191,7 @@ function PunchBubbles() {
       fontWeight: 700,
       lineHeight: 1
     }
-  }, "+")), addPanelOpen && tab !== "snoozed" && /*#__PURE__*/React.createElement("div", {
+  }, "+")), addPanelOpen && tab !== "snoozed" && tab !== "digest" && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "#2A2724",
       border: "1px solid #3A3733",
@@ -1329,7 +1443,94 @@ function PunchBubbles() {
       maxWidth: WIDTH,
       margin: "0 auto"
     }
-  }, activeTasks.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, tab === "digest" ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
+    onClick: generateDigest,
+    disabled: digestGenerating,
+    style: {
+      padding: "9px 16px",
+      background: digestGenerating ? "#E9E2D2" : "#E2871A",
+      color: "#1E1C1A",
+      border: "none",
+      borderRadius: 4,
+      fontFamily: "'JetBrains Mono', monospace",
+      fontWeight: 700,
+      fontSize: 11,
+      cursor: digestGenerating ? "default" : "pointer",
+      marginBottom: 14
+    }
+  }, digestGenerating ? "GENERATING..." : "GENERATE DIGEST NOW"), digestError && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 11,
+      color: "#8B8680",
+      marginBottom: 14
+    }
+  }, digestError), digestLoading ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'JetBrains Mono', monospace",
+      color: "#8B8680",
+      fontSize: 12
+    }
+  }, "LOADING...") : digests.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'JetBrains Mono', monospace",
+      color: "#5C5850",
+      fontSize: 13
+    }
+  }, "No digests generated yet.") : digests.map(d => /*#__PURE__*/React.createElement("div", {
+    key: d.id,
+    style: {
+      background: "#2A2724",
+      border: "1px solid #3A3733",
+      borderRadius: 4,
+      padding: "14px 16px",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 10,
+      color: "#8B8680",
+      marginBottom: 8
+    }
+  }, new Date(d.created_at).toLocaleDateString()), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: "'Inter', sans-serif",
+      fontSize: 13.5,
+      color: "#F1ECE1",
+      lineHeight: 1.5,
+      marginBottom: 10
+    }
+  }, d.summary), (() => {
+    let suggestions = [];
+    try {
+      suggestions = JSON.parse(d.prompt_notes || "[]");
+    } catch (e) {
+      suggestions = [];
+    }
+    return suggestions.length > 0 ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 10,
+        color: "#E2871A",
+        marginBottom: 6
+      }
+    }, "SUGGESTED PROMPT TWEAKS"), /*#__PURE__*/React.createElement("ul", {
+      style: {
+        margin: 0,
+        paddingLeft: 18
+      }
+    }, suggestions.map((s, i) => /*#__PURE__*/React.createElement("li", {
+      key: i,
+      style: {
+        fontFamily: "'Inter', sans-serif",
+        fontSize: 12.5,
+        color: "#D9D2C4",
+        marginBottom: 4,
+        lineHeight: 1.4
+      }
+    }, s)))) : null;
+  })()))) : activeTasks.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'JetBrains Mono', monospace",
       color: "#5C5850",
