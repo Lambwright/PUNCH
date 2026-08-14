@@ -108,6 +108,10 @@ function normalizeTask(row) {
     isOntario: row.is_ontario,
     checklist: row.checklist || undefined,
     history: row.history || [],
+    parentTaskId: row.parent_task_id || null,
+    isProject: row.is_project || false,
+    description: row.description || "",
+    color: row.color || null,
   };
 }
 
@@ -214,11 +218,27 @@ const priorityColor = {
 
 const priorityWeight = { urgent: 34, high: 24, normal: 15, low: 8 };
 
+// Curated palette for project bubbles — distinct from priorityColor (which carries
+// urgency meaning) and tuned to sit alongside the app's existing dark/brass aesthetic.
+const PROJECT_COLORS = [
+  "#3E7C7C", // teal
+  "#5B6B9E", // indigo
+  "#7A5A7A", // plum
+  "#B5707A", // dusty rose
+  "#B8963E", // gold
+  "#A85C3F", // terracotta
+  "#6E8F5C", // sage
+  "#4A5D6B", // steel blue
+];
+const DEFAULT_PROJECT_COLOR = PROJECT_COLORS[0];
+
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 86400000));
 }
 
-function radiusFor(task) {
+function radiusFor(task, childCount) {
+  // Project bubbles size by how much they contain, not by priority/age.
+  if (task.isProject) return 40 + Math.min((childCount || 0) * 5, 50);
   const base = 22;
   const age = Math.min(daysOpen(task.createdAt) * 2.5, 22);
   return base + priorityWeight[effectivePriority(task)] * 0.6 + age;
@@ -359,9 +379,25 @@ export default function PunchBubbles() {
   const [pickedRecordIdx, setPickedRecordIdx] = useState("");
   const [newlyAddedIds, setNewlyAddedIds] = useState(() => new Set());
   const [copilotLoading, setCopilotLoading] = useState(false);
+
+  // Project bubbles: which project (if any) is currently expanded in place,
+  // the drag-to-nest highlight target, the Inbox add-panel's task/project
+  // toggle + project draft fields, and the opened-project header's edit state.
+  const [openedProjectId, setOpenedProjectId] = useState(null);
+  const [dragOverProjectId, setDragOverProjectId] = useState(null);
+  const [addMode, setAddMode] = useState("task"); // "task" | "project" — Inbox add panel only
+  const [projectTitle, setProjectTitle] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
+  const [projectColor, setProjectColor] = useState(DEFAULT_PROJECT_COLOR);
+  const [pickedChildIdx, setPickedChildIdx] = useState("");
+  const [draftProjectTitle, setDraftProjectTitle] = useState("");
+  const [draftProjectDescription, setDraftProjectDescription] = useState("");
+  const [deletingProjectConfirm, setDeletingProjectConfirm] = useState(false);
+
   const svgRef = useRef(null);
   const draggingId = useRef(null);
   const dragMoved = useRef(false);
+  const lastChildDragPos = useRef(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [digests, setDigests] = useState([]);
@@ -481,7 +517,9 @@ export default function PunchBubbles() {
       ? snoozedTasks
       : tab === "recurring"
       ? [...recurringTasks].sort((a, b) => daysUntilDue(a) - daysUntilDue(b))
-      : tasks.filter((t) => t.status === "open" && t.list === tab);
+      // Nested project children live only inside their project's opened view,
+      // never on the top-level board.
+      : tasks.filter((t) => t.status === "open" && t.list === tab && !t.parentTaskId);
   const inboxOpenCount = tasks.filter((t) => t.status === "open" && t.list === "inbox").length;
 
   // Physics only reruns when the task list itself changes — not on every drag move.
@@ -512,18 +550,55 @@ export default function PunchBubbles() {
     persistPositions({ ...positionsRef.current, [id]: { x, y } });
   }
 
+  // Same pattern as the board's own position store, nested one level by project id —
+  // positions inside an opened project survive refreshes and re-opens independently
+  // of the board's positions.
+  const PROJECT_POSITIONS_KEY = "punch_project_child_positions";
+  const [projectPositions, setProjectPositions] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PROJECT_POSITIONS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const projectPositionsRef = useRef(projectPositions);
+  useEffect(() => {
+    projectPositionsRef.current = projectPositions;
+  }, [projectPositions]);
+
+  function persistProjectPositions(next) {
+    setProjectPositions(next);
+    try {
+      localStorage.setItem(PROJECT_POSITIONS_KEY, JSON.stringify(next));
+    } catch (e) {
+      // ignore storage errors (e.g. private browsing quota)
+    }
+  }
+
+  function updateChildPosition(projectId, childId, x, y) {
+    const forProject = { ...(projectPositionsRef.current[projectId] || {}), [childId]: { x, y } };
+    persistProjectPositions({ ...projectPositionsRef.current, [projectId]: forProject });
+  }
+
   // Only tasks with no remembered position get physics-placed; anything already
   // known (dragged or previously settled) is pinned via fx/fy so it never moves
   // again on its own — new arrivals just find open space around it.
   const settledNodes = useMemo(() => {
     const known = positionsRef.current;
+    const childCountByParent = {};
+    tasks.forEach((t) => {
+      if (t.parentTaskId && t.status === "open") {
+        childCountByParent[t.parentTaskId] = (childCountByParent[t.parentTaskId] || 0) + 1;
+      }
+    });
     const simNodes = activeTasks.map((t, i) => {
       const angle = i * 2.399963; // golden angle, avoids uniform rings
       const startRadius = 20 + i * 12;
       const effPriority = effectivePriority(t);
       // Snoozed bubbles render small and flat regardless of priority/age —
       // visually "parked," not competing for attention like Inbox does.
-      const r = tab === "snoozed" ? 20 : radiusFor(t);
+      const r = tab === "snoozed" ? 20 : radiusFor(t, childCountByParent[t.id]);
       const saved = known[t.id];
       const x = saved ? saved.x : WIDTH / 2 + Math.cos(angle) * startRadius;
       const y = saved ? saved.y : HEIGHT / 2 + Math.sin(angle) * startRadius;
@@ -531,6 +606,7 @@ export default function PunchBubbles() {
         ...t,
         r,
         effPriority,
+        childCount: childCountByParent[t.id] || 0,
         x,
         y,
         ...(saved ? { fx: saved.x, fy: saved.y } : {}),
@@ -554,7 +630,16 @@ export default function PunchBubbles() {
       delete n.fy;
     });
     return simNodes;
-  }, [tab, activeTasks.map((t) => t.id + t.priority).join(","), WIDTH, HEIGHT]);
+    // The nesting signature (which tasks currently point at which parent) is included
+    // so a project bubble's radius updates immediately when a child is added/removed,
+    // even though the project's own id+priority in activeTasks didn't change.
+  }, [
+    tab,
+    activeTasks.map((t) => t.id + t.priority).join(","),
+    tasks.filter((t) => t.parentTaskId).map((t) => t.id + t.parentTaskId).join(","),
+    WIDTH,
+    HEIGHT,
+  ]);
 
   // Remember any newly-placed bubbles so they stay put next time, without
   // touching positions that were already known (avoids an update loop).
@@ -578,10 +663,197 @@ export default function PunchBubbles() {
     positions[n.id] ? { ...n, x: positions[n.id].x, y: positions[n.id].y } : n
   );
 
+  // --- Opened project: children + their own one-shot physics, mirroring the
+  // board's settledNodes/nodes pattern above but bounded to a circle instead
+  // of the WIDTH/HEIGHT rectangle. ---
+  const PROJECT_RING_RADIUS = Math.min(WIDTH, HEIGHT) / 2 - 30;
+  const openedProject = openedProjectId ? tasks.find((t) => t.id === openedProjectId) : null;
+  const projectChildren = openedProjectId
+    ? tasks.filter((t) => t.parentTaskId === openedProjectId && t.status === "open")
+    : [];
+
+  const settledChildNodes = useMemo(() => {
+    if (!openedProjectId) return [];
+    const known = projectPositionsRef.current[openedProjectId] || {};
+    const simNodes = projectChildren.map((t, i) => {
+      const angle = i * 2.399963;
+      const startRadius = 20 + i * 10;
+      const effPriority = effectivePriority(t);
+      const r = radiusFor(t);
+      const saved = known[t.id];
+      const x = saved ? saved.x : WIDTH / 2 + Math.cos(angle) * startRadius;
+      const y = saved ? saved.y : HEIGHT / 2 + Math.sin(angle) * startRadius;
+      return { ...t, r, effPriority, x, y, ...(saved ? { fx: saved.x, fy: saved.y } : {}) };
+    });
+    const sim = d3
+      .forceSimulation(simNodes)
+      .force("charge", d3.forceManyBody().strength(-20))
+      .force("x", d3.forceX(WIDTH / 2).strength(0.1))
+      .force("y", d3.forceY(HEIGHT / 2).strength(0.1))
+      .force("collide", d3.forceCollide((d) => d.r + 6).iterations(3))
+      .stop();
+    for (let i = 0; i < 300; i++) sim.tick();
+    simNodes.forEach((n) => {
+      // Clamp into the project's ring, not the rectangular canvas.
+      const dx = n.x - WIDTH / 2;
+      const dy = n.y - HEIGHT / 2;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const maxDist = PROJECT_RING_RADIUS - n.r - 6;
+      if (dist > maxDist && dist > 0) {
+        const scale = maxDist / dist;
+        n.x = WIDTH / 2 + dx * scale;
+        n.y = HEIGHT / 2 + dy * scale;
+      }
+      delete n.fx;
+      delete n.fy;
+    });
+    return simNodes;
+  }, [openedProjectId, projectChildren.map((t) => t.id + t.priority).join(","), WIDTH, HEIGHT]);
+
+  useEffect(() => {
+    if (!openedProjectId) return;
+    const known = projectPositionsRef.current[openedProjectId] || {};
+    const additions = {};
+    let hasNew = false;
+    settledChildNodes.forEach((n) => {
+      if (!known[n.id]) {
+        additions[n.id] = { x: n.x, y: n.y };
+        hasNew = true;
+      }
+    });
+    if (hasNew) {
+      persistProjectPositions({ ...projectPositionsRef.current, [openedProjectId]: { ...known, ...additions } });
+    }
+  }, [settledChildNodes, openedProjectId]);
+
+  const childPositionsForOpen = openedProjectId ? projectPositions[openedProjectId] || {} : {};
+  const childNodes = settledChildNodes.map((n) =>
+    childPositionsForOpen[n.id] ? { ...n, x: childPositionsForOpen[n.id].x, y: childPositionsForOpen[n.id].y } : n
+  );
+
+  function openProject(id) {
+    const proj = tasks.find((t) => t.id === id);
+    setOpenedProjectId(id);
+    setDraftProjectTitle(proj ? proj.summary : "");
+    setDraftProjectDescription(proj ? proj.description || "" : "");
+    setDeletingProjectConfirm(false);
+    setPickedChildIdx("");
+    setAddPanelOpen(false);
+  }
+
+  function closeProject() {
+    setOpenedProjectId(null);
+    setDeletingProjectConfirm(false);
+  }
+
+  function nestTaskIntoProject(taskId, projectId) {
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, parentTaskId: projectId } : t)));
+    persist(apiPatch(`/tasks/${taskId}`, { parent_task_id: projectId }));
+  }
+
+  function removeChildFromProject(taskId) {
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, parentTaskId: null } : t)));
+    persist(apiPatch(`/tasks/${taskId}`, { parent_task_id: null }));
+    if (openedProjectId) {
+      const forProject = { ...(projectPositionsRef.current[openedProjectId] || {}) };
+      delete forProject[taskId];
+      persistProjectPositions({ ...projectPositionsRef.current, [openedProjectId]: forProject });
+    }
+    if (selected && selected.id === taskId) setSelected(null);
+  }
+
+  function createProject() {
+    const title = projectTitle.trim();
+    if (!title) return;
+    const tempId = `project-${Date.now()}`;
+    const description = projectDescription.trim();
+    const color = projectColor || DEFAULT_PROJECT_COLOR;
+    const optimistic = {
+      id: tempId,
+      ticket: nextTicketNumber(),
+      summary: title,
+      description,
+      category: "Project",
+      priority: "normal",
+      createdAt: now.toISOString(),
+      lastPriorityChangeAt: now.toISOString(),
+      status: "open",
+      list: "inbox",
+      isProject: true,
+      color,
+      parentTaskId: null,
+      history: [historyEvent("created", "Project created")],
+    };
+    setTasks((prev) => [...prev, optimistic]);
+    flashNewlyAdded(tempId);
+    setProjectTitle("");
+    setProjectDescription("");
+    setProjectColor(DEFAULT_PROJECT_COLOR);
+    setAddPanelOpen(false);
+
+    apiPost("/ingest", {
+      source: "manual",
+      raw_text: title,
+      skip_classification: true,
+      summary: title,
+      description,
+      color,
+      is_project: true,
+      category: "Project",
+      priority: "normal",
+      list: "inbox",
+    })
+      .then((row) => {
+        const real = normalizeTask(row);
+        real.history = optimistic.history;
+        setTasks((prev) => prev.map((t) => (t.id === tempId ? real : t)));
+      })
+      .catch((err) => console.error("PUNCH sync failed:", err));
+  }
+
+  function saveProjectField(field, patchKey, value) {
+    setTasks((prev) => prev.map((t) => (t.id === openedProjectId ? { ...t, [field]: value } : t)));
+    persist(apiPatch(`/tasks/${openedProjectId}`, { [patchKey]: value }));
+  }
+
+  function saveProjectTitle() {
+    const trimmed = draftProjectTitle.trim();
+    if (!trimmed || !openedProject || trimmed === openedProject.summary) return;
+    saveProjectField("summary", "summary", trimmed);
+  }
+
+  function saveProjectDescription() {
+    if (!openedProject || draftProjectDescription === (openedProject.description || "")) return;
+    saveProjectField("description", "description", draftProjectDescription);
+  }
+
+  function saveProjectColor(color) {
+    saveProjectField("color", "color", color);
+  }
+
+  function deleteProject() {
+    const id = openedProjectId;
+    persist(apiDelete(`/tasks/${id}`));
+    setTasks((prev) =>
+      prev.filter((t) => t.id !== id).map((t) => (t.parentTaskId === id ? { ...t, parentTaskId: null } : t))
+    );
+    const nextProjectPositions = { ...projectPositionsRef.current };
+    delete nextProjectPositions[id];
+    persistProjectPositions(nextProjectPositions);
+    closeProject();
+  }
+
+  function addExistingTaskToProject() {
+    if (!pickedChildIdx || !openedProjectId) return;
+    nestTaskIntoProject(pickedChildIdx, openedProjectId);
+    setPickedChildIdx("");
+  }
+
   function handlePointerDown(e, node) {
     e.stopPropagation();
     draggingId.current = node.id;
     dragMoved.current = false;
+    lastChildDragPos.current = null;
     e.target.setPointerCapture(e.pointerId);
   }
 
@@ -590,20 +862,189 @@ export default function PunchBubbles() {
     const rect = svgRef.current.getBoundingClientRect();
     const scaleX = WIDTH / rect.width;
     const scaleY = HEIGHT / rect.height;
-    const node = settledNodes.find((n) => n.id === draggingId.current);
-    const r = node ? node.r : 30;
     const rawX = (e.clientX - rect.left) * scaleX;
     const rawY = (e.clientY - rect.top) * scaleY;
     dragMoved.current = true;
-    updatePosition(
-      draggingId.current,
-      Math.max(r + 4, Math.min(WIDTH - r - 4, rawX)),
-      Math.max(r + 4, Math.min(HEIGHT - r - 4, rawY))
-    );
+
+    if (openedProjectId) {
+      const node = settledChildNodes.find((n) => n.id === draggingId.current);
+      const r = node ? node.r : 26;
+      // Deliberately NOT clamped to the ring — dragging a child past its edge
+      // and releasing outside is how it gets un-nested (see handleSvgPointerUp).
+      const clampedX = Math.max(r + 4, Math.min(WIDTH - r - 4, rawX));
+      const clampedY = Math.max(r + 4, Math.min(HEIGHT - r - 4, rawY));
+      // Tracked synchronously here rather than read back from projectPositions —
+      // that store is only mirrored into a ref via a useEffect (a passive effect,
+      // fired after a render/paint), which can still be stale at pointer-up if the
+      // browser delivers the last move and the release without a paint in between.
+      lastChildDragPos.current = { x: clampedX, y: clampedY };
+      updateChildPosition(openedProjectId, draggingId.current, clampedX, clampedY);
+      return;
+    }
+
+    const node = settledNodes.find((n) => n.id === draggingId.current);
+    const r = node ? node.r : 30;
+    const clampedX = Math.max(r + 4, Math.min(WIDTH - r - 4, rawX));
+    const clampedY = Math.max(r + 4, Math.min(HEIGHT - r - 4, rawY));
+    updatePosition(draggingId.current, clampedX, clampedY);
+
+    // Drag-to-nest: while dragging an ordinary bubble over a project bubble,
+    // highlight it as the drop target (resolved on pointer-up below).
+    if (node && !node.isProject) {
+      const target = nodes.find((n) => {
+        if (!n.isProject || n.id === draggingId.current) return false;
+        const dx = clampedX - n.x;
+        const dy = clampedY - n.y;
+        return Math.sqrt(dx * dx + dy * dy) < n.r;
+      });
+      setDragOverProjectId(target ? target.id : null);
+    }
   }
 
   function handleSvgPointerUp() {
+    const id = draggingId.current;
+    if (id && openedProjectId) {
+      const stored = lastChildDragPos.current;
+      if (stored) {
+        const dx = stored.x - WIDTH / 2;
+        const dy = stored.y - HEIGHT / 2;
+        if (Math.sqrt(dx * dx + dy * dy) > PROJECT_RING_RADIUS) {
+          removeChildFromProject(id);
+        }
+      }
+    } else if (id && dragOverProjectId) {
+      nestTaskIntoProject(id, dragOverProjectId);
+    }
+    setDragOverProjectId(null);
+    lastChildDragPos.current = null;
     draggingId.current = null;
+  }
+
+  // Single bubble renderer, reused for the closed board, the faded "ghost" background
+  // pass behind an opened project, and the crisp children floating inside one — same
+  // visuals and drag/click wiring everywhere; context (board vs. project) is handled
+  // by handleSvgPointerMove/Up and openProject/openDetail already knowing what's
+  // being dragged/clicked via draggingId/openedProjectId.
+  function renderBubble(n, i) {
+    const color = n.isProject ? n.color || DEFAULT_PROJECT_COLOR : tab === "snoozed" ? "#6B7A8C" : priorityColor[n.effPriority];
+    const age = daysOpen(n.createdAt);
+    const daysUntilDue = n.dueDate ? Math.ceil((new Date(n.dueDate) - now) / 86400000) : null;
+    return (
+      <g
+        key={n.id}
+        transform={`translate(${n.x},${n.y})`}
+        style={{ cursor: "grab" }}
+        onPointerDown={(e) => handlePointerDown(e, n)}
+        onPointerEnter={(e) => handleHoverEnter(n.id, e)}
+        onPointerLeave={handleHoverLeave}
+        onClick={() => {
+          if (dragMoved.current) {
+            dragMoved.current = false;
+            return;
+          }
+          if (n.isProject) {
+            openProject(n.id);
+            return;
+          }
+          openDetail((tab === "recurring" ? recurringTasks : tasks).find((t) => t.id === n.id) || n);
+        }}
+      >
+        <g
+          style={{
+            animation: newlyAddedIds.has(n.id)
+              ? `inflate 0.5s cubic-bezier(0.34,1.56,0.64,1) both, drift ${4 + (i % 3)}s ease-in-out infinite 0.5s`
+              : `drift ${4 + (i % 3)}s ease-in-out infinite`,
+            animationDelay: newlyAddedIds.has(n.id) ? undefined : `${i * 0.3}s`,
+          }}
+        >
+          <circle
+            r={n.r}
+            fill="#2A2724"
+            stroke={dragOverProjectId === n.id ? "#F1ECE1" : color}
+            strokeWidth={n.isProject ? "3.5" : "2.5"}
+          />
+          <circle r={n.r - 5} fill={color} fillOpacity="0.14" />
+          {n.isProject ? (
+            <>
+              {/* inner ring — marks a project as a container, not a single task */}
+              <circle r={n.r - 8} fill="none" stroke={color} strokeWidth="1" strokeOpacity="0.55" />
+              {/* preview dots — one per open child, so a closed project still shows what's inside */}
+              {Array.from({ length: Math.min(n.childCount, 10) }).map((_, di) => {
+                const dAngle = di * 2.399963;
+                const dRadius = Math.min(n.r - 16, 6 + di * ((n.r - 20) / 10));
+                return (
+                  <circle
+                    key={di}
+                    cx={Math.cos(dAngle) * dRadius}
+                    cy={Math.sin(dAngle) * dRadius}
+                    r={Math.max(2.5, n.r * 0.06)}
+                    fill={color}
+                    fillOpacity="0.85"
+                  />
+                );
+              })}
+              {n.childCount > 10 && (
+                <text
+                  y={n.r - 18}
+                  textAnchor="middle"
+                  style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, fill: "#D9D2C4" }}
+                >
+                  +{n.childCount - 10}
+                </text>
+              )}
+            </>
+          ) : (
+            // punched hole, like a physical inspection tag
+            <circle cx={0} cy={-n.r + 9} r={3.5} fill="#1E1C1A" stroke="#5C5850" strokeWidth="1" />
+          )}
+          {(() => {
+            const { lines, fontSize } = wrapText(n.summary, n.r);
+            const ageFontSize = Math.max(9, n.r * 0.22);
+            const blockHeight = lines.length * fontSize * 1.2;
+            const startY = -blockHeight / 2 + fontSize * 0.4 + ageFontSize * 0.6;
+            return (
+              <>
+                <text
+                  y={startY - fontSize * 1.1 - 2}
+                  textAnchor="middle"
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: ageFontSize,
+                    fontWeight: 700,
+                    fill: "#F1ECE1",
+                  }}
+                >
+                  {n.isProject
+                    ? `${n.childCount} ITEM${n.childCount === 1 ? "" : "S"}`
+                    : tab === "snoozed"
+                    ? daysUntilDue !== null
+                      ? daysUntilDue <= 0
+                        ? "DUE"
+                        : `${daysUntilDue}d`
+                      : ""
+                    : `${age}d`}
+                </text>
+                {lines.map((line, li) => (
+                  <text
+                    key={li}
+                    y={startY + li * fontSize * 1.2}
+                    textAnchor="middle"
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize,
+                      fontWeight: 500,
+                      fill: "#D9D2C4",
+                    }}
+                  >
+                    {line}
+                  </text>
+                ))}
+              </>
+            );
+          })()}
+        </g>
+      </g>
+    );
   }
 
   function apiPathFor(id) {
@@ -911,7 +1352,7 @@ export default function PunchBubbles() {
     }, 650);
   }
 
-  function addManualTask() {
+  function addManualTask(parentTaskId) {
     const text = manualText.trim();
     if (!text) return;
     const tempId = `manual-${Date.now()}`;
@@ -930,7 +1371,8 @@ export default function PunchBubbles() {
       list: "inbox",
       sourceUrl,
       person,
-      history: [historyEvent("created", "Added manually")],
+      parentTaskId: parentTaskId || null,
+      history: [historyEvent("created", parentTaskId ? "Added directly into project" : "Added manually")],
     };
     setTasks((prev) => [...prev, optimistic]);
     flashNewlyAdded(tempId);
@@ -951,6 +1393,7 @@ export default function PunchBubbles() {
       source_url: sourceUrl,
       person,
       list: "inbox",
+      parent_task_id: parentTaskId || null,
     })
       .then((row) => {
         const real = normalizeTask(row);
@@ -1181,7 +1624,7 @@ export default function PunchBubbles() {
               </button>
             );
           })}
-          {tab !== "snoozed" && tab !== "digest" && (
+          {tab !== "snoozed" && tab !== "digest" && !openedProjectId && (
             <button
               onClick={() => setAddPanelOpen((v) => !v)}
               aria-label="Add"
@@ -1204,7 +1647,7 @@ export default function PunchBubbles() {
           )}
         </div>
 
-        {addPanelOpen && tab !== "snoozed" && tab !== "digest" && (
+        {addPanelOpen && tab !== "snoozed" && tab !== "digest" && !openedProjectId && (
           <div
             style={{
               background: "#2A2724",
@@ -1216,6 +1659,97 @@ export default function PunchBubbles() {
           >
             {currentTab.view === "bubbles" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", gap: 4, marginBottom: 2 }}>
+                  {["task", "project"].map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setAddMode(mode)}
+                      style={{
+                        padding: "5px 12px",
+                        background: addMode === mode ? "#E2871A" : "transparent",
+                        color: addMode === mode ? "#1E1C1A" : "#8B8680",
+                        border: `1px solid ${addMode === mode ? "#E2871A" : "#3A3733"}`,
+                        borderRadius: 4,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700,
+                        fontSize: 10,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {mode.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+                {addMode === "project" ? (
+                  <>
+                    <input
+                      value={projectTitle}
+                      onChange={(e) => setProjectTitle(e.target.value)}
+                      placeholder="Project title..."
+                      style={{
+                        padding: 8,
+                        borderRadius: 4,
+                        border: "1px solid #4A473F",
+                        background: "#1E1C1A",
+                        color: "#F1ECE1",
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 13,
+                      }}
+                    />
+                    <textarea
+                      value={projectDescription}
+                      onChange={(e) => setProjectDescription(e.target.value)}
+                      placeholder="Description (optional)"
+                      rows={2}
+                      style={{
+                        padding: 8,
+                        borderRadius: 4,
+                        border: "1px solid #4A473F",
+                        background: "#1E1C1A",
+                        color: "#F1ECE1",
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12.5,
+                        resize: "vertical",
+                      }}
+                    />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {PROJECT_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setProjectColor(c)}
+                          aria-label={`Set color ${c}`}
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: "50%",
+                            background: c,
+                            border: projectColor === c ? "2px solid #F1ECE1" : "1px solid #3A3733",
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={createProject}
+                      style={{
+                        padding: "8px 20px",
+                        background: "#E2871A",
+                        color: "#1E1C1A",
+                        border: "none",
+                        borderRadius: 4,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700,
+                        fontSize: 11,
+                        cursor: "pointer",
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      CREATE PROJECT
+                    </button>
+                  </>
+                ) : (
+              <>
                 <input
                   value={manualText}
                   onChange={(e) => setManualText(e.target.value)}
@@ -1304,7 +1838,7 @@ export default function PunchBubbles() {
                     }}
                   />
                   <button
-                    onClick={addManualTask}
+                    onClick={() => addManualTask()}
                     style={{
                       padding: "8px 20px",
                       background: "#E2871A",
@@ -1320,6 +1854,8 @@ export default function PunchBubbles() {
                     ADD
                   </button>
                 </div>
+              </>
+                )}
               </div>
             ) : currentTab.view === "recurring" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1615,104 +2151,389 @@ export default function PunchBubbles() {
               : "LIST CLEAR — nothing punched in."}
           </div>
         ) : currentTab.view === "bubbles" ? (
-          <svg
-            ref={svgRef}
-            width={WIDTH}
-            height={HEIGHT}
-            viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-            style={{ display: "block", margin: "0 auto", touchAction: "none", overflow: "visible" }}
-            onPointerMove={handleSvgPointerMove}
-            onPointerUp={handleSvgPointerUp}
-            onPointerLeave={handleSvgPointerUp}
-          >
-            {nodes.map((n, i) => {
-              const color = tab === "snoozed" ? "#6B7A8C" : priorityColor[n.effPriority];
-              const age = daysOpen(n.createdAt);
-              const daysUntilDue = n.dueDate
-                ? Math.ceil((new Date(n.dueDate) - now) / 86400000)
-                : null;
-              const hovered = hoveredId === n.id;
-              return (
-                <g
-                  transform={`translate(${n.x},${n.y})`}
-                  style={{ cursor: "grab" }}
-                  onPointerDown={(e) => handlePointerDown(e, n)}
-                  onPointerEnter={(e) => handleHoverEnter(n.id, e)}
-                  onPointerLeave={handleHoverLeave}
-                  onClick={() => {
-                    if (dragMoved.current) {
-                      dragMoved.current = false;
-                      return;
-                    }
-                    openDetail((tab === "recurring" ? recurringTasks : tasks).find((t) => t.id === n.id) || n);
-                  }}
-                >
-                  <g
+          <>
+            {openedProject && (
+              <div
+                style={{
+                  background: "#2A2724",
+                  border: `1px solid ${openedProject.color || DEFAULT_PROJECT_COLOR}`,
+                  borderRadius: 4,
+                  padding: 14,
+                  marginBottom: 14,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <input
+                      value={draftProjectTitle}
+                      onChange={(e) => setDraftProjectTitle(e.target.value)}
+                      onBlur={saveProjectTitle}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          saveProjectTitle();
+                          e.target.blur();
+                        }
+                      }}
+                      style={{
+                        width: "100%",
+                        fontFamily: "'Inter', sans-serif",
+                        fontWeight: 700,
+                        fontSize: 16,
+                        color: "#F1ECE1",
+                        background: "transparent",
+                        border: "1px solid transparent",
+                        borderRadius: 3,
+                        padding: "2px 4px",
+                        marginLeft: -4,
+                        marginBottom: 4,
+                      }}
+                    />
+                    <textarea
+                      value={draftProjectDescription}
+                      onChange={(e) => setDraftProjectDescription(e.target.value)}
+                      onBlur={saveProjectDescription}
+                      placeholder="Description (optional)"
+                      rows={2}
+                      style={{
+                        width: "100%",
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12.5,
+                        color: "#B8B2A4",
+                        background: "transparent",
+                        border: "1px solid transparent",
+                        borderRadius: 3,
+                        padding: "2px 4px",
+                        marginLeft: -4,
+                        resize: "vertical",
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={closeProject}
                     style={{
-                      animation: newlyAddedIds.has(n.id)
-                        ? `inflate 0.5s cubic-bezier(0.34,1.56,0.64,1) both, drift ${4 + (i % 3)}s ease-in-out infinite 0.5s`
-                        : `drift ${4 + (i % 3)}s ease-in-out infinite`,
-                      animationDelay: newlyAddedIds.has(n.id) ? undefined : `${i * 0.3}s`,
+                      flexShrink: 0,
+                      padding: "6px 14px",
+                      background: "transparent",
+                      color: "#8B8680",
+                      border: "1px solid #3A3733",
+                      borderRadius: 4,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 700,
+                      fontSize: 11,
+                      cursor: "pointer",
                     }}
                   >
-                    <circle r={n.r} fill="#2A2724" stroke={color} strokeWidth="2.5" />
-                    <circle r={n.r - 5} fill={color} fillOpacity="0.14" />
-                    {/* punched hole, like a physical inspection tag */}
-                    <circle cx={0} cy={-n.r + 9} r={3.5} fill="#1E1C1A" stroke="#5C5850" strokeWidth="1" />
-                    {(() => {
-                      const { lines, fontSize } = wrapText(n.summary, n.r);
-                      const ageFontSize = Math.max(9, n.r * 0.22);
-                      const blockHeight = lines.length * fontSize * 1.2;
-                      const startY = -blockHeight / 2 + fontSize * 0.4 + ageFontSize * 0.6;
-                      return (
-                        <>
-                          <text
-                            y={startY - fontSize * 1.1 - 2}
-                            textAnchor="middle"
-                            style={{
-                              fontFamily: "'JetBrains Mono', monospace",
-                              fontSize: ageFontSize,
-                              fontWeight: 700,
-                              fill: "#F1ECE1",
-                            }}
-                          >
-                            {tab === "snoozed"
-                              ? daysUntilDue !== null
-                                ? daysUntilDue <= 0
-                                  ? "DUE"
-                                  : `${daysUntilDue}d`
-                                : ""
-                              : `${age}d`}
-                          </text>
-                          {lines.map((line, li) => (
-                            <text
-                              key={li}
-                              y={startY + li * fontSize * 1.2}
-                              textAnchor="middle"
-                              style={{
-                                fontFamily: "'Inter', sans-serif",
-                                fontSize,
-                                fontWeight: 500,
-                                fill: "#D9D2C4",
-                              }}
-                            >
-                              {line}
-                            </text>
-                          ))}
-                        </>
-                      );
-                    })()}
-                  </g>
-                </g>
-              );
-            })}
+                    ← BACK
+                  </button>
+                </div>
 
-            {/* Hover tooltip rendered last so it always paints above every bubble,
-                regardless of draw order. */}
-            {(() => {
-              const hoveredNode = nodes.find((n) => n.id === hoveredId);
-              if (!hoveredNode) return null;
-              const color = tab === "snoozed" ? "#6B7A8C" : priorityColor[hoveredNode.effPriority];
+                <div style={{ display: "flex", gap: 6, margin: "10px 0" }}>
+                  {PROJECT_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => saveProjectColor(c)}
+                      aria-label={`Set color ${c}`}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        background: c,
+                        border: (openedProject.color || DEFAULT_PROJECT_COLOR) === c ? "2px solid #F1ECE1" : "1px solid #3A3733",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+                  <select
+                    value={pickedChildIdx}
+                    onChange={(e) => setPickedChildIdx(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: 8,
+                      borderRadius: 4,
+                      border: "1px solid #4A473F",
+                      background: "#1E1C1A",
+                      color: "#F1ECE1",
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <option value="">+ Add existing task...</option>
+                    {tasks
+                      .filter((t) => t.status === "open" && t.list === "inbox" && !t.parentTaskId && !t.isProject)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.summary}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    onClick={addExistingTaskToProject}
+                    disabled={!pickedChildIdx}
+                    style={{
+                      padding: "8px 16px",
+                      background: pickedChildIdx ? "#E2871A" : "#4A473F",
+                      color: "#1E1C1A",
+                      border: "none",
+                      borderRadius: 4,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 700,
+                      fontSize: 11,
+                      cursor: pickedChildIdx ? "pointer" : "default",
+                    }}
+                  >
+                    ADD
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <input
+                    value={manualText}
+                    onChange={(e) => setManualText(e.target.value)}
+                    placeholder="New task in this project..."
+                    style={{
+                      padding: 8,
+                      borderRadius: 4,
+                      border: "1px solid #4A473F",
+                      background: "#1E1C1A",
+                      color: "#F1ECE1",
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 13,
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <select
+                      value={manualCategory || "General"}
+                      onChange={(e) => setManualCategory(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: 8,
+                        borderRadius: 4,
+                        border: "1px solid #4A473F",
+                        background: "#1E1C1A",
+                        color: "#F1ECE1",
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12.5,
+                      }}
+                    >
+                      {categories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={manualPriority}
+                      onChange={(e) => setManualPriority(e.target.value)}
+                      style={{
+                        padding: 8,
+                        borderRadius: 4,
+                        border: `1px solid ${priorityColor[manualPriority]}`,
+                        background: "#1E1C1A",
+                        color: priorityColor[manualPriority],
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700,
+                        fontSize: 11,
+                      }}
+                    >
+                      {priorityOptions.map((p) => (
+                        <option key={p} value={p}>
+                          {p.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      value={manualLink}
+                      onChange={(e) => setManualLink(e.target.value)}
+                      placeholder="Link (optional) — https://..."
+                      style={{
+                        flex: 1,
+                        padding: 8,
+                        borderRadius: 4,
+                        border: "1px solid #4A473F",
+                        background: "#1E1C1A",
+                        color: "#F1ECE1",
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12.5,
+                      }}
+                    />
+                    <input
+                      value={manualPerson}
+                      onChange={(e) => setManualPerson(e.target.value)}
+                      placeholder="Person (optional)"
+                      style={{
+                        width: 130,
+                        padding: 8,
+                        borderRadius: 4,
+                        border: "1px solid #4A473F",
+                        background: "#1E1C1A",
+                        color: "#F1ECE1",
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 12.5,
+                      }}
+                    />
+                    <button
+                      onClick={() => addManualTask(openedProjectId)}
+                      style={{
+                        padding: "8px 20px",
+                        background: "#E2871A",
+                        color: "#1E1C1A",
+                        border: "none",
+                        borderRadius: 4,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700,
+                        fontSize: 11,
+                        cursor: "pointer",
+                      }}
+                    >
+                      ADD
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                  {deletingProjectConfirm ? (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ fontSize: 11, color: "#C1401C", fontFamily: "'Inter', sans-serif" }}>
+                        Delete project? Tasks inside just get un-nested, not deleted.
+                      </span>
+                      <button
+                        onClick={deleteProject}
+                        style={{
+                          padding: "6px 12px",
+                          background: "#C1401C",
+                          color: "#F1ECE1",
+                          border: "none",
+                          borderRadius: 4,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 700,
+                          fontSize: 10.5,
+                          cursor: "pointer",
+                        }}
+                      >
+                        CONFIRM DELETE
+                      </button>
+                      <button
+                        onClick={() => setDeletingProjectConfirm(false)}
+                        style={{
+                          padding: "6px 12px",
+                          background: "transparent",
+                          color: "#8B8680",
+                          border: "1px solid #3A3733",
+                          borderRadius: 4,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 700,
+                          fontSize: 10.5,
+                          cursor: "pointer",
+                        }}
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setDeletingProjectConfirm(true)}
+                      style={{
+                        padding: "6px 12px",
+                        background: "transparent",
+                        color: "#8A5A4A",
+                        border: "1px solid #3A3733",
+                        borderRadius: 4,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700,
+                        fontSize: 10.5,
+                        cursor: "pointer",
+                      }}
+                    >
+                      DELETE PROJECT
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            <svg
+              ref={svgRef}
+              width={WIDTH}
+              height={HEIGHT}
+              viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+              style={{ display: "block", margin: "0 auto", touchAction: "none", overflow: "visible" }}
+              onPointerMove={handleSvgPointerMove}
+              onPointerUp={handleSvgPointerUp}
+              onPointerLeave={handleSvgPointerUp}
+              onClick={(e) => {
+                if (openedProjectId && e.target === e.currentTarget) closeProject();
+              }}
+            >
+              <defs>
+                <filter id="punchBlur" x="-30%" y="-30%" width="160%" height="160%">
+                  <feGaussianBlur stdDeviation="4" />
+                </filter>
+                {openedProject && (
+                  <radialGradient id="punchProjectGradient" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor={openedProject.color || DEFAULT_PROJECT_COLOR} stopOpacity="0.12" />
+                    <stop offset="65%" stopColor={openedProject.color || DEFAULT_PROJECT_COLOR} stopOpacity="0.28" />
+                    <stop offset="100%" stopColor={openedProject.color || DEFAULT_PROJECT_COLOR} stopOpacity="0.62" />
+                  </radialGradient>
+                )}
+              </defs>
+
+              {openedProjectId ? (
+                <>
+                  {/* Background pass: the normal board, faded + blurred — visible both around
+                      the project's footprint and bleeding through its translucent disc below. */}
+                  <g style={{ filter: "url(#punchBlur)", opacity: 0.4, pointerEvents: "none" }}>
+                    {nodes.filter((n) => n.id !== openedProjectId).map((n, i) => renderBubble(n, i))}
+                  </g>
+                  {/* Project disc pass: a radial gradient so the background shows through more
+                      at the center than at the rim, which reads as the container's boundary. */}
+                  <circle
+                    cx={WIDTH / 2}
+                    cy={HEIGHT / 2}
+                    r={PROJECT_RING_RADIUS}
+                    fill="url(#punchProjectGradient)"
+                    stroke={openedProject ? openedProject.color || DEFAULT_PROJECT_COLOR : DEFAULT_PROJECT_COLOR}
+                    strokeWidth="2.5"
+                    style={{ pointerEvents: "none" }}
+                  />
+                  {/* Foreground pass: crisp, fully-interactive children */}
+                  {childNodes.length === 0 ? (
+                    <text
+                      x={WIDTH / 2}
+                      y={HEIGHT / 2}
+                      textAnchor="middle"
+                      style={{
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 12,
+                        fill: "#8B8680",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      Nothing in here yet — add a task above.
+                    </text>
+                  ) : (
+                    childNodes.map((n, i) => renderBubble(n, i))
+                  )}
+                </>
+              ) : (
+                nodes.map((n, i) => renderBubble(n, i))
+              )}
+
+              {/* Hover tooltip rendered last so it always paints above every bubble,
+                  regardless of draw order. */}
+              {(() => {
+                const hoveredNode = nodes.find((n) => n.id === hoveredId) || childNodes.find((n) => n.id === hoveredId);
+                if (!hoveredNode) return null;
+                const color =
+                  hoveredNode.isProject
+                    ? hoveredNode.color || DEFAULT_PROJECT_COLOR
+                    : tab === "snoozed"
+                    ? "#6B7A8C"
+                    : priorityColor[hoveredNode.effPriority];
               const latest =
                 hoveredNode.history && hoveredNode.history.length > 0
                   ? hoveredNode.history[hoveredNode.history.length - 1]
@@ -1810,7 +2631,8 @@ export default function PunchBubbles() {
                 </g>
               );
             })()}
-          </svg>
+            </svg>
+          </>
         ) : currentTab.view === "recurring" ? (
           <div>
             {activeTasks.map((rt) => {
@@ -3123,6 +3945,27 @@ export default function PunchBubbles() {
                     <Bot size={11} /> {copilotLoading ? "..." : "COPILOT"}
                   </button>
                 </div>
+
+                {selected.parentTaskId && (
+                  <button
+                    onClick={() => removeChildFromProject(selected.id)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 0",
+                      background: "transparent",
+                      color: "#6B7A8C",
+                      border: "1px solid #C9C0AC",
+                      borderRadius: 4,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 700,
+                      fontSize: 10.5,
+                      cursor: "pointer",
+                      marginBottom: 10,
+                    }}
+                  >
+                    REMOVE FROM PROJECT
+                  </button>
+                )}
 
                 {snoozeMenuOpen && (
                   <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
