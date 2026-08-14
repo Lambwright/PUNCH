@@ -160,6 +160,7 @@ const initialCategories = [
   "Sync",
   "Sales",
   "General",
+  "Project",
 ];
 const ESCALATION_ORDER = ["low", "normal", "high", "urgent"];
 const ESCALATE_EVERY_DAYS = 5; // one step up the ladder per this many days since last set
@@ -218,17 +219,18 @@ const priorityColor = {
 
 const priorityWeight = { urgent: 34, high: 24, normal: 15, low: 8 };
 
-// Curated palette for project bubbles — distinct from priorityColor (which carries
-// urgency meaning) and tuned to sit alongside the app's existing dark/brass aesthetic.
+// Curated palette for project bubbles — deliberately clear of priorityColor's hues
+// (red/orange/slate-gray/green) so a project's own color is never confused with a
+// child bubble's priority color at a glance.
 const PROJECT_COLORS = [
-  "#3E7C7C", // teal
-  "#5B6B9E", // indigo
-  "#7A5A7A", // plum
-  "#B5707A", // dusty rose
-  "#B8963E", // gold
-  "#A85C3F", // terracotta
-  "#6E8F5C", // sage
-  "#4A5D6B", // steel blue
+  "#1F8A8A", // teal
+  "#3A5FA0", // deep blue
+  "#6B4FA8", // indigo
+  "#A8478F", // magenta
+  "#C9A227", // mustard
+  "#7A5230", // umber
+  "#B8567A", // rose
+  "#7D5BA6", // lavender
 ];
 const DEFAULT_PROJECT_COLOR = PROJECT_COLORS[0];
 
@@ -237,8 +239,9 @@ function daysOpen(createdAt) {
 }
 
 function radiusFor(task, childCount) {
-  // Project bubbles size by how much they contain, not by priority/age.
-  if (task.isProject) return 40 + Math.min((childCount || 0) * 5, 50);
+  // Project bubbles size by how much they contain, not by priority/age — and
+  // keep growing with no early cap so a big project visibly reads as big.
+  if (task.isProject) return 40 + Math.min((childCount || 0) * 6, 140);
   const base = 22;
   const age = Math.min(daysOpen(task.createdAt) * 2.5, 22);
   return base + priorityWeight[effectivePriority(task)] * 0.6 + age;
@@ -393,6 +396,8 @@ export default function PunchBubbles() {
   const [draftProjectTitle, setDraftProjectTitle] = useState("");
   const [draftProjectDescription, setDraftProjectDescription] = useState("");
   const [deletingProjectConfirm, setDeletingProjectConfirm] = useState(false);
+  const [addTaskPanelOpen, setAddTaskPanelOpen] = useState(false);
+  const [addTaskMode, setAddTaskMode] = useState("existing"); // "existing" | "new" — inside an opened project
 
   const svgRef = useRef(null);
   const draggingId = useRef(null);
@@ -739,11 +744,14 @@ export default function PunchBubbles() {
     setDeletingProjectConfirm(false);
     setPickedChildIdx("");
     setAddPanelOpen(false);
+    setAddTaskPanelOpen(false);
+    setAddTaskMode("existing");
   }
 
   function closeProject() {
     setOpenedProjectId(null);
     setDeletingProjectConfirm(false);
+    setAddTaskPanelOpen(false);
   }
 
   function nestTaskIntoProject(taskId, projectId) {
@@ -1518,6 +1526,11 @@ export default function PunchBubbles() {
         @keyframes drift { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-4px); } }
         @keyframes rowIn { 0% { opacity: 0; transform: scale(0.9) translateY(-4px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .punch-hover-edit { transition: border-color .12s ease, background-color .12s ease; }
+        .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: #4A473F !important; background-color: #1E1C1A !important; }
+        .punch-color-hover { position: relative; }
+        .punch-color-popover { display: none; }
+        .punch-color-hover:hover .punch-color-popover { display: flex; }
       `}</style>
 
       {loading ? (
@@ -2151,302 +2164,415 @@ export default function PunchBubbles() {
               : "LIST CLEAR — nothing punched in."}
           </div>
         ) : currentTab.view === "bubbles" ? (
-          <>
+          <div style={{ position: "relative" }}>
             {openedProject && (
               <div
                 style={{
+                  position: "absolute",
+                  top: 10,
+                  left: 10,
+                  zIndex: 5,
+                  width: 250,
                   background: "#2A2724",
                   border: `1px solid ${openedProject.color || DEFAULT_PROJECT_COLOR}`,
-                  borderRadius: 4,
-                  padding: 14,
-                  marginBottom: 14,
+                  borderRadius: 6,
+                  padding: 10,
+                  boxShadow: "0 6px 20px rgba(0,0,0,0.45)",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <input
-                      value={draftProjectTitle}
-                      onChange={(e) => setDraftProjectTitle(e.target.value)}
-                      onBlur={saveProjectTitle}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          saveProjectTitle();
-                          e.target.blur();
-                        }
-                      }}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 6 }}>
+                  <div className="punch-color-hover" style={{ marginTop: 5, flexShrink: 0 }}>
+                    <div
                       style={{
-                        width: "100%",
-                        fontFamily: "'Inter', sans-serif",
-                        fontWeight: 700,
-                        fontSize: 16,
-                        color: "#F1ECE1",
-                        background: "transparent",
-                        border: "1px solid transparent",
-                        borderRadius: 3,
-                        padding: "2px 4px",
-                        marginLeft: -4,
-                        marginBottom: 4,
-                      }}
-                    />
-                    <textarea
-                      value={draftProjectDescription}
-                      onChange={(e) => setDraftProjectDescription(e.target.value)}
-                      onBlur={saveProjectDescription}
-                      placeholder="Description (optional)"
-                      rows={2}
-                      style={{
-                        width: "100%",
-                        fontFamily: "'Inter', sans-serif",
-                        fontSize: 12.5,
-                        color: "#B8B2A4",
-                        background: "transparent",
-                        border: "1px solid transparent",
-                        borderRadius: 3,
-                        padding: "2px 4px",
-                        marginLeft: -4,
-                        resize: "vertical",
-                      }}
-                    />
-                  </div>
-                  <button
-                    onClick={closeProject}
-                    style={{
-                      flexShrink: 0,
-                      padding: "6px 14px",
-                      background: "transparent",
-                      color: "#8B8680",
-                      border: "1px solid #3A3733",
-                      borderRadius: 4,
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontWeight: 700,
-                      fontSize: 11,
-                      cursor: "pointer",
-                    }}
-                  >
-                    ← BACK
-                  </button>
-                </div>
-
-                <div style={{ display: "flex", gap: 6, margin: "10px 0" }}>
-                  {PROJECT_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => saveProjectColor(c)}
-                      aria-label={`Set color ${c}`}
-                      style={{
-                        width: 20,
-                        height: 20,
+                        width: 14,
+                        height: 14,
                         borderRadius: "50%",
-                        background: c,
-                        border: (openedProject.color || DEFAULT_PROJECT_COLOR) === c ? "2px solid #F1ECE1" : "1px solid #3A3733",
+                        background: openedProject.color || DEFAULT_PROJECT_COLOR,
+                        border: "1px solid #F1ECE1",
                         cursor: "pointer",
-                        padding: 0,
                       }}
+                      title="Change color"
                     />
-                  ))}
-                </div>
-
-                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
-                  <select
-                    value={pickedChildIdx}
-                    onChange={(e) => setPickedChildIdx(e.target.value)}
+                    <div
+                      className="punch-color-popover"
+                      style={{
+                        position: "absolute",
+                        top: 20,
+                        left: 0,
+                        zIndex: 10,
+                        flexWrap: "wrap",
+                        gap: 4,
+                        width: 96,
+                        background: "#1E1C1A",
+                        border: "1px solid #3A3733",
+                        borderRadius: 4,
+                        padding: 6,
+                      }}
+                    >
+                      {PROJECT_COLORS.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => saveProjectColor(c)}
+                          aria-label={`Set color ${c}`}
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: "50%",
+                            background: c,
+                            border: (openedProject.color || DEFAULT_PROJECT_COLOR) === c ? "2px solid #F1ECE1" : "1px solid #3A3733",
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <input
+                    className="punch-hover-edit"
+                    value={draftProjectTitle}
+                    onChange={(e) => setDraftProjectTitle(e.target.value)}
+                    onBlur={saveProjectTitle}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        saveProjectTitle();
+                        e.target.blur();
+                      }
+                    }}
                     style={{
                       flex: 1,
-                      padding: 8,
-                      borderRadius: 4,
-                      border: "1px solid #4A473F",
-                      background: "#1E1C1A",
-                      color: "#F1ECE1",
+                      minWidth: 0,
                       fontFamily: "'Inter', sans-serif",
-                      fontSize: 12.5,
-                    }}
-                  >
-                    <option value="">+ Add existing task...</option>
-                    {tasks
-                      .filter((t) => t.status === "open" && t.list === "inbox" && !t.parentTaskId && !t.isProject)
-                      .map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.summary}
-                        </option>
-                      ))}
-                  </select>
-                  <button
-                    onClick={addExistingTaskToProject}
-                    disabled={!pickedChildIdx}
-                    style={{
-                      padding: "8px 16px",
-                      background: pickedChildIdx ? "#E2871A" : "#4A473F",
-                      color: "#1E1C1A",
-                      border: "none",
-                      borderRadius: 4,
-                      fontFamily: "'JetBrains Mono', monospace",
                       fontWeight: 700,
-                      fontSize: 11,
-                      cursor: pickedChildIdx ? "pointer" : "default",
+                      fontSize: 13.5,
+                      color: "#F1ECE1",
+                      background: "transparent",
+                      border: "1px solid transparent",
+                      borderRadius: 3,
+                      padding: "2px 4px",
+                    }}
+                  />
+                  <button
+                    onClick={closeProject}
+                    aria-label="Close"
+                    title="Back to board"
+                    style={{
+                      flexShrink: 0,
+                      background: "transparent",
+                      color: "#8B8680",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 15,
+                      lineHeight: 1,
+                      padding: 2,
                     }}
                   >
-                    ADD
+                    ×
                   </button>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <input
-                    value={manualText}
-                    onChange={(e) => setManualText(e.target.value)}
-                    placeholder="New task in this project..."
+                <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                  <select
+                    className="punch-hover-edit"
+                    value={openedProject.priority}
+                    onChange={(e) => saveProjectField("priority", "priority", e.target.value)}
                     style={{
-                      padding: 8,
-                      borderRadius: 4,
-                      border: "1px solid #4A473F",
-                      background: "#1E1C1A",
-                      color: "#F1ECE1",
-                      fontFamily: "'Inter', sans-serif",
-                      fontSize: 13,
+                      flex: 1,
+                      padding: "3px 5px",
+                      borderRadius: 3,
+                      border: "1px solid transparent",
+                      background: "transparent",
+                      color: priorityColor[openedProject.priority] || priorityColor.normal,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 700,
+                      fontSize: 10,
                     }}
-                  />
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <select
-                      value={manualCategory || "General"}
-                      onChange={(e) => setManualCategory(e.target.value)}
-                      style={{
-                        flex: 1,
-                        padding: 8,
-                        borderRadius: 4,
-                        border: "1px solid #4A473F",
-                        background: "#1E1C1A",
-                        color: "#F1ECE1",
-                        fontFamily: "'Inter', sans-serif",
-                        fontSize: 12.5,
-                      }}
-                    >
-                      {categories.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={manualPriority}
-                      onChange={(e) => setManualPriority(e.target.value)}
-                      style={{
-                        padding: 8,
-                        borderRadius: 4,
-                        border: `1px solid ${priorityColor[manualPriority]}`,
-                        background: "#1E1C1A",
-                        color: priorityColor[manualPriority],
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontWeight: 700,
-                        fontSize: 11,
-                      }}
-                    >
-                      {priorityOptions.map((p) => (
-                        <option key={p} value={p}>
-                          {p.toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input
-                      value={manualLink}
-                      onChange={(e) => setManualLink(e.target.value)}
-                      placeholder="Link (optional) — https://..."
-                      style={{
-                        flex: 1,
-                        padding: 8,
-                        borderRadius: 4,
-                        border: "1px solid #4A473F",
-                        background: "#1E1C1A",
-                        color: "#F1ECE1",
-                        fontFamily: "'Inter', sans-serif",
-                        fontSize: 12.5,
-                      }}
-                    />
-                    <input
-                      value={manualPerson}
-                      onChange={(e) => setManualPerson(e.target.value)}
-                      placeholder="Person (optional)"
-                      style={{
-                        width: 130,
-                        padding: 8,
-                        borderRadius: 4,
-                        border: "1px solid #4A473F",
-                        background: "#1E1C1A",
-                        color: "#F1ECE1",
-                        fontFamily: "'Inter', sans-serif",
-                        fontSize: 12.5,
-                      }}
-                    />
-                    <button
-                      onClick={() => addManualTask(openedProjectId)}
-                      style={{
-                        padding: "8px 20px",
-                        background: "#E2871A",
-                        color: "#1E1C1A",
-                        border: "none",
-                        borderRadius: 4,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontWeight: 700,
-                        fontSize: 11,
-                        cursor: "pointer",
-                      }}
-                    >
-                      ADD
-                    </button>
-                  </div>
+                  >
+                    {priorityOptions.map((p) => (
+                      <option key={p} value={p}>
+                        {p.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="punch-hover-edit"
+                    value={openedProject.category || "Project"}
+                    onChange={(e) => saveProjectField("category", "category", e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: "3px 5px",
+                      borderRadius: 3,
+                      border: "1px solid transparent",
+                      background: "transparent",
+                      color: "#B8B2A4",
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: 11,
+                    }}
+                  >
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                <textarea
+                  className="punch-hover-edit"
+                  value={draftProjectDescription}
+                  onChange={(e) => setDraftProjectDescription(e.target.value)}
+                  onBlur={saveProjectDescription}
+                  placeholder="Description (optional)"
+                  rows={2}
+                  style={{
+                    width: "100%",
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 11.5,
+                    color: "#B8B2A4",
+                    background: "transparent",
+                    border: "1px solid transparent",
+                    borderRadius: 3,
+                    padding: "2px 4px",
+                    marginBottom: 8,
+                    resize: "vertical",
+                    boxSizing: "border-box",
+                  }}
+                />
+
+                <div
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 9.5,
+                    fontWeight: 700,
+                    color: "#6B7A8C",
+                    marginBottom: 8,
+                  }}
+                >
+                  {projectChildren.length} ITEM{projectChildren.length === 1 ? "" : "S"}
+                </div>
+
+                <button
+                  onClick={() => setAddTaskPanelOpen((v) => !v)}
+                  style={{
+                    width: "100%",
+                    padding: "6px 0",
+                    background: addTaskPanelOpen ? "#F1ECE1" : "transparent",
+                    color: addTaskPanelOpen ? "#1E1C1A" : "#E2871A",
+                    border: "1px solid #E2871A",
+                    borderRadius: 4,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontWeight: 700,
+                    fontSize: 10.5,
+                    cursor: "pointer",
+                  }}
+                >
+                  + ADD TASK
+                </button>
+
+                {addTaskPanelOpen && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                      {["existing", "new"].map((mode) => (
+                        <button
+                          key={mode}
+                          onClick={() => setAddTaskMode(mode)}
+                          style={{
+                            flex: 1,
+                            padding: "4px 0",
+                            background: addTaskMode === mode ? "#E2871A" : "transparent",
+                            color: addTaskMode === mode ? "#1E1C1A" : "#8B8680",
+                            border: `1px solid ${addTaskMode === mode ? "#E2871A" : "#3A3733"}`,
+                            borderRadius: 4,
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontWeight: 700,
+                            fontSize: 9,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {mode === "existing" ? "EXISTING" : "NEW"}
+                        </button>
+                      ))}
+                    </div>
+
+                    {addTaskMode === "existing" ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <select
+                          value={pickedChildIdx}
+                          onChange={(e) => setPickedChildIdx(e.target.value)}
+                          style={{
+                            padding: 6,
+                            borderRadius: 4,
+                            border: "1px solid #4A473F",
+                            background: "#1E1C1A",
+                            color: "#F1ECE1",
+                            fontFamily: "'Inter', sans-serif",
+                            fontSize: 11.5,
+                          }}
+                        >
+                          <option value="">Pick a task...</option>
+                          {tasks
+                            .filter((t) => t.status === "open" && t.list === "inbox" && !t.parentTaskId && !t.isProject)
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.summary}
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          onClick={() => {
+                            addExistingTaskToProject();
+                            setAddTaskPanelOpen(false);
+                          }}
+                          disabled={!pickedChildIdx}
+                          style={{
+                            padding: "7px 0",
+                            background: pickedChildIdx ? "#E2871A" : "#4A473F",
+                            color: "#1E1C1A",
+                            border: "none",
+                            borderRadius: 4,
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontWeight: 700,
+                            fontSize: 10.5,
+                            cursor: pickedChildIdx ? "pointer" : "default",
+                          }}
+                        >
+                          ADD
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <input
+                          value={manualText}
+                          onChange={(e) => setManualText(e.target.value)}
+                          placeholder="Task description..."
+                          style={{
+                            padding: 6,
+                            borderRadius: 4,
+                            border: "1px solid #4A473F",
+                            background: "#1E1C1A",
+                            color: "#F1ECE1",
+                            fontFamily: "'Inter', sans-serif",
+                            fontSize: 11.5,
+                          }}
+                        />
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <select
+                            value={manualCategory || "General"}
+                            onChange={(e) => setManualCategory(e.target.value)}
+                            style={{
+                              flex: 1,
+                              padding: 6,
+                              borderRadius: 4,
+                              border: "1px solid #4A473F",
+                              background: "#1E1C1A",
+                              color: "#F1ECE1",
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: 11,
+                            }}
+                          >
+                            {categories.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={manualPriority}
+                            onChange={(e) => setManualPriority(e.target.value)}
+                            style={{
+                              padding: 6,
+                              borderRadius: 4,
+                              border: `1px solid ${priorityColor[manualPriority]}`,
+                              background: "#1E1C1A",
+                              color: priorityColor[manualPriority],
+                              fontFamily: "'JetBrains Mono', monospace",
+                              fontWeight: 700,
+                              fontSize: 10,
+                            }}
+                          >
+                            {priorityOptions.map((p) => (
+                              <option key={p} value={p}>
+                                {p.toUpperCase()}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          onClick={() => {
+                            addManualTask(openedProjectId);
+                            setAddTaskPanelOpen(false);
+                          }}
+                          style={{
+                            padding: "7px 0",
+                            background: "#E2871A",
+                            color: "#1E1C1A",
+                            border: "none",
+                            borderRadius: 4,
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontWeight: 700,
+                            fontSize: 10.5,
+                            cursor: "pointer",
+                          }}
+                        >
+                          ADD
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ marginTop: 10, textAlign: "right" }}>
                   {deletingProjectConfirm ? (
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <span style={{ fontSize: 11, color: "#C1401C", fontFamily: "'Inter', sans-serif" }}>
-                        Delete project? Tasks inside just get un-nested, not deleted.
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                      <span style={{ fontSize: 10, color: "#C1401C", fontFamily: "'Inter', sans-serif" }}>
+                        Delete project? Tasks inside just get un-nested.
                       </span>
-                      <button
-                        onClick={deleteProject}
-                        style={{
-                          padding: "6px 12px",
-                          background: "#C1401C",
-                          color: "#F1ECE1",
-                          border: "none",
-                          borderRadius: 4,
-                          fontFamily: "'JetBrains Mono', monospace",
-                          fontWeight: 700,
-                          fontSize: 10.5,
-                          cursor: "pointer",
-                        }}
-                      >
-                        CONFIRM DELETE
-                      </button>
-                      <button
-                        onClick={() => setDeletingProjectConfirm(false)}
-                        style={{
-                          padding: "6px 12px",
-                          background: "transparent",
-                          color: "#8B8680",
-                          border: "1px solid #3A3733",
-                          borderRadius: 4,
-                          fontFamily: "'JetBrains Mono', monospace",
-                          fontWeight: 700,
-                          fontSize: 10.5,
-                          cursor: "pointer",
-                        }}
-                      >
-                        CANCEL
-                      </button>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          onClick={deleteProject}
+                          style={{
+                            padding: "5px 10px",
+                            background: "#C1401C",
+                            color: "#F1ECE1",
+                            border: "none",
+                            borderRadius: 4,
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontWeight: 700,
+                            fontSize: 9.5,
+                            cursor: "pointer",
+                          }}
+                        >
+                          CONFIRM
+                        </button>
+                        <button
+                          onClick={() => setDeletingProjectConfirm(false)}
+                          style={{
+                            padding: "5px 10px",
+                            background: "transparent",
+                            color: "#8B8680",
+                            border: "1px solid #3A3733",
+                            borderRadius: 4,
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontWeight: 700,
+                            fontSize: 9.5,
+                            cursor: "pointer",
+                          }}
+                        >
+                          CANCEL
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
                       onClick={() => setDeletingProjectConfirm(true)}
                       style={{
-                        padding: "6px 12px",
+                        padding: "4px 8px",
                         background: "transparent",
                         color: "#8A5A4A",
                         border: "1px solid #3A3733",
                         borderRadius: 4,
                         fontFamily: "'JetBrains Mono', monospace",
                         fontWeight: 700,
-                        fontSize: 10.5,
+                        fontSize: 9.5,
                         cursor: "pointer",
                       }}
                     >
@@ -2534,8 +2660,10 @@ export default function PunchBubbles() {
                     : tab === "snoozed"
                     ? "#6B7A8C"
                     : priorityColor[hoveredNode.effPriority];
+              // Projects don't need a change-history line in their tooltip — the
+              // preview dots already communicate "what's inside."
               const latest =
-                hoveredNode.history && hoveredNode.history.length > 0
+                !hoveredNode.isProject && hoveredNode.history && hoveredNode.history.length > 0
                   ? hoveredNode.history[hoveredNode.history.length - 1]
                   : null;
               return (
@@ -2599,17 +2727,26 @@ export default function PunchBubbles() {
                           marginBottom: latest ? 6 : 0,
                         }}
                       >
-                        <span>{(hoveredNode.source || "unknown").toUpperCase()}</span>
-                        <span>·</span>
-                        <span>{hoveredNode.person ? hoveredNode.person.toUpperCase() : "UNKNOWN SENDER"}</span>
-                        <span>·</span>
-                        <span>
-                          {hoveredNode.createdAt
-                            ? new Date(hoveredNode.createdAt).toLocaleDateString([], {
-                                dateStyle: "medium",
-                              })
-                            : "UNKNOWN DATE"}
-                        </span>
+                        {/* Manual tasks have no real sender — omit the field entirely
+                            rather than showing a hollow "UNKNOWN SENDER" fallback. */}
+                        {[
+                          (hoveredNode.source || "unknown").toUpperCase(),
+                          hoveredNode.person
+                            ? hoveredNode.person.toUpperCase()
+                            : hoveredNode.source === "manual"
+                            ? null
+                            : "UNKNOWN SENDER",
+                          hoveredNode.createdAt
+                            ? new Date(hoveredNode.createdAt).toLocaleDateString([], { dateStyle: "medium" })
+                            : "UNKNOWN DATE",
+                        ]
+                          .filter(Boolean)
+                          .map((part, i, arr) => (
+                            <React.Fragment key={i}>
+                              <span>{part}</span>
+                              {i < arr.length - 1 && <span>·</span>}
+                            </React.Fragment>
+                          ))}
                       </div>
                       {latest && (
                         <div
@@ -2632,7 +2769,7 @@ export default function PunchBubbles() {
               );
             })()}
             </svg>
-          </>
+          </div>
         ) : currentTab.view === "recurring" ? (
           <div>
             {activeTasks.map((rt) => {
