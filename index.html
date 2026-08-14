@@ -584,9 +584,12 @@ function PunchBubbles() {
     });
     if (hasNew) persistPositions({ ...known, ...additions });
   }, [settledNodes]);
-  const nodes = settledNodes.map(
-    (n) => positions[n.id] ? { ...n, x: positions[n.id].x, y: positions[n.id].y } : n
-  );
+  const nodes = settledNodes.map((n) => {
+    if (!positions[n.id]) return n;
+    const x = Math.max(n.r + 4, Math.min(WIDTH2 - n.r - 4, positions[n.id].x));
+    const y = Math.max(n.r + 4, Math.min(HEIGHT2 - n.r - 4, positions[n.id].y));
+    return { ...n, x, y };
+  });
   const PROJECT_RING_RADIUS = Math.min(WIDTH2, HEIGHT2) / 2 - 30;
   const openedProject = openedProjectId ? tasks.find((t) => t.id === openedProjectId) : null;
   const projectChildren = openedProjectId ? tasks.filter((t) => t.parentTaskId === openedProjectId && t.status === "open") : [];
@@ -636,9 +639,17 @@ function PunchBubbles() {
     }
   }, [settledChildNodes, openedProjectId]);
   const childPositionsForOpen = openedProjectId ? projectPositions[openedProjectId] || {} : {};
-  const childNodes = settledChildNodes.map(
-    (n) => childPositionsForOpen[n.id] ? { ...n, x: childPositionsForOpen[n.id].x, y: childPositionsForOpen[n.id].y } : n
-  );
+  const childNodes = settledChildNodes.map((n) => {
+    const saved = childPositionsForOpen[n.id];
+    if (!saved) return n;
+    const dx = saved.x - WIDTH2 / 2;
+    const dy = saved.y - HEIGHT2 / 2;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const maxDist = PROJECT_RING_RADIUS - n.r - 6;
+    if (dist <= maxDist || dist === 0) return { ...n, x: saved.x, y: saved.y };
+    const scale = maxDist / dist;
+    return { ...n, x: WIDTH2 / 2 + dx * scale, y: HEIGHT2 / 2 + dy * scale };
+  });
   function openProject(id) {
     const proj = tasks.find((t) => t.id === id);
     setOpenedProjectId(id);
