@@ -236,6 +236,9 @@ const DEFAULT_PROJECT_COLOR = PROJECT_COLORS[0];
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 864e5));
 }
+function formatDateTime(dateStr) {
+  return new Date(dateStr).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
 function radiusFor(task, childCount) {
   if (task.isProject) return 40 + Math.min((childCount || 0) * 6, 140);
   const base = 22;
@@ -345,6 +348,7 @@ function PunchBubbles() {
   const [copilotSuggestions, setCopilotSuggestions] = useState(null);
   const [pickedSuggestion, setPickedSuggestion] = useState(null);
   const [deletingConfirm, setDeletingConfirm] = useState(false);
+  const [resolvingConfirm, setResolvingConfirm] = useState(false);
   const [snoozeMenuOpen, setSnoozeMenuOpen] = useState(false);
   const [editingLink, setEditingLink] = useState(false);
   const [draftSourceUrl, setDraftSourceUrl] = useState("");
@@ -939,6 +943,7 @@ function PunchBubbles() {
     setPickedSuggestion(null);
     setAddingCategory(false);
     setDeletingConfirm(false);
+    setResolvingConfirm(false);
     setSnoozeMenuOpen(false);
     setEditingLink(false);
     setDraftSourceUrl(task.sourceUrl || "");
@@ -1839,7 +1844,7 @@ function PunchBubbles() {
             marginBottom: 8
           }
         },
-        new Date(d.created_at).toLocaleDateString()
+        formatDateTime(d.created_at)
       ),
       /* @__PURE__ */ React.createElement(
         "div",
@@ -2401,7 +2406,7 @@ function PunchBubbles() {
               [
                 (hoveredNode.source || "unknown").toUpperCase(),
                 hoveredNode.person ? hoveredNode.person.toUpperCase() : hoveredNode.source === "manual" ? null : "UNKNOWN SENDER",
-                hoveredNode.createdAt ? new Date(hoveredNode.createdAt).toLocaleDateString([], { dateStyle: "medium" }) : "UNKNOWN DATE"
+                hoveredNode.createdAt ? formatDateTime(hoveredNode.createdAt) : "UNKNOWN DATE"
               ].filter(Boolean).map((part, i, arr) => /* @__PURE__ */ React.createElement(React.Fragment, { key: i }, /* @__PURE__ */ React.createElement("span", null, part), i < arr.length - 1 && /* @__PURE__ */ React.createElement("span", null, "\xB7")))
             ),
             latest && /* @__PURE__ */ React.createElement(
@@ -2415,7 +2420,7 @@ function PunchBubbles() {
                   paddingTop: 4
                 }
               },
-              new Date(latest.at).toLocaleDateString(),
+              formatDateTime(latest.at),
               " \xB7 ",
               latest.type.replace("_", " ").toUpperCase(),
               ": ",
@@ -2687,7 +2692,7 @@ function PunchBubbles() {
                 marginBottom: 2
               }
             },
-            new Date(ev.at).toLocaleDateString(),
+            formatDateTime(ev.at),
             " \xB7 ",
             ev.type.replace("_", " ").toUpperCase()
           ),
@@ -2771,7 +2776,7 @@ function PunchBubbles() {
               lineHeight: 1.4
             }
           },
-          new Date(getLatestActionableEvent(selected.history).at).toLocaleDateString(),
+          formatDateTime(getLatestActionableEvent(selected.history).at),
           " \xB7 ",
           getLatestActionableEvent(selected.history).type.replace("_", " ").toUpperCase(),
           ": ",
@@ -3111,7 +3116,7 @@ function PunchBubbles() {
               lineHeight: 1.4
             }
           },
-          new Date(getLatestActionableEvent(selected.history).at).toLocaleDateString(),
+          formatDateTime(getLatestActionableEvent(selected.history).at),
           " \xB7 ",
           getLatestActionableEvent(selected.history).type.replace("_", " ").toUpperCase(),
           ": ",
@@ -3594,10 +3599,49 @@ function PunchBubbles() {
               marginBottom: 10
             }
           }
+        ), resolvingConfirm ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => {
+              resolveTask();
+              setResolvingConfirm(false);
+            },
+            style: {
+              flex: 1,
+              padding: "10px 0",
+              background: "#5B8C5A",
+              color: "#F1ECE1",
+              border: "none",
+              borderRadius: 4,
+              fontFamily: "'JetBrains Mono', monospace",
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: "pointer"
+            }
+          },
+          "YES, RESOLVE"
         ), /* @__PURE__ */ React.createElement(
           "button",
           {
-            onClick: resolveTask,
+            onClick: () => setResolvingConfirm(false),
+            style: {
+              flex: 1,
+              padding: "10px 0",
+              background: "transparent",
+              color: "#8A8375",
+              border: "1px solid #C9C0AC",
+              borderRadius: 4,
+              fontFamily: "'JetBrains Mono', monospace",
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: "pointer"
+            }
+          },
+          "CANCEL"
+        )) : /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: () => setResolvingConfirm(true),
             style: {
               width: "100%",
               padding: "10px 0",
