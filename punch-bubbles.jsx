@@ -238,6 +238,12 @@ function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 86400000));
 }
 
+// "When did this actually happen" stamps (history events, creation dates) show
+// the time alongside the date — same-day events were otherwise indistinguishable.
+function formatDateTime(dateStr) {
+  return new Date(dateStr).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
 function radiusFor(task, childCount) {
   // Project bubbles size by how much they contain, not by priority/age — and
   // keep growing with no early cap so a big project visibly reads as big.
@@ -368,6 +374,7 @@ export default function PunchBubbles() {
   const [copilotSuggestions, setCopilotSuggestions] = useState(null);
   const [pickedSuggestion, setPickedSuggestion] = useState(null);
   const [deletingConfirm, setDeletingConfirm] = useState(false);
+  const [resolvingConfirm, setResolvingConfirm] = useState(false);
   const [snoozeMenuOpen, setSnoozeMenuOpen] = useState(false);
   const [editingLink, setEditingLink] = useState(false);
   const [draftSourceUrl, setDraftSourceUrl] = useState("");
@@ -1091,6 +1098,7 @@ export default function PunchBubbles() {
     setPickedSuggestion(null);
     setAddingCategory(false);
     setDeletingConfirm(false);
+    setResolvingConfirm(false);
     setSnoozeMenuOpen(false);
     setEditingLink(false);
     setDraftSourceUrl(task.sourceUrl || "");
@@ -2092,7 +2100,7 @@ export default function PunchBubbles() {
                       marginBottom: 8,
                     }}
                   >
-                    {new Date(d.created_at).toLocaleDateString()}
+                    {formatDateTime(d.created_at)}
                   </div>
                   <div
                     style={{
@@ -2737,7 +2745,7 @@ export default function PunchBubbles() {
                             ? null
                             : "UNKNOWN SENDER",
                           hoveredNode.createdAt
-                            ? new Date(hoveredNode.createdAt).toLocaleDateString([], { dateStyle: "medium" })
+                            ? formatDateTime(hoveredNode.createdAt)
                             : "UNKNOWN DATE",
                         ]
                           .filter(Boolean)
@@ -2758,7 +2766,7 @@ export default function PunchBubbles() {
                             paddingTop: 4,
                           }}
                         >
-                          {new Date(latest.at).toLocaleDateString()} · {latest.type.replace("_", " ").toUpperCase()}
+                          {formatDateTime(latest.at)} · {latest.type.replace("_", " ").toUpperCase()}
                           {": "}
                           {latest.text.length > 60 ? latest.text.slice(0, 60) + "…" : latest.text}
                         </div>
@@ -3028,7 +3036,7 @@ export default function PunchBubbles() {
                         marginBottom: 2,
                       }}
                     >
-                      {new Date(ev.at).toLocaleDateString()} · {ev.type.replace("_", " ").toUpperCase()}
+                      {formatDateTime(ev.at)} · {ev.type.replace("_", " ").toUpperCase()}
                     </div>
                     <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "#2A2419" }}>
                       {ev.text}
@@ -3114,7 +3122,7 @@ export default function PunchBubbles() {
                           lineHeight: 1.4,
                         }}
                       >
-                        {new Date(getLatestActionableEvent(selected.history).at).toLocaleDateString()}
+                        {formatDateTime(getLatestActionableEvent(selected.history).at)}
                         {" · "}
                         {getLatestActionableEvent(selected.history).type.replace("_", " ").toUpperCase()}
                         {": "}
@@ -3482,7 +3490,7 @@ export default function PunchBubbles() {
                   lineHeight: 1.4,
                 }}
               >
-                {new Date(getLatestActionableEvent(selected.history).at).toLocaleDateString()}
+                {formatDateTime(getLatestActionableEvent(selected.history).at)}
                 {" · "}
                 {getLatestActionableEvent(selected.history).type.replace("_", " ").toUpperCase()}
                 {": "}
@@ -3967,29 +3975,71 @@ export default function PunchBubbles() {
                   }}
                 />
 
-                <button
-                  onClick={resolveTask}
-                  style={{
-                    width: "100%",
-                    padding: "10px 0",
-                    background: "#5B8C5A",
-                    color: "#F1ECE1",
-                    border: "none",
-                    borderRadius: 4,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontWeight: 700,
-                    fontSize: 12.5,
-                    letterSpacing: "0.04em",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 6,
-                    marginBottom: 10,
-                  }}
-                >
-                  <Check size={14} strokeWidth={3} /> MARK RESOLVED
-                </button>
+                {resolvingConfirm ? (
+                  <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                    <button
+                      onClick={() => {
+                        resolveTask();
+                        setResolvingConfirm(false);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "10px 0",
+                        background: "#5B8C5A",
+                        color: "#F1ECE1",
+                        border: "none",
+                        borderRadius: 4,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700,
+                        fontSize: 12,
+                        cursor: "pointer",
+                      }}
+                    >
+                      YES, RESOLVE
+                    </button>
+                    <button
+                      onClick={() => setResolvingConfirm(false)}
+                      style={{
+                        flex: 1,
+                        padding: "10px 0",
+                        background: "transparent",
+                        color: "#8A8375",
+                        border: "1px solid #C9C0AC",
+                        borderRadius: 4,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700,
+                        fontSize: 12,
+                        cursor: "pointer",
+                      }}
+                    >
+                      CANCEL
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setResolvingConfirm(true)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 0",
+                      background: "#5B8C5A",
+                      color: "#F1ECE1",
+                      border: "none",
+                      borderRadius: 4,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontWeight: 700,
+                      fontSize: 12.5,
+                      letterSpacing: "0.04em",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <Check size={14} strokeWidth={3} /> MARK RESOLVED
+                  </button>
+                )}
 
                 <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
                   <button
