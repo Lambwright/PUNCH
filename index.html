@@ -434,6 +434,8 @@ function PunchBubbles() {
   const [pickedSuggestion, setPickedSuggestion] = useState(null);
   const [deletingConfirm, setDeletingConfirm] = useState(false);
   const [snoozeMenuOpen, setSnoozeMenuOpen] = useState(false);
+  const [editingLink, setEditingLink] = useState(false);
+  const [draftSourceUrl, setDraftSourceUrl] = useState("");
   const [forceCompleteConfirm, setForceCompleteConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
   const [recurName, setRecurName] = useState("");
@@ -713,6 +715,8 @@ function PunchBubbles() {
     setAddingCategory(false);
     setDeletingConfirm(false);
     setSnoozeMenuOpen(false);
+    setEditingLink(false);
+    setDraftSourceUrl(task.sourceUrl || "");
     setForceCompleteConfirm(false);
     setDeleteReason("");
     setModalTab("details");
@@ -731,6 +735,25 @@ function PunchBubbles() {
       category: value
     }));
     pushHistory(selected.id, "category_changed", `Category changed to "${value}"`);
+  }
+  function saveSourceUrl() {
+    const trimmed = draftSourceUrl.trim();
+    if (trimmed === (selected.sourceUrl || "")) {
+      setEditingLink(false);
+      return;
+    }
+    updateStore(selected.id, t => ({
+      ...t,
+      sourceUrl: trimmed || null
+    }));
+    setSelected(prev => ({
+      ...prev,
+      sourceUrl: trimmed || null
+    }));
+    persist(apiPatch(`/tasks/${selected.id}`, {
+      source_url: trimmed || null
+    }));
+    setEditingLink(false);
   }
   function addNewCategory() {
     const trimmed = newCategoryText.trim();
@@ -995,14 +1018,17 @@ function PunchBubbles() {
     setSelected(null);
   }
   function reactivateTask() {
-    pushHistory(selected.id, "reactivated", "Brought back from snoozed");
-    persist(apiPatch(`/tasks/${selected.id}`, {
-      status: "open"
-    }));
+    const event = historyEvent("reactivated", "Brought back from snoozed");
+    const newHistory = [...(selected.history || []), event];
     setTasks(prev => prev.map(t => t.id === selected.id ? {
       ...t,
-      status: "open"
+      status: "open",
+      history: newHistory
     } : t));
+    persist(apiPatch(`/tasks/${selected.id}`, {
+      status: "open",
+      history: newHistory
+    }));
     setSelected(null);
   }
   function nextTicketNumber() {
@@ -2473,7 +2499,59 @@ function PunchBubbles() {
       fontWeight: 700,
       padding: "0 4px"
     }
-  }, "+"))), selected.sourceUrl && /*#__PURE__*/React.createElement("a", {
+  }, "+"))), editingLink ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    autoFocus: true,
+    value: draftSourceUrl,
+    onChange: e => setDraftSourceUrl(e.target.value),
+    onKeyDown: e => e.key === "Enter" && saveSourceUrl(),
+    placeholder: "https://...",
+    style: {
+      flex: 1,
+      padding: 8,
+      borderRadius: 4,
+      border: "1px solid #C9C0AC",
+      background: "#FBF9F4",
+      fontFamily: "'Inter', sans-serif",
+      fontSize: 13
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: saveSourceUrl,
+    style: {
+      background: "#5B8C5A",
+      color: "#F1ECE1",
+      border: "none",
+      borderRadius: 4,
+      padding: "0 12px",
+      fontFamily: "'JetBrains Mono', monospace",
+      fontWeight: 700,
+      fontSize: 10,
+      cursor: "pointer"
+    }
+  }, "SAVE"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditingLink(false),
+    style: {
+      background: "transparent",
+      color: "#8A8375",
+      border: "1px solid #C9C0AC",
+      borderRadius: 4,
+      padding: "0 10px",
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 10,
+      cursor: "pointer"
+    }
+  }, "X")) : selected.sourceUrl ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("a", {
     href: selected.sourceUrl,
     target: "_blank",
     rel: "noreferrer",
@@ -2482,9 +2560,8 @@ function PunchBubbles() {
       alignItems: "center",
       justifyContent: "center",
       gap: 6,
-      width: "100%",
+      flex: 1,
       padding: "8px 0",
-      marginBottom: 18,
       background: "#E9E2D2",
       border: "1px solid #C9C0AC",
       borderRadius: 4,
@@ -2496,11 +2573,41 @@ function PunchBubbles() {
     }
   }, /*#__PURE__*/React.createElement(LinkIcon, {
     size: 12
-  }), " OPEN SOURCE RECORD"), !selected.sourceUrl && /*#__PURE__*/React.createElement("div", {
+  }), " OPEN SOURCE RECORD"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditingLink(true),
+    title: "Edit link",
     style: {
-      marginBottom: 4
+      background: "transparent",
+      border: "1px solid #C9C0AC",
+      borderRadius: 4,
+      padding: "0 10px",
+      color: "#8A8375",
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 10,
+      cursor: "pointer"
     }
-  }), selected.checklist && /*#__PURE__*/React.createElement("div", {
+  }, "EDIT")) : /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditingLink(true),
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      width: "100%",
+      padding: "8px 0",
+      marginBottom: 18,
+      background: "transparent",
+      border: "1px dashed #C9C0AC",
+      borderRadius: 4,
+      fontFamily: "'JetBrains Mono', monospace",
+      fontWeight: 700,
+      fontSize: 11,
+      color: "#8A8375",
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement(LinkIcon, {
+    size: 12
+  }), " ADD LINK"), selected.checklist && /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: 18,
       paddingBottom: 16,
