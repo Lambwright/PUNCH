@@ -671,9 +671,17 @@ export default function PunchBubbles() {
   // Live overlay: settledNodes is memoized (only recomputes when the task set
   // changes, for performance), but a drag needs to render every single move —
   // this merges the current positions store on top so dragging is instant.
-  const nodes = settledNodes.map((n) =>
-    positions[n.id] ? { ...n, x: positions[n.id].x, y: positions[n.id].y } : n
-  );
+  // Stored positions are raw canvas pixels — if WIDTH/HEIGHT changed since they were
+  // saved (browser zoom changes window.innerWidth/innerHeight, which computeCanvasSize
+  // feeds straight into WIDTH/HEIGHT), a saved position can now sit outside the current
+  // canvas. settledNodes already re-clamps on recompute, but this overlay was blindly
+  // preferring the stale stored value over that — re-clamp here too.
+  const nodes = settledNodes.map((n) => {
+    if (!positions[n.id]) return n;
+    const x = Math.max(n.r + 4, Math.min(WIDTH - n.r - 4, positions[n.id].x));
+    const y = Math.max(n.r + 4, Math.min(HEIGHT - n.r - 4, positions[n.id].y));
+    return { ...n, x, y };
+  });
 
   // --- Opened project: children + their own one-shot physics, mirroring the
   // board's settledNodes/nodes pattern above but bounded to a circle instead
@@ -739,9 +747,20 @@ export default function PunchBubbles() {
   }, [settledChildNodes, openedProjectId]);
 
   const childPositionsForOpen = openedProjectId ? projectPositions[openedProjectId] || {} : {};
-  const childNodes = settledChildNodes.map((n) =>
-    childPositionsForOpen[n.id] ? { ...n, x: childPositionsForOpen[n.id].x, y: childPositionsForOpen[n.id].y } : n
-  );
+  // Same fix as the board's `nodes` overlay above, but clamped to the ring instead of
+  // the rectangle — this is what was actually letting children drift outside the
+  // project's circle after a zoom change instead of just near a rectangular edge.
+  const childNodes = settledChildNodes.map((n) => {
+    const saved = childPositionsForOpen[n.id];
+    if (!saved) return n;
+    const dx = saved.x - WIDTH / 2;
+    const dy = saved.y - HEIGHT / 2;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const maxDist = PROJECT_RING_RADIUS - n.r - 6;
+    if (dist <= maxDist || dist === 0) return { ...n, x: saved.x, y: saved.y };
+    const scale = maxDist / dist;
+    return { ...n, x: WIDTH / 2 + dx * scale, y: HEIGHT / 2 + dy * scale };
+  });
 
   function openProject(id) {
     const proj = tasks.find((t) => t.id === id);
