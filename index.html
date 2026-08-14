@@ -167,7 +167,8 @@ const initialCategories = [
   "Portfolio",
   "Sync",
   "Sales",
-  "General"
+  "General",
+  "Project"
 ];
 const ESCALATION_ORDER = ["low", "normal", "high", "urgent"];
 const ESCALATE_EVERY_DAYS = 5;
@@ -214,29 +215,29 @@ const priorityColor = {
 };
 const priorityWeight = { urgent: 34, high: 24, normal: 15, low: 8 };
 const PROJECT_COLORS = [
-  "#3E7C7C",
+  "#1F8A8A",
   // teal
-  "#5B6B9E",
+  "#3A5FA0",
+  // deep blue
+  "#6B4FA8",
   // indigo
-  "#7A5A7A",
-  // plum
-  "#B5707A",
-  // dusty rose
-  "#B8963E",
-  // gold
-  "#A85C3F",
-  // terracotta
-  "#6E8F5C",
-  // sage
-  "#4A5D6B"
-  // steel blue
+  "#A8478F",
+  // magenta
+  "#C9A227",
+  // mustard
+  "#7A5230",
+  // umber
+  "#B8567A",
+  // rose
+  "#7D5BA6"
+  // lavender
 ];
 const DEFAULT_PROJECT_COLOR = PROJECT_COLORS[0];
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 864e5));
 }
 function radiusFor(task, childCount) {
-  if (task.isProject) return 40 + Math.min((childCount || 0) * 5, 50);
+  if (task.isProject) return 40 + Math.min((childCount || 0) * 6, 140);
   const base = 22;
   const age = Math.min(daysOpen(task.createdAt) * 2.5, 22);
   return base + priorityWeight[effectivePriority(task)] * 0.6 + age;
@@ -368,6 +369,8 @@ function PunchBubbles() {
   const [draftProjectTitle, setDraftProjectTitle] = useState("");
   const [draftProjectDescription, setDraftProjectDescription] = useState("");
   const [deletingProjectConfirm, setDeletingProjectConfirm] = useState(false);
+  const [addTaskPanelOpen, setAddTaskPanelOpen] = useState(false);
+  const [addTaskMode, setAddTaskMode] = useState("existing");
   const svgRef = useRef(null);
   const draggingId = useRef(null);
   const dragMoved = useRef(false);
@@ -640,10 +643,13 @@ function PunchBubbles() {
     setDeletingProjectConfirm(false);
     setPickedChildIdx("");
     setAddPanelOpen(false);
+    setAddTaskPanelOpen(false);
+    setAddTaskMode("existing");
   }
   function closeProject() {
     setOpenedProjectId(null);
     setDeletingProjectConfirm(false);
+    setAddTaskPanelOpen(false);
   }
   function nestTaskIntoProject(taskId, projectId) {
     setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, parentTaskId: projectId } : t));
@@ -1317,6 +1323,11 @@ function PunchBubbles() {
         @keyframes drift { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-4px); } }
         @keyframes rowIn { 0% { opacity: 0; transform: scale(0.9) translateY(-4px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .punch-hover-edit { transition: border-color .12s ease, background-color .12s ease; }
+        .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: #4A473F !important; background-color: #1E1C1A !important; }
+        .punch-color-hover { position: relative; }
+        .punch-color-popover { display: none; }
+        .punch-color-hover:hover .punch-color-popover { display: flex; }
       `),
     loading ? /* @__PURE__ */ React.createElement(
       "div",
@@ -1888,20 +1899,74 @@ function PunchBubbles() {
         }
       },
       tab === "snoozed" ? "Nothing deferred right now." : tab === "recurring" ? "No recurring tasks set up yet." : "LIST CLEAR \u2014 nothing punched in."
-    ) : currentTab.view === "bubbles" ? /* @__PURE__ */ React.createElement(React.Fragment, null, openedProject && /* @__PURE__ */ React.createElement(
+    ) : currentTab.view === "bubbles" ? /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, openedProject && /* @__PURE__ */ React.createElement(
       "div",
       {
         style: {
+          position: "absolute",
+          top: 10,
+          left: 10,
+          zIndex: 5,
+          width: 250,
           background: "#2A2724",
           border: `1px solid ${openedProject.color || DEFAULT_PROJECT_COLOR}`,
-          borderRadius: 4,
-          padding: 14,
-          marginBottom: 14
+          borderRadius: 6,
+          padding: 10,
+          boxShadow: "0 6px 20px rgba(0,0,0,0.45)"
         }
       },
-      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement(
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 6 } }, /* @__PURE__ */ React.createElement("div", { className: "punch-color-hover", style: { marginTop: 5, flexShrink: 0 } }, /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          style: {
+            width: 14,
+            height: 14,
+            borderRadius: "50%",
+            background: openedProject.color || DEFAULT_PROJECT_COLOR,
+            border: "1px solid #F1ECE1",
+            cursor: "pointer"
+          },
+          title: "Change color"
+        }
+      ), /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          className: "punch-color-popover",
+          style: {
+            position: "absolute",
+            top: 20,
+            left: 0,
+            zIndex: 10,
+            flexWrap: "wrap",
+            gap: 4,
+            width: 96,
+            background: "#1E1C1A",
+            border: "1px solid #3A3733",
+            borderRadius: 4,
+            padding: 6
+          }
+        },
+        PROJECT_COLORS.map((c) => /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            key: c,
+            onClick: () => saveProjectColor(c),
+            "aria-label": `Set color ${c}`,
+            style: {
+              width: 16,
+              height: 16,
+              borderRadius: "50%",
+              background: c,
+              border: (openedProject.color || DEFAULT_PROJECT_COLOR) === c ? "2px solid #F1ECE1" : "1px solid #3A3733",
+              cursor: "pointer",
+              padding: 0
+            }
+          }
+        ))
+      )), /* @__PURE__ */ React.createElement(
         "input",
         {
+          className: "punch-hover-edit",
           value: draftProjectTitle,
           onChange: (e) => setDraftProjectTitle(e.target.value),
           onBlur: saveProjectTitle,
@@ -1912,22 +1977,79 @@ function PunchBubbles() {
             }
           },
           style: {
-            width: "100%",
+            flex: 1,
+            minWidth: 0,
             fontFamily: "'Inter', sans-serif",
             fontWeight: 700,
-            fontSize: 16,
+            fontSize: 13.5,
             color: "#F1ECE1",
             background: "transparent",
             border: "1px solid transparent",
             borderRadius: 3,
-            padding: "2px 4px",
-            marginLeft: -4,
-            marginBottom: 4
+            padding: "2px 4px"
           }
         }
       ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: closeProject,
+          "aria-label": "Close",
+          title: "Back to board",
+          style: {
+            flexShrink: 0,
+            background: "transparent",
+            color: "#8B8680",
+            border: "none",
+            cursor: "pointer",
+            fontSize: 15,
+            lineHeight: 1,
+            padding: 2
+          }
+        },
+        "\xD7"
+      )),
+      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 6 } }, /* @__PURE__ */ React.createElement(
+        "select",
+        {
+          className: "punch-hover-edit",
+          value: openedProject.priority,
+          onChange: (e) => saveProjectField("priority", "priority", e.target.value),
+          style: {
+            flex: 1,
+            padding: "3px 5px",
+            borderRadius: 3,
+            border: "1px solid transparent",
+            background: "transparent",
+            color: priorityColor[openedProject.priority] || priorityColor.normal,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontWeight: 700,
+            fontSize: 10
+          }
+        },
+        priorityOptions.map((p) => /* @__PURE__ */ React.createElement("option", { key: p, value: p }, p.toUpperCase()))
+      ), /* @__PURE__ */ React.createElement(
+        "select",
+        {
+          className: "punch-hover-edit",
+          value: openedProject.category || "Project",
+          onChange: (e) => saveProjectField("category", "category", e.target.value),
+          style: {
+            flex: 1,
+            padding: "3px 5px",
+            borderRadius: 3,
+            border: "1px solid transparent",
+            background: "transparent",
+            color: "#B8B2A4",
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 11
+          }
+        },
+        categories.map((c) => /* @__PURE__ */ React.createElement("option", { key: c, value: c }, c))
+      )),
+      /* @__PURE__ */ React.createElement(
         "textarea",
         {
+          className: "punch-hover-edit",
           value: draftProjectDescription,
           onChange: (e) => setDraftProjectDescription(e.target.value),
           onBlur: saveProjectDescription,
@@ -1936,119 +2058,139 @@ function PunchBubbles() {
           style: {
             width: "100%",
             fontFamily: "'Inter', sans-serif",
-            fontSize: 12.5,
+            fontSize: 11.5,
             color: "#B8B2A4",
             background: "transparent",
             border: "1px solid transparent",
             borderRadius: 3,
             padding: "2px 4px",
-            marginLeft: -4,
-            resize: "vertical"
+            marginBottom: 8,
+            resize: "vertical",
+            boxSizing: "border-box"
           }
         }
-      )), /* @__PURE__ */ React.createElement(
+      ),
+      /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          style: {
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 9.5,
+            fontWeight: 700,
+            color: "#6B7A8C",
+            marginBottom: 8
+          }
+        },
+        projectChildren.length,
+        " ITEM",
+        projectChildren.length === 1 ? "" : "S"
+      ),
+      /* @__PURE__ */ React.createElement(
         "button",
         {
-          onClick: closeProject,
+          onClick: () => setAddTaskPanelOpen((v) => !v),
           style: {
-            flexShrink: 0,
-            padding: "6px 14px",
-            background: "transparent",
-            color: "#8B8680",
-            border: "1px solid #3A3733",
+            width: "100%",
+            padding: "6px 0",
+            background: addTaskPanelOpen ? "#F1ECE1" : "transparent",
+            color: addTaskPanelOpen ? "#1E1C1A" : "#E2871A",
+            border: "1px solid #E2871A",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
-            fontSize: 11,
+            fontSize: 10.5,
             cursor: "pointer"
           }
         },
-        "\u2190 BACK"
-      )),
-      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, margin: "10px 0" } }, PROJECT_COLORS.map((c) => /* @__PURE__ */ React.createElement(
+        "+ ADD TASK"
+      ),
+      addTaskPanelOpen && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 6 } }, ["existing", "new"].map((mode) => /* @__PURE__ */ React.createElement(
         "button",
         {
-          key: c,
-          onClick: () => saveProjectColor(c),
-          "aria-label": `Set color ${c}`,
+          key: mode,
+          onClick: () => setAddTaskMode(mode),
           style: {
-            width: 20,
-            height: 20,
-            borderRadius: "50%",
-            background: c,
-            border: (openedProject.color || DEFAULT_PROJECT_COLOR) === c ? "2px solid #F1ECE1" : "1px solid #3A3733",
-            cursor: "pointer",
-            padding: 0
+            flex: 1,
+            padding: "4px 0",
+            background: addTaskMode === mode ? "#E2871A" : "transparent",
+            color: addTaskMode === mode ? "#1E1C1A" : "#8B8680",
+            border: `1px solid ${addTaskMode === mode ? "#E2871A" : "#3A3733"}`,
+            borderRadius: 4,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontWeight: 700,
+            fontSize: 9,
+            cursor: "pointer"
           }
-        }
-      ))),
-      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginBottom: 10 } }, /* @__PURE__ */ React.createElement(
+        },
+        mode === "existing" ? "EXISTING" : "NEW"
+      ))), addTaskMode === "existing" ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement(
         "select",
         {
           value: pickedChildIdx,
           onChange: (e) => setPickedChildIdx(e.target.value),
           style: {
-            flex: 1,
-            padding: 8,
+            padding: 6,
             borderRadius: 4,
             border: "1px solid #4A473F",
             background: "#1E1C1A",
             color: "#F1ECE1",
             fontFamily: "'Inter', sans-serif",
-            fontSize: 12.5
+            fontSize: 11.5
           }
         },
-        /* @__PURE__ */ React.createElement("option", { value: "" }, "+ Add existing task..."),
+        /* @__PURE__ */ React.createElement("option", { value: "" }, "Pick a task..."),
         tasks.filter((t) => t.status === "open" && t.list === "inbox" && !t.parentTaskId && !t.isProject).map((t) => /* @__PURE__ */ React.createElement("option", { key: t.id, value: t.id }, t.summary))
       ), /* @__PURE__ */ React.createElement(
         "button",
         {
-          onClick: addExistingTaskToProject,
+          onClick: () => {
+            addExistingTaskToProject();
+            setAddTaskPanelOpen(false);
+          },
           disabled: !pickedChildIdx,
           style: {
-            padding: "8px 16px",
+            padding: "7px 0",
             background: pickedChildIdx ? "#E2871A" : "#4A473F",
             color: "#1E1C1A",
             border: "none",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
-            fontSize: 11,
+            fontSize: 10.5,
             cursor: pickedChildIdx ? "pointer" : "default"
           }
         },
         "ADD"
-      )),
-      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, /* @__PURE__ */ React.createElement(
+      )) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement(
         "input",
         {
           value: manualText,
           onChange: (e) => setManualText(e.target.value),
-          placeholder: "New task in this project...",
+          placeholder: "Task description...",
           style: {
-            padding: 8,
+            padding: 6,
             borderRadius: 4,
             border: "1px solid #4A473F",
             background: "#1E1C1A",
             color: "#F1ECE1",
             fontFamily: "'Inter', sans-serif",
-            fontSize: 13
+            fontSize: 11.5
           }
         }
-      ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement(
+      ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement(
         "select",
         {
           value: manualCategory || "General",
           onChange: (e) => setManualCategory(e.target.value),
           style: {
             flex: 1,
-            padding: 8,
+            padding: 6,
             borderRadius: 4,
             border: "1px solid #4A473F",
             background: "#1E1C1A",
             color: "#F1ECE1",
             fontFamily: "'Inter', sans-serif",
-            fontSize: 12.5
+            fontSize: 11
           }
         },
         categories.map((c) => /* @__PURE__ */ React.createElement("option", { key: c, value: c }, c))
@@ -2058,116 +2200,85 @@ function PunchBubbles() {
           value: manualPriority,
           onChange: (e) => setManualPriority(e.target.value),
           style: {
-            padding: 8,
+            padding: 6,
             borderRadius: 4,
             border: `1px solid ${priorityColor[manualPriority]}`,
             background: "#1E1C1A",
             color: priorityColor[manualPriority],
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
-            fontSize: 11
+            fontSize: 10
           }
         },
         priorityOptions.map((p) => /* @__PURE__ */ React.createElement("option", { key: p, value: p }, p.toUpperCase()))
-      )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement(
-        "input",
-        {
-          value: manualLink,
-          onChange: (e) => setManualLink(e.target.value),
-          placeholder: "Link (optional) \u2014 https://...",
-          style: {
-            flex: 1,
-            padding: 8,
-            borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 12.5
-          }
-        }
-      ), /* @__PURE__ */ React.createElement(
-        "input",
-        {
-          value: manualPerson,
-          onChange: (e) => setManualPerson(e.target.value),
-          placeholder: "Person (optional)",
-          style: {
-            width: 130,
-            padding: 8,
-            borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
-            fontFamily: "'Inter', sans-serif",
-            fontSize: 12.5
-          }
-        }
-      ), /* @__PURE__ */ React.createElement(
+      )), /* @__PURE__ */ React.createElement(
         "button",
         {
-          onClick: () => addManualTask(openedProjectId),
+          onClick: () => {
+            addManualTask(openedProjectId);
+            setAddTaskPanelOpen(false);
+          },
           style: {
-            padding: "8px 20px",
+            padding: "7px 0",
             background: "#E2871A",
             color: "#1E1C1A",
             border: "none",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
-            fontSize: 11,
+            fontSize: 10.5,
             cursor: "pointer"
           }
         },
         "ADD"
       ))),
-      /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginTop: 10 } }, deletingProjectConfirm ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#C1401C", fontFamily: "'Inter', sans-serif" } }, "Delete project? Tasks inside just get un-nested, not deleted."), /* @__PURE__ */ React.createElement(
+      /* @__PURE__ */ React.createElement("div", { style: { marginTop: 10, textAlign: "right" } }, deletingProjectConfirm ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: "#C1401C", fontFamily: "'Inter', sans-serif" } }, "Delete project? Tasks inside just get un-nested."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement(
         "button",
         {
           onClick: deleteProject,
           style: {
-            padding: "6px 12px",
+            padding: "5px 10px",
             background: "#C1401C",
             color: "#F1ECE1",
             border: "none",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
-            fontSize: 10.5,
+            fontSize: 9.5,
             cursor: "pointer"
           }
         },
-        "CONFIRM DELETE"
+        "CONFIRM"
       ), /* @__PURE__ */ React.createElement(
         "button",
         {
           onClick: () => setDeletingProjectConfirm(false),
           style: {
-            padding: "6px 12px",
+            padding: "5px 10px",
             background: "transparent",
             color: "#8B8680",
             border: "1px solid #3A3733",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
-            fontSize: 10.5,
+            fontSize: 9.5,
             cursor: "pointer"
           }
         },
         "CANCEL"
-      )) : /* @__PURE__ */ React.createElement(
+      ))) : /* @__PURE__ */ React.createElement(
         "button",
         {
           onClick: () => setDeletingProjectConfirm(true),
           style: {
-            padding: "6px 12px",
+            padding: "4px 8px",
             background: "transparent",
             color: "#8A5A4A",
             border: "1px solid #3A3733",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
-            fontSize: 10.5,
+            fontSize: 9.5,
             cursor: "pointer"
           }
         },
@@ -2219,7 +2330,7 @@ function PunchBubbles() {
         const hoveredNode = nodes.find((n) => n.id === hoveredId) || childNodes.find((n) => n.id === hoveredId);
         if (!hoveredNode) return null;
         const color = hoveredNode.isProject ? hoveredNode.color || DEFAULT_PROJECT_COLOR : tab === "snoozed" ? "#6B7A8C" : priorityColor[hoveredNode.effPriority];
-        const latest = hoveredNode.history && hoveredNode.history.length > 0 ? hoveredNode.history[hoveredNode.history.length - 1] : null;
+        const latest = !hoveredNode.isProject && hoveredNode.history && hoveredNode.history.length > 0 ? hoveredNode.history[hoveredNode.history.length - 1] : null;
         return /* @__PURE__ */ React.createElement(
           "g",
           {
@@ -2287,13 +2398,11 @@ function PunchBubbles() {
                   marginBottom: latest ? 6 : 0
                 }
               },
-              /* @__PURE__ */ React.createElement("span", null, (hoveredNode.source || "unknown").toUpperCase()),
-              /* @__PURE__ */ React.createElement("span", null, "\xB7"),
-              /* @__PURE__ */ React.createElement("span", null, hoveredNode.person ? hoveredNode.person.toUpperCase() : "UNKNOWN SENDER"),
-              /* @__PURE__ */ React.createElement("span", null, "\xB7"),
-              /* @__PURE__ */ React.createElement("span", null, hoveredNode.createdAt ? new Date(hoveredNode.createdAt).toLocaleDateString([], {
-                dateStyle: "medium"
-              }) : "UNKNOWN DATE")
+              [
+                (hoveredNode.source || "unknown").toUpperCase(),
+                hoveredNode.person ? hoveredNode.person.toUpperCase() : hoveredNode.source === "manual" ? null : "UNKNOWN SENDER",
+                hoveredNode.createdAt ? new Date(hoveredNode.createdAt).toLocaleDateString([], { dateStyle: "medium" }) : "UNKNOWN DATE"
+              ].filter(Boolean).map((part, i, arr) => /* @__PURE__ */ React.createElement(React.Fragment, { key: i }, /* @__PURE__ */ React.createElement("span", null, part), i < arr.length - 1 && /* @__PURE__ */ React.createElement("span", null, "\xB7")))
             ),
             latest && /* @__PURE__ */ React.createElement(
               "div",
