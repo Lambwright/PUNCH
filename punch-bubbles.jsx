@@ -165,11 +165,39 @@ const initialCategories = [
 const ESCALATION_ORDER = ["low", "normal", "high", "urgent"];
 const ESCALATE_EVERY_DAYS = 5; // one step up the ladder per this many days since last set
 
+// Whole days until task.dueDate, negative once overdue. Null when there's no due date —
+// distinct from daysUntilDue(rt), which is the recurring-task cadence calculation.
+function daysUntilTaskDue(task) {
+  if (!task.dueDate) return null;
+  return Math.ceil((new Date(task.dueDate) - now) / 86400000);
+}
+
+function isOverdue(task) {
+  const d = daysUntilTaskDue(task);
+  return d !== null && d < 0 && task.status === "open";
+}
+
+function dueDateColor(task) {
+  const d = daysUntilTaskDue(task);
+  if (d === null) return "#8A8375";
+  if (d < 0) return priorityColor.urgent;
+  if (d <= 2) return priorityColor.high;
+  return "#8A8375";
+}
+
 function effectivePriority(task) {
   const since = task.lastPriorityChangeAt || task.createdAt;
   const bumps = Math.floor(daysOpen(since) / ESCALATE_EVERY_DAYS);
   const baseIdx = ESCALATION_ORDER.indexOf(task.priority);
-  const idx = Math.min(ESCALATION_ORDER.length - 1, baseIdx + bumps);
+  let idx = Math.min(ESCALATION_ORDER.length - 1, baseIdx + bumps);
+
+  // A due date is a stronger signal than age alone — due today or overdue forces
+  // urgent regardless of the age ladder; within 2 days floors it at high.
+  const daysToDue = daysUntilTaskDue(task);
+  if (daysToDue !== null) {
+    if (daysToDue <= 0) idx = ESCALATION_ORDER.length - 1;
+    else if (daysToDue <= 2) idx = Math.max(idx, ESCALATION_ORDER.indexOf("high"));
+  }
   return ESCALATION_ORDER[idx];
 }
 
@@ -209,6 +237,16 @@ const deferOptions = [
   { label: "3 days", days: 3 },
   { label: "Next week", days: 7 },
 ];
+
+// Type scale for the task detail card: 4 sizes max, so it reads as one system
+// instead of a dozen hand-picked numbers. XS/SM for read-only labels and meta,
+// MD for body copy and buttons, LG for the title.
+const FONT_MONO = "'JetBrains Mono', monospace";
+const FONT_BODY = "'Inter', sans-serif";
+const SIZE_XS = 10;
+const SIZE_SM = 11;
+const SIZE_MD = 13;
+const SIZE_LG = 16;
 
 const priorityColor = {
   urgent: "#C1401C",
@@ -341,7 +379,6 @@ export default function PunchBubbles() {
   const [tab, setTab] = useState("inbox");
   const [selected, setSelected] = useState(null);
   const [note, setNote] = useState(""); // shared: resolve reason, defer reason, and copilot context
-  const [link, setLink] = useState("");
   const [hoveredId, setHoveredId] = useState(null);
   const hoverLeaveTimeout = useRef(null);
 
@@ -985,9 +1022,15 @@ export default function PunchBubbles() {
       >
         <g
           style={{
-            animation: newlyAddedIds.has(n.id)
-              ? `inflate 0.5s cubic-bezier(0.34,1.56,0.64,1) both, drift ${4 + (i % 3)}s ease-in-out infinite 0.5s`
-              : `drift ${4 + (i % 3)}s ease-in-out infinite`,
+            animation: [
+              newlyAddedIds.has(n.id)
+                ? "inflate 0.5s cubic-bezier(0.34,1.56,0.64,1) both"
+                : null,
+              `drift ${4 + (i % 3)}s ease-in-out infinite${newlyAddedIds.has(n.id) ? " 0.5s" : ""}`,
+              !n.isProject && isOverdue(n) ? "overduePulse 1.6s ease-in-out infinite" : null,
+            ]
+              .filter(Boolean)
+              .join(", "),
             animationDelay: newlyAddedIds.has(n.id) ? undefined : `${i * 0.3}s`,
           }}
         >
@@ -1109,7 +1152,6 @@ export default function PunchBubbles() {
   function openDetail(task) {
     setSelected(task);
     setNote("");
-    setLink("");
     setDraftSummary(task.summary);
     setDraftDescription(task.description || "");
     setRecurNotesDraft(task.notes || "");
@@ -1182,6 +1224,19 @@ export default function PunchBubbles() {
       : { priority: newPriority, last_priority_change_at: changedAt };
     persist(apiPatch(apiPathFor(selected.id), patchBody));
     pushHistory(selected.id, "priority_changed", `Priority set to ${newPriority.toUpperCase()} (was ${old.toUpperCase()})`);
+  }
+
+  function saveDueDate(newDueDate) {
+    const value = newDueDate || null;
+    if (value === (selected.dueDate || null)) return;
+    updateStore(selected.id, (t) => ({ ...t, dueDate: value }));
+    setSelected((prev) => ({ ...prev, dueDate: value }));
+    persist(apiPatch(`/tasks/${selected.id}`, { due_date: value }));
+    pushHistory(
+      selected.id,
+      "due_date_changed",
+      value ? `Due date set to ${new Date(value).toLocaleDateString()}` : "Due date cleared"
+    );
   }
 
   function addNoteOnly() {
@@ -1338,7 +1393,6 @@ export default function PunchBubbles() {
       apiPatch(`/tasks/${selected.id}`, {
         status: "done",
         resolution_note: note,
-        resolution_link: link,
         completed_at: now.toISOString(),
       })
     );
@@ -1553,6 +1607,7 @@ export default function PunchBubbles() {
         @keyframes drift { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-4px); } }
         @keyframes rowIn { 0% { opacity: 0; transform: scale(0.9) translateY(-4px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes overduePulse { 0%,100% { filter: drop-shadow(0 0 0px rgba(193,64,28,0)); } 50% { filter: drop-shadow(0 0 7px rgba(193,64,28,0.85)); } }
         .punch-hover-edit { transition: border-color .12s ease, background-color .12s ease; }
         .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: #4A473F !important; background-color: #1E1C1A !important; }
         .punch-color-hover { position: relative; }
@@ -3050,14 +3105,14 @@ export default function PunchBubbles() {
                     <div
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 9,
+                        fontSize: 10,
                         color: "#B8AF9E",
                         marginBottom: 2,
                       }}
                     >
                       {formatDateTime(ev.at)} · {ev.type.replace("_", " ").toUpperCase()}
                     </div>
-                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "#2A2419" }}>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#2A2419" }}>
                       {ev.text}
                     </div>
                   </div>
@@ -3070,7 +3125,7 @@ export default function PunchBubbles() {
                     <div
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 10.5,
+                        fontSize: 10,
                         color: "#8A8375",
                         marginBottom: 8,
                       }}
@@ -3135,7 +3190,7 @@ export default function PunchBubbles() {
                       <div
                         style={{
                           fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: 10.5,
+                          fontSize: 10,
                           color: "#8A8375",
                           marginBottom: 10,
                           lineHeight: 1.4,
@@ -3224,7 +3279,7 @@ export default function PunchBubbles() {
                     <div
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 10.5,
+                        fontSize: 10,
                         fontWeight: 700,
                         color:
                           daysUntilDue(selected) < 0
@@ -3247,7 +3302,7 @@ export default function PunchBubbles() {
                     <label
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 10.5,
+                        fontSize: 10,
                         color: "#5C5850",
                         display: "block",
                         marginBottom: 6,
@@ -3285,7 +3340,7 @@ export default function PunchBubbles() {
                         borderRadius: 4,
                         fontFamily: "'JetBrains Mono', monospace",
                         fontWeight: 700,
-                        fontSize: 12.5,
+                        fontSize: 13,
                         letterSpacing: "0.04em",
                         cursor: "pointer",
                         display: "flex",
@@ -3301,7 +3356,7 @@ export default function PunchBubbles() {
                     <label
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 10.5,
+                        fontSize: 10,
                         color: "#5C5850",
                         display: "block",
                         marginBottom: 6,
@@ -3340,7 +3395,7 @@ export default function PunchBubbles() {
                             borderRadius: 4,
                             fontFamily: "'JetBrains Mono', monospace",
                             fontWeight: 700,
-                            fontSize: 10.5,
+                            fontSize: 10,
                             cursor: note.trim() ? "pointer" : "not-allowed",
                           }}
                         >
@@ -3351,7 +3406,7 @@ export default function PunchBubbles() {
 
                     {deletingConfirm ? (
                       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#5C5850", flex: 1 }}>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#5C5850", flex: 1 }}>
                           Stop this recurring task for good?
                         </span>
                         <button
@@ -3394,7 +3449,7 @@ export default function PunchBubbles() {
                           border: "none",
                           color: "#B8AF9E",
                           fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: 9.5,
+                          fontSize: 10,
                           cursor: "pointer",
                         }}
                       >
@@ -3460,12 +3515,39 @@ export default function PunchBubbles() {
               </span>
               <span
                 style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 11,
+                  fontFamily: FONT_MONO,
+                  fontSize: SIZE_SM,
                   color: "#8A8375",
                 }}
               >
                 · {daysOpen(selected.createdAt)}D OPEN
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <span
+                  style={{
+                    fontFamily: FONT_MONO,
+                    fontSize: SIZE_SM,
+                    fontWeight: isOverdue(selected) ? 700 : 400,
+                    color: dueDateColor(selected),
+                  }}
+                >
+                  · {isOverdue(selected) ? `${Math.abs(daysUntilTaskDue(selected))}D OVERDUE` : "DUE"}
+                </span>
+                <input
+                  type="date"
+                  value={selected.dueDate ? selected.dueDate.slice(0, 10) : ""}
+                  onChange={(e) => saveDueDate(e.target.value || null)}
+                  title="Set due date"
+                  style={{
+                    fontFamily: FONT_MONO,
+                    fontSize: SIZE_XS,
+                    color: dueDateColor(selected),
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    colorScheme: "light",
+                  }}
+                />
               </span>
             </div>
 
@@ -3503,7 +3585,7 @@ export default function PunchBubbles() {
               <div
                 style={{
                   fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 10.5,
+                  fontSize: 10,
                   color: "#8A8375",
                   marginBottom: 10,
                   lineHeight: 1.4,
@@ -3538,7 +3620,7 @@ export default function PunchBubbles() {
                     placeholder="New category..."
                     style={{
                       fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 10.5,
+                      fontSize: 10,
                       color: "#2A2419",
                       background: "#FBF9F4",
                       border: "1px solid #C9C0AC",
@@ -3570,7 +3652,7 @@ export default function PunchBubbles() {
                     onChange={(e) => saveCategoryDirect(e.target.value)}
                     style={{
                       fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 10.5,
+                      fontSize: 10,
                       color: "#8A8375",
                       textTransform: "uppercase",
                       background: "transparent",
@@ -3763,7 +3845,7 @@ export default function PunchBubbles() {
                       alignItems: "center",
                       gap: 5,
                       fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 10.5,
+                      fontSize: 10,
                       color: "#5C5850",
                       cursor: "pointer",
                     }}
@@ -3803,7 +3885,7 @@ export default function PunchBubbles() {
                     <div
                       style={{
                         fontFamily: "'Inter', sans-serif",
-                        fontSize: 12.5,
+                        fontSize: 13,
                         color: item.done ? "#8A8375" : "#2A2419",
                         textDecoration: item.done ? "line-through" : "none",
                       }}
@@ -3815,7 +3897,7 @@ export default function PunchBubbles() {
                 <div
                   style={{
                     fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 9.5,
+                    fontSize: 10,
                     color: "#B8AF9E",
                     marginTop: 6,
                     marginBottom: 10,
@@ -3838,7 +3920,7 @@ export default function PunchBubbles() {
                         border: "1px solid #C9C0AC",
                         background: "#FBF9F4",
                         fontFamily: "'Inter', sans-serif",
-                        fontSize: 12,
+                        fontSize: 13,
                       }}
                     />
                     <button
@@ -3883,7 +3965,7 @@ export default function PunchBubbles() {
                       border: "none",
                       color: "#B8AF9E",
                       fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 9.5,
+                      fontSize: 10,
                       cursor: "pointer",
                     }}
                   >
@@ -3934,7 +4016,7 @@ export default function PunchBubbles() {
                     borderRadius: 4,
                     fontFamily: "'JetBrains Mono', monospace",
                     fontWeight: 700,
-                    fontSize: 12.5,
+                    fontSize: 13,
                     letterSpacing: "0.04em",
                     cursor: "pointer",
                   }}
@@ -3948,7 +4030,7 @@ export default function PunchBubbles() {
                   <span
                     style={{
                       fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 10.5,
+                      fontSize: 10,
                       color: "#5C5850",
                     }}
                   >
@@ -3974,23 +4056,8 @@ export default function PunchBubbles() {
                     background: "#FBF9F4",
                     fontFamily: "'Inter', sans-serif",
                     fontSize: 13,
-                    marginBottom: 6,
-                    resize: "vertical",
-                  }}
-                />
-                <input
-                  value={link}
-                  onChange={(e) => setLink(e.target.value)}
-                  placeholder="Link (optional)"
-                  style={{
-                    width: "100%",
-                    padding: 8,
-                    borderRadius: 4,
-                    border: "1px solid #C9C0AC",
-                    background: "#FBF9F4",
-                    fontFamily: "'Inter', sans-serif",
-                    fontSize: 13,
                     marginBottom: 10,
+                    resize: "vertical",
                   }}
                 />
 
@@ -4010,7 +4077,7 @@ export default function PunchBubbles() {
                         borderRadius: 4,
                         fontFamily: "'JetBrains Mono', monospace",
                         fontWeight: 700,
-                        fontSize: 12,
+                        fontSize: 13,
                         cursor: "pointer",
                       }}
                     >
@@ -4027,7 +4094,7 @@ export default function PunchBubbles() {
                         borderRadius: 4,
                         fontFamily: "'JetBrains Mono', monospace",
                         fontWeight: 700,
-                        fontSize: 12,
+                        fontSize: 13,
                         cursor: "pointer",
                       }}
                     >
@@ -4046,7 +4113,7 @@ export default function PunchBubbles() {
                       borderRadius: 4,
                       fontFamily: "'JetBrains Mono', monospace",
                       fontWeight: 700,
-                      fontSize: 12.5,
+                      fontSize: 13,
                       letterSpacing: "0.04em",
                       cursor: "pointer",
                       display: "flex",
@@ -4164,7 +4231,7 @@ export default function PunchBubbles() {
                       borderRadius: 4,
                       fontFamily: "'JetBrains Mono', monospace",
                       fontWeight: 700,
-                      fontSize: 10.5,
+                      fontSize: 10,
                       cursor: "pointer",
                       marginBottom: 10,
                     }}
@@ -4191,7 +4258,7 @@ export default function PunchBubbles() {
                           borderRadius: 4,
                           fontFamily: "'JetBrains Mono', monospace",
                           fontWeight: 700,
-                          fontSize: 10.5,
+                          fontSize: 10,
                           cursor: "pointer",
                         }}
                       >
@@ -4222,7 +4289,7 @@ export default function PunchBubbles() {
                         border: "1px solid #C1401C",
                         background: "#FBF9F4",
                         fontFamily: "'Inter', sans-serif",
-                        fontSize: 12,
+                        fontSize: 13,
                       }}
                     />
                     <button
@@ -4279,7 +4346,7 @@ export default function PunchBubbles() {
                         <div
                           style={{
                             fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: 9.5,
+                            fontSize: 10,
                             fontWeight: 700,
                             color: "#6B7A8C",
                             marginBottom: 2,
@@ -4287,7 +4354,7 @@ export default function PunchBubbles() {
                         >
                           {s.action.toUpperCase()}
                         </div>
-                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "#2A2419" }}>
+                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#2A2419" }}>
                           {s.label}
                         </div>
                       </button>
@@ -4314,7 +4381,7 @@ export default function PunchBubbles() {
                     <div
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 9.5,
+                        fontSize: 10,
                         fontWeight: 700,
                         color: "#6B7A8C",
                         marginBottom: 4,
@@ -4328,7 +4395,7 @@ export default function PunchBubbles() {
                         borderRadius: 4,
                         padding: 10,
                         fontFamily: "'Inter', sans-serif",
-                        fontSize: 12.5,
+                        fontSize: 13,
                         color: "#2A2419",
                         marginBottom: 8,
                         lineHeight: 1.4,
