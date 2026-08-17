@@ -67,35 +67,38 @@ function persist(promise) {
 }
 const now = /* @__PURE__ */ new Date();
 const PROJECT_TYPES = ["T&M", "Contract", "Service Call", "Warranty", "Overhead"];
-const CHECKLIST_TM = [
-  { key: "address", label: "Project address confirmed" },
-  { key: "admin", label: "Admin page filled out" },
-  { key: "directory", label: "People added to directory" },
-  { key: "budget", label: "Budget populated" },
-  { key: "preconEmails", label: "Preconstruction emails recorded for PM reference" },
-  { key: "docs", label: "Drawings/docs moved to documents folder" },
-  { key: "tmAgreement", label: "T&M Agreement signed and recorded" }
+const CHECKLIST_REGISTRY = [
+  { key: "stage", label: "Stage", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "address", label: "Address Fields", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "timezone", label: "Timezone", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "region", label: "Region", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "department", label: "Department", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "dates", label: "Start/End Date", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "customer", label: "Customer", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "po_number", label: "PO Number", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: false, Overhead: false } },
+  { key: "currency", label: "Currency", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "po_on_file", label: "PO on file", types: { "T&M": false, Contract: true, "Service Call": true, Warranty: false, Overhead: false } },
+  { key: "tender_emails", label: "Tender emails stored on project?", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: false } },
+  { key: "estimates_reviewed", label: "Estimates reviewed?", types: { "T&M": false, Contract: true, "Service Call": true, Warranty: false, Overhead: false } },
+  { key: "labour_budget", label: "Labour Budget Created", types: { "T&M": false, Contract: true, "Service Call": true, Warranty: false, Overhead: false } },
+  { key: "directory", label: "People added to directory", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "drawings", label: "Drawings moved to Documents folder", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: false } },
+  { key: "startup_docs", label: "Startup Docs issued", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: false } },
+  { key: "tm_agreement", label: "T&M Agreement issued", types: { "T&M": true, Contract: false, "Service Call": true, Warranty: false, Overhead: false } },
+  { key: "budget_populated", label: "Budget populated", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: false } }
 ];
-const CHECKLIST_CONTRACT = [
-  { key: "admin", label: "Admin page filled out" },
-  { key: "po", label: "PO recorded" },
-  { key: "tenderEmails", label: "Tender process emails recorded for PM reference" },
-  { key: "estimateReview", label: "Estimates reviewed \u2014 usable for PM & site teams" },
-  { key: "budgetPC", label: "Budget & PC populated with boilerplate codes" },
-  { key: "labourBudget", label: "Labour budget set up" },
-  { key: "directory", label: "People added to directory" },
-  { key: "drawings", label: "Drawings moved to documents folder" },
-  { key: "startupDocs", label: "Startup docs issued (WSIB, H&S, COI)" }
-];
-const ONTARIO_ITEM = { key: "form1000", label: "Form 1000 filled out (Ontario)" };
+const ONTARIO_ITEM = { key: "form1000", label: "Form 1000 Filled out" };
 function templateForProjectType(projectType) {
-  return projectType === "Contract" || projectType === "Service Call" ? CHECKLIST_CONTRACT : CHECKLIST_TM;
+  return CHECKLIST_REGISTRY.filter((item) => !projectType || item.types[projectType]);
 }
 function buildChecklist(projectType, isOntario, previousChecklist) {
   const base = templateForProjectType(projectType);
   const items = isOntario ? [...base, ONTARIO_ITEM] : base;
-  const prevByKey = new Map((previousChecklist || []).map((c) => [c.key, c.done]));
-  return items.map((item) => ({ ...item, done: prevByKey.get(item.key) || false }));
+  const prevByKey = new Map((previousChecklist || []).map((c) => [c.key, c]));
+  return items.map((item) => {
+    const prev = prevByKey.get(item.key);
+    return prev ? { key: item.key, label: prev.label, done: prev.done } : { key: item.key, label: item.label, done: false };
+  });
 }
 function normalizeTask(row) {
   return {
@@ -3124,7 +3127,7 @@ function PunchBubbles() {
             daysOpen(selected.createdAt),
             "D OPEN"
           ),
-          /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 3 } }, /* @__PURE__ */ React.createElement(
+          selected.list !== "portfolio" && /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 3 } }, /* @__PURE__ */ React.createElement(
             "span",
             {
               style: {
@@ -3759,7 +3762,7 @@ function PunchBubbles() {
             /* @__PURE__ */ React.createElement(Check, { size: 14, strokeWidth: 3 }),
             " MARK RESOLVED"
           );
-        })(), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement(
+        })(), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, selected.list !== "portfolio" && /* @__PURE__ */ React.createElement(
           "button",
           {
             onClick: () => {
