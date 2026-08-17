@@ -3663,71 +3663,103 @@ function PunchBubbles() {
               resize: "vertical"
             }
           }
-        ), resolvingConfirm ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement(
-          "button",
-          {
-            onClick: () => {
-              resolveTask();
-              setResolvingConfirm(false);
+        ), (() => {
+          const checklistIncomplete = selected.checklist && !selected.checklist.every((c) => c.done);
+          if (checklistIncomplete) {
+            return /* @__PURE__ */ React.createElement(
+              "button",
+              {
+                disabled: true,
+                title: "Finish the checklist above, or use 'Mark complete anyway' with a reason",
+                style: {
+                  width: "100%",
+                  padding: "10px 0",
+                  background: "#E9E2D2",
+                  color: "#B8AF9E",
+                  border: "none",
+                  borderRadius: 4,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  letterSpacing: "0.04em",
+                  cursor: "not-allowed",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  marginBottom: 10
+                }
+              },
+              /* @__PURE__ */ React.createElement(Check, { size: 14, strokeWidth: 3 }),
+              " MARK RESOLVED (checklist incomplete)"
+            );
+          }
+          return resolvingConfirm ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              onClick: () => {
+                resolveTask();
+                setResolvingConfirm(false);
+              },
+              style: {
+                flex: 1,
+                padding: "10px 0",
+                background: "#5B8C5A",
+                color: "#F1ECE1",
+                border: "none",
+                borderRadius: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: "pointer"
+              }
             },
-            style: {
-              flex: 1,
-              padding: "10px 0",
-              background: "#5B8C5A",
-              color: "#F1ECE1",
-              border: "none",
-              borderRadius: 4,
-              fontFamily: "'JetBrains Mono', monospace",
-              fontWeight: 700,
-              fontSize: 13,
-              cursor: "pointer"
-            }
-          },
-          "YES, RESOLVE"
-        ), /* @__PURE__ */ React.createElement(
-          "button",
-          {
-            onClick: () => setResolvingConfirm(false),
-            style: {
-              flex: 1,
-              padding: "10px 0",
-              background: "transparent",
-              color: "#8A8375",
-              border: "1px solid #C9C0AC",
-              borderRadius: 4,
-              fontFamily: "'JetBrains Mono', monospace",
-              fontWeight: 700,
-              fontSize: 13,
-              cursor: "pointer"
-            }
-          },
-          "CANCEL"
-        )) : /* @__PURE__ */ React.createElement(
-          "button",
-          {
-            onClick: () => setResolvingConfirm(true),
-            style: {
-              width: "100%",
-              padding: "10px 0",
-              background: "#5B8C5A",
-              color: "#F1ECE1",
-              border: "none",
-              borderRadius: 4,
-              fontFamily: "'JetBrains Mono', monospace",
-              fontWeight: 700,
-              fontSize: 13,
-              letterSpacing: "0.04em",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              marginBottom: 10
-            }
-          },
-          /* @__PURE__ */ React.createElement(Check, { size: 14, strokeWidth: 3 }),
-          " MARK RESOLVED"
-        ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement(
+            "YES, RESOLVE"
+          ), /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              onClick: () => setResolvingConfirm(false),
+              style: {
+                flex: 1,
+                padding: "10px 0",
+                background: "transparent",
+                color: "#8A8375",
+                border: "1px solid #C9C0AC",
+                borderRadius: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: "pointer"
+              }
+            },
+            "CANCEL"
+          )) : /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              onClick: () => setResolvingConfirm(true),
+              style: {
+                width: "100%",
+                padding: "10px 0",
+                background: "#5B8C5A",
+                color: "#F1ECE1",
+                border: "none",
+                borderRadius: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700,
+                fontSize: 13,
+                letterSpacing: "0.04em",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                marginBottom: 10
+              }
+            },
+            /* @__PURE__ */ React.createElement(Check, { size: 14, strokeWidth: 3 }),
+            " MARK RESOLVED"
+          );
+        })(), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement(
           "button",
           {
             onClick: () => {
