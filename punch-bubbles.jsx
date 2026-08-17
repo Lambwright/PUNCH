@@ -45,39 +45,47 @@ const now = new Date();
 
 const PROJECT_TYPES = ["T&M", "Contract", "Service Call", "Warranty", "Overhead"];
 
-const CHECKLIST_TM = [
-  { key: "address", label: "Project address confirmed" },
-  { key: "admin", label: "Admin page filled out" },
-  { key: "directory", label: "People added to directory" },
-  { key: "budget", label: "Budget populated" },
-  { key: "preconEmails", label: "Preconstruction emails recorded for PM reference" },
-  { key: "docs", label: "Drawings/docs moved to documents folder" },
-  { key: "tmAgreement", label: "T&M Agreement signed and recorded" },
+// Unified checklist registry — one shared key space across all 5 project types
+// (mirrors the Worker's CHECKLIST_REGISTRY, which seeds these same keys from Procore
+// at sync time). Sharing keys across types is what makes switching Project Type safe:
+// buildChecklist below preserves each item (label AND done) whenever its key is still
+// present after the switch, instead of discarding the whole checklist and starting
+// from a blank template — which is what used to wipe out checked-off items.
+const CHECKLIST_REGISTRY = [
+  { key: "stage", label: "Stage", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "address", label: "Address Fields", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "timezone", label: "Timezone", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "region", label: "Region", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "department", label: "Department", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "dates", label: "Start/End Date", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "customer", label: "Customer", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "po_number", label: "PO Number", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: false, Overhead: false } },
+  { key: "currency", label: "Currency", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "po_on_file", label: "PO on file", types: { "T&M": false, Contract: true, "Service Call": true, Warranty: false, Overhead: false } },
+  { key: "tender_emails", label: "Tender emails stored on project?", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: false } },
+  { key: "estimates_reviewed", label: "Estimates reviewed?", types: { "T&M": false, Contract: true, "Service Call": true, Warranty: false, Overhead: false } },
+  { key: "labour_budget", label: "Labour Budget Created", types: { "T&M": false, Contract: true, "Service Call": true, Warranty: false, Overhead: false } },
+  { key: "directory", label: "People added to directory", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: true } },
+  { key: "drawings", label: "Drawings moved to Documents folder", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: false } },
+  { key: "startup_docs", label: "Startup Docs issued", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: false } },
+  { key: "tm_agreement", label: "T&M Agreement issued", types: { "T&M": true, Contract: false, "Service Call": true, Warranty: false, Overhead: false } },
+  { key: "budget_populated", label: "Budget populated", types: { "T&M": true, Contract: true, "Service Call": true, Warranty: true, Overhead: false } },
 ];
 
-const CHECKLIST_CONTRACT = [
-  { key: "admin", label: "Admin page filled out" },
-  { key: "po", label: "PO recorded" },
-  { key: "tenderEmails", label: "Tender process emails recorded for PM reference" },
-  { key: "estimateReview", label: "Estimates reviewed — usable for PM & site teams" },
-  { key: "budgetPC", label: "Budget & PC populated with boilerplate codes" },
-  { key: "labourBudget", label: "Labour budget set up" },
-  { key: "directory", label: "People added to directory" },
-  { key: "drawings", label: "Drawings moved to documents folder" },
-  { key: "startupDocs", label: "Startup docs issued (WSIB, H&S, COI)" },
-];
-
-const ONTARIO_ITEM = { key: "form1000", label: "Form 1000 filled out (Ontario)" };
+const ONTARIO_ITEM = { key: "form1000", label: "Form 1000 Filled out" };
 
 function templateForProjectType(projectType) {
-  return projectType === "Contract" || projectType === "Service Call" ? CHECKLIST_CONTRACT : CHECKLIST_TM;
+  return CHECKLIST_REGISTRY.filter((item) => !projectType || item.types[projectType]);
 }
 
 function buildChecklist(projectType, isOntario, previousChecklist) {
   const base = templateForProjectType(projectType);
   const items = isOntario ? [...base, ONTARIO_ITEM] : base;
-  const prevByKey = new Map((previousChecklist || []).map((c) => [c.key, c.done]));
-  return items.map((item) => ({ ...item, done: prevByKey.get(item.key) || false }));
+  const prevByKey = new Map((previousChecklist || []).map((c) => [c.key, c]));
+  return items.map((item) => {
+    const prev = prevByKey.get(item.key);
+    return prev ? { key: item.key, label: prev.label, done: prev.done } : { key: item.key, label: item.label, done: false };
+  });
 }
 
 // Bridges the database's snake_case columns to the camelCase shape this component
@@ -3522,33 +3530,35 @@ export default function PunchBubbles() {
               >
                 · {daysOpen(selected.createdAt)}D OPEN
               </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                <span
-                  style={{
-                    fontFamily: FONT_MONO,
-                    fontSize: SIZE_SM,
-                    fontWeight: isOverdue(selected) ? 700 : 400,
-                    color: dueDateColor(selected),
-                  }}
-                >
-                  · {isOverdue(selected) ? `${Math.abs(daysUntilTaskDue(selected))}D OVERDUE` : "DUE"}
+              {selected.list !== "portfolio" && (
+                <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  <span
+                    style={{
+                      fontFamily: FONT_MONO,
+                      fontSize: SIZE_SM,
+                      fontWeight: isOverdue(selected) ? 700 : 400,
+                      color: dueDateColor(selected),
+                    }}
+                  >
+                    · {isOverdue(selected) ? `${Math.abs(daysUntilTaskDue(selected))}D OVERDUE` : "DUE"}
+                  </span>
+                  <input
+                    type="date"
+                    value={selected.dueDate ? selected.dueDate.slice(0, 10) : ""}
+                    onChange={(e) => saveDueDate(e.target.value || null)}
+                    title="Set due date"
+                    style={{
+                      fontFamily: FONT_MONO,
+                      fontSize: SIZE_XS,
+                      color: dueDateColor(selected),
+                      background: "transparent",
+                      border: "none",
+                      padding: 0,
+                      colorScheme: "light",
+                    }}
+                  />
                 </span>
-                <input
-                  type="date"
-                  value={selected.dueDate ? selected.dueDate.slice(0, 10) : ""}
-                  onChange={(e) => saveDueDate(e.target.value || null)}
-                  title="Set due date"
-                  style={{
-                    fontFamily: FONT_MONO,
-                    fontSize: SIZE_XS,
-                    color: dueDateColor(selected),
-                    background: "transparent",
-                    border: "none",
-                    padding: 0,
-                    colorScheme: "light",
-                  }}
-                />
-              </span>
+              )}
             </div>
 
             <textarea
@@ -4159,32 +4169,34 @@ export default function PunchBubbles() {
                 })()}
 
                 <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                  <button
-                    onClick={() => {
-                      setSnoozeMenuOpen((v) => !v);
-                      setDeletingConfirm(false);
-                    }}
-                    disabled={!note.trim()}
-                    title={!note.trim() ? "Add a note above first" : undefined}
-                    style={{
-                      flex: 1,
-                      padding: "8px 4px",
-                      background: snoozeMenuOpen ? "#6B7A8C" : note.trim() ? "#E9E2D2" : "#F1ECE1",
-                      color: snoozeMenuOpen ? "#F1ECE1" : note.trim() ? "#2A2419" : "#B8AF9E",
-                      border: "1px solid #C9C0AC",
-                      borderRadius: 4,
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontWeight: 700,
-                      fontSize: 10,
-                      cursor: note.trim() ? "pointer" : "not-allowed",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 3,
-                    }}
-                  >
-                    <Clock size={11} /> SNOOZE
-                  </button>
+                  {selected.list !== "portfolio" && (
+                    <button
+                      onClick={() => {
+                        setSnoozeMenuOpen((v) => !v);
+                        setDeletingConfirm(false);
+                      }}
+                      disabled={!note.trim()}
+                      title={!note.trim() ? "Add a note above first" : undefined}
+                      style={{
+                        flex: 1,
+                        padding: "8px 4px",
+                        background: snoozeMenuOpen ? "#6B7A8C" : note.trim() ? "#E9E2D2" : "#F1ECE1",
+                        color: snoozeMenuOpen ? "#F1ECE1" : note.trim() ? "#2A2419" : "#B8AF9E",
+                        border: "1px solid #C9C0AC",
+                        borderRadius: 4,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700,
+                        fontSize: 10,
+                        cursor: note.trim() ? "pointer" : "not-allowed",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 3,
+                      }}
+                    >
+                      <Clock size={11} /> SNOOZE
+                    </button>
+                  )}
                   <button
                     onClick={addNoteOnly}
                     disabled={!note.trim()}
