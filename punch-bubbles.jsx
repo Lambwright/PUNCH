@@ -4061,15 +4061,81 @@ export default function PunchBubbles() {
                   }}
                 />
 
-                {resolvingConfirm ? (
-                  <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                {(() => {
+                  const checklistIncomplete = selected.checklist && !selected.checklist.every((c) => c.done);
+                  if (checklistIncomplete) {
+                    return (
+                      <button
+                        disabled
+                        title="Finish the checklist above, or use 'Mark complete anyway' with a reason"
+                        style={{
+                          width: "100%",
+                          padding: "10px 0",
+                          background: "#E9E2D2",
+                          color: "#B8AF9E",
+                          border: "none",
+                          borderRadius: 4,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          letterSpacing: "0.04em",
+                          cursor: "not-allowed",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          marginBottom: 10,
+                        }}
+                      >
+                        <Check size={14} strokeWidth={3} /> MARK RESOLVED (checklist incomplete)
+                      </button>
+                    );
+                  }
+                  return resolvingConfirm ? (
+                    <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                      <button
+                        onClick={() => {
+                          resolveTask();
+                          setResolvingConfirm(false);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: "10px 0",
+                          background: "#5B8C5A",
+                          color: "#F1ECE1",
+                          border: "none",
+                          borderRadius: 4,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          cursor: "pointer",
+                        }}
+                      >
+                        YES, RESOLVE
+                      </button>
+                      <button
+                        onClick={() => setResolvingConfirm(false)}
+                        style={{
+                          flex: 1,
+                          padding: "10px 0",
+                          background: "transparent",
+                          color: "#8A8375",
+                          border: "1px solid #C9C0AC",
+                          borderRadius: 4,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 700,
+                          fontSize: 13,
+                          cursor: "pointer",
+                        }}
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  ) : (
                     <button
-                      onClick={() => {
-                        resolveTask();
-                        setResolvingConfirm(false);
-                      }}
+                      onClick={() => setResolvingConfirm(true)}
                       style={{
-                        flex: 1,
+                        width: "100%",
                         padding: "10px 0",
                         background: "#5B8C5A",
                         color: "#F1ECE1",
@@ -4078,54 +4144,19 @@ export default function PunchBubbles() {
                         fontFamily: "'JetBrains Mono', monospace",
                         fontWeight: 700,
                         fontSize: 13,
+                        letterSpacing: "0.04em",
                         cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        marginBottom: 10,
                       }}
                     >
-                      YES, RESOLVE
+                      <Check size={14} strokeWidth={3} /> MARK RESOLVED
                     </button>
-                    <button
-                      onClick={() => setResolvingConfirm(false)}
-                      style={{
-                        flex: 1,
-                        padding: "10px 0",
-                        background: "transparent",
-                        color: "#8A8375",
-                        border: "1px solid #C9C0AC",
-                        borderRadius: 4,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontWeight: 700,
-                        fontSize: 13,
-                        cursor: "pointer",
-                      }}
-                    >
-                      CANCEL
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setResolvingConfirm(true)}
-                    style={{
-                      width: "100%",
-                      padding: "10px 0",
-                      background: "#5B8C5A",
-                      color: "#F1ECE1",
-                      border: "none",
-                      borderRadius: 4,
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      letterSpacing: "0.04em",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      marginBottom: 10,
-                    }}
-                  >
-                    <Check size={14} strokeWidth={3} /> MARK RESOLVED
-                  </button>
-                )}
+                  );
+                })()}
 
                 <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
                   <button
