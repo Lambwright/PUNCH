@@ -256,6 +256,22 @@ const SIZE_SM = 11;
 const SIZE_MD = 13;
 const SIZE_LG = 16;
 
+const PROCORE_COMPANY_ID = "562949953508586";
+
+function procoreProjectIdFromUrl(url) {
+  if (!url) return null;
+  const m = url.match(/procore\.com\/(\d+)\//);
+  return m ? m[1] : null;
+}
+
+function procoreDirectoryLink(projectId) {
+  return `https://us02.procore.com/${projectId}/project/directory`;
+}
+
+function procoreEstimateLink(projectId) {
+  return `https://us02.procore.com/webclients/host/companies/${PROCORE_COMPANY_ID}/projects/${projectId}/tools/estimating/estimate`;
+}
+
 const priorityColor = {
   urgent: "#C1401C",
   high: "#E2871A",
@@ -448,6 +464,9 @@ export default function PunchBubbles() {
   const [draftProjectTitle, setDraftProjectTitle] = useState("");
   const [draftProjectDescription, setDraftProjectDescription] = useState("");
   const [deletingProjectConfirm, setDeletingProjectConfirm] = useState(false);
+  const [expandedChecklistItem, setExpandedChecklistItem] = useState(null);
+  const [procoreDetails, setProcoreDetails] = useState({});
+  const [procoreDetailLoading, setProcoreDetailLoading] = useState(() => new Set());
   const [addTaskPanelOpen, setAddTaskPanelOpen] = useState(false);
   const [addTaskMode, setAddTaskMode] = useState("existing"); // "existing" | "new" — inside an opened project
 
@@ -1245,6 +1264,74 @@ export default function PunchBubbles() {
       "due_date_changed",
       value ? `Due date set to ${new Date(value).toLocaleDateString()}` : "Due date cleared"
     );
+  }
+
+  // Checklist items backed by a live look into Procore rather than just a checkbox —
+  // maps the checklist key to which /portfolio/procore-detail "item" to fetch. Both
+  // form-related keys share the same "forms" fetch since Ben just wants the full
+  // forms list either way, not a filtered view.
+  const CHECKLIST_DETAIL_ITEMS = {
+    drawings: "drawings",
+    po_on_file: "po_on_file",
+    tm_agreement: "forms",
+    form1000: "forms",
+    budget_populated: "budget",
+  };
+
+  function toggleProcoreDetail(itemKey) {
+    if (expandedChecklistItem === itemKey) {
+      setExpandedChecklistItem(null);
+      return;
+    }
+    setExpandedChecklistItem(itemKey);
+    const detailType = CHECKLIST_DETAIL_ITEMS[itemKey];
+    if (!detailType || procoreDetails[detailType]) return;
+    setProcoreDetailLoading((prev) => new Set(prev).add(detailType));
+    apiGet(`/portfolio/procore-detail?task_id=${selected.id}&item=${detailType}`)
+      .then((data) => setProcoreDetails((prev) => ({ ...prev, [detailType]: data })))
+      .catch(() => setProcoreDetails((prev) => ({ ...prev, [detailType]: { error: "Couldn't load from Procore" } })))
+      .finally(() =>
+        setProcoreDetailLoading((prev) => {
+          const next = new Set(prev);
+          next.delete(detailType);
+          return next;
+        })
+      );
+  }
+
+  // Renders the "take a peek" panel content for a checklist item wired to
+  // /portfolio/procore-detail — folder contents, forms list, or a budget count.
+  // Read-only by design: Ben confirmed this is enough to spot a missing file and
+  // go follow up with the responsible party directly in Procore, not a sync target.
+  function renderProcoreDetail(detailType, detail) {
+    if (detailType === "drawings" || detailType === "po_on_file") {
+      if (!detail.found) return `Folder "${detail.folderName}" not found in Procore Documents`;
+      if (!detail.files || !detail.files.length) return `${detail.folderName}: no files yet`;
+      return (
+        <div>
+          {detail.files.map((f, i) => (
+            <div key={i}>{f.name}</div>
+          ))}
+        </div>
+      );
+    }
+    if (detailType === "forms") {
+      if (!detail.forms || !detail.forms.length) return "No forms found on this project";
+      return (
+        <div>
+          {detail.forms.map((f, i) => (
+            <div key={i}>
+              {f.name}
+              {f.template ? ` (${f.template})` : ""}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (detailType === "budget") {
+      return `${detail.count} budget code${detail.count === 1 ? "" : "s"} added`;
+    }
+    return null;
   }
 
   function addNoteOnly() {
@@ -3865,45 +3952,134 @@ export default function PunchBubbles() {
                   </label>
                 </div>
 
-                {selected.checklist.map((item) => (
-                  <div
-                    key={item.key}
-                    onClick={() => toggleChecklistItem(item.key)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "5px 0",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: 3,
-                        border: `1.5px solid ${item.done ? "#5B8C5A" : "#8A8375"}`,
-                        background: item.done ? "#5B8C5A" : "transparent",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {item.done && <Check size={11} color="#F1ECE1" strokeWidth={3} />}
+                {selected.checklist.map((item) => {
+                  const detailType = CHECKLIST_DETAIL_ITEMS[item.key];
+                  const isLink = item.key === "directory" || item.key === "estimates_reviewed";
+                  const projectId = procoreProjectIdFromUrl(selected.sourceUrl);
+                  const linkHref = !isLink
+                    ? null
+                    : !projectId
+                    ? null
+                    : item.key === "directory"
+                    ? procoreDirectoryLink(projectId)
+                    : procoreEstimateLink(projectId);
+                  const isExpanded = expandedChecklistItem === item.key;
+                  const detail = detailType ? procoreDetails[detailType] : null;
+                  const isLoading = detailType && procoreDetailLoading.has(detailType);
+
+                  return (
+                    <div key={item.key}>
+                      <div
+                        onClick={() => toggleChecklistItem(item.key)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "5px 0",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: 3,
+                            border: `1.5px solid ${item.done ? "#5B8C5A" : "#8A8375"}`,
+                            background: item.done ? "#5B8C5A" : "transparent",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {item.done && <Check size={11} color="#F1ECE1" strokeWidth={3} />}
+                        </div>
+                        <div
+                          style={{
+                            flex: 1,
+                            fontFamily: FONT_BODY,
+                            fontSize: SIZE_MD,
+                            color: item.done ? "#8A8375" : "#2A2419",
+                            textDecoration: item.done ? "line-through" : "none",
+                          }}
+                        >
+                          {item.label}
+                        </div>
+                        {detailType && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleProcoreDetail(item.key);
+                            }}
+                            title="Peek at this in Procore"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 3,
+                              padding: "2px 6px",
+                              background: "transparent",
+                              border: "1px solid #C9C0AC",
+                              borderRadius: 3,
+                              fontFamily: FONT_MONO,
+                              fontWeight: 700,
+                              fontSize: SIZE_XS,
+                              color: "#8A8375",
+                              cursor: "pointer",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isExpanded ? "▾" : "▸"} VIEW
+                          </button>
+                        )}
+                        {isLink && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (linkHref) window.open(linkHref, "_blank", "noopener,noreferrer");
+                            }}
+                            disabled={!linkHref}
+                            title={linkHref ? "Open in Procore" : "No Procore project linked"}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              padding: "2px 6px",
+                              background: "transparent",
+                              border: "1px solid #C9C0AC",
+                              borderRadius: 3,
+                              color: linkHref ? "#8A8375" : "#C9C0AC",
+                              cursor: linkHref ? "pointer" : "default",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <LinkIcon size={12} />
+                          </button>
+                        )}
+                      </div>
+
+                      {isExpanded && detailType && (
+                        <div
+                          style={{
+                            marginLeft: 24,
+                            marginBottom: 8,
+                            padding: "6px 10px",
+                            background: "#EDE6D6",
+                            borderRadius: 4,
+                            fontFamily: FONT_MONO,
+                            fontSize: SIZE_XS,
+                            color: "#5C5850",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {isLoading && "Loading from Procore…"}
+                          {!isLoading && detail && detail.error && (
+                            <span style={{ color: "#C1401C" }}>{detail.error}</span>
+                          )}
+                          {!isLoading && detail && !detail.error && renderProcoreDetail(detailType, detail)}
+                        </div>
+                      )}
                     </div>
-                    <div
-                      style={{
-                        fontFamily: "'Inter', sans-serif",
-                        fontSize: 13,
-                        color: item.done ? "#8A8375" : "#2A2419",
-                        textDecoration: item.done ? "line-through" : "none",
-                      }}
-                    >
-                      {item.label}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div
                   style={{
                     fontFamily: "'JetBrains Mono', monospace",
