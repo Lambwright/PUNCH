@@ -1356,6 +1356,7 @@ export default function PunchBubbles() {
     tm_agreement: "forms",
     form1000: "forms",
     budget_populated: "budget",
+    tender_emails: "emails",
   };
 
   function toggleProcoreDetail(itemKey) {
@@ -1410,6 +1411,20 @@ export default function PunchBubbles() {
     }
     if (detailType === "budget") {
       return `${detail.count} budget code${detail.count === 1 ? "" : "s"} added`;
+    }
+    if (detailType === "emails") {
+      if (!detail.emails || !detail.emails.length) return "No emails stored on this project yet";
+      return (
+        <div>
+          {detail.emails.map((e, i) => (
+            <div key={i} style={{ marginBottom: 4 }}>
+              {e.subject || "(no subject)"}
+              {e.sentAt ? ` — ${new Date(e.sentAt).toLocaleDateString()}` : ""}
+              {e.attachmentCount ? ` (${e.attachmentCount} attachment${e.attachmentCount === 1 ? "" : "s"})` : ""}
+            </div>
+          ))}
+        </div>
+      );
     }
     return null;
   }

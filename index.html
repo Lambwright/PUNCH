@@ -1264,7 +1264,8 @@ function PunchBubbles() {
     po_on_file: "po_on_file",
     tm_agreement: "forms",
     form1000: "forms",
-    budget_populated: "budget"
+    budget_populated: "budget",
+    tender_emails: "emails"
   };
   function toggleProcoreDetail(itemKey) {
     if (expandedChecklistItem === itemKey) {
@@ -1295,6 +1296,10 @@ function PunchBubbles() {
     }
     if (detailType === "budget") {
       return `${detail.count} budget code${detail.count === 1 ? "" : "s"} added`;
+    }
+    if (detailType === "emails") {
+      if (!detail.emails || !detail.emails.length) return "No emails stored on this project yet";
+      return /* @__PURE__ */ React.createElement("div", null, detail.emails.map((e, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { marginBottom: 4 } }, e.subject || "(no subject)", e.sentAt ? ` \u2014 ${new Date(e.sentAt).toLocaleDateString()}` : "", e.attachmentCount ? ` (${e.attachmentCount} attachment${e.attachmentCount === 1 ? "" : "s"})` : "")));
     }
     return null;
   }
