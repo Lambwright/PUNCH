@@ -272,6 +272,74 @@ function procoreEstimateLink(projectId) {
   return `https://us02.procore.com/webclients/host/companies/${PROCORE_COMPANY_ID}/projects/${projectId}/tools/estimating/estimate`;
 }
 
+// Checklist keys that write back to a real Procore field, editable inline in the
+// modal — the "flowing 2 ways" checklist. Stage/Region/Customer options come live
+// from the worker (they change over time); Department/Currency/Timezone are static
+// enough that Ben's own confirmed lists are hardcoded here rather than round-tripped.
+const WRITEBACK_FIELDS = new Set(["stage", "address", "timezone", "region", "department", "dates", "customer", "po_number", "currency"]);
+
+// Confirmed with Ben directly — this Procore account only bills in these two.
+const PROCORE_CURRENCIES = [
+  { id: 562949954003313, label: "CAD $" },
+  { id: 562949954003314, label: "USD $" },
+];
+
+// Confirmed with Ben directly — Einbau's Department list is really named after its
+// regional branches/roles, pulled from the live dropdown (F12) since there's no
+// public Procore endpoint for it.
+const PROCORE_DEPARTMENTS = [
+  { id: 562949953453259, name: "Warren Wagler" },
+  { id: 562949953487335, name: "Walter Corsetti" },
+  { id: 562949953507599, name: "Sunita Jackson" },
+  { id: 562949953498534, name: "Scot Carter-Nichols" },
+  { id: 562949953453256, name: "Rudi Dyck" },
+  { id: 562949953454803, name: "Project Management" },
+  { id: 562949953454805, name: "Project Logistics" },
+  { id: 562949953454802, name: "Project Estimation" },
+  { id: 562949953453255, name: "Peter Dyck" },
+  { id: 562949953454804, name: "Mel Gabriel" },
+  { id: 562949953492649, name: "Luigi Perna" },
+  { id: 562949953463907, name: "Kevin Smith" },
+  { id: 562949953453258, name: "Hal Rowan" },
+  { id: 562949953489165, name: "Elliot Natovitch" },
+  { id: 562949953482755, name: "Dwayne Rogers" },
+  { id: 562949953473800, name: "Devid Manzke" },
+  { id: 562949953489369, name: "Dave LeBlanc" },
+  { id: 562949953454806, name: "Danny Pagniello" },
+  { id: 562949953495200, name: "Chris Hong" },
+  { id: 562949953453257, name: "Ben Wright" },
+  { id: 562949953453261, name: "Back Log" },
+  { id: 562949953453265, name: "Alfonso Lopez" },
+  { id: 562949953497563, name: "Alex Reid" },
+];
+
+// Rails' standard timezone list, pulled from Ben's live dropdown (F12) — static,
+// Procore expects the name itself as the stored value (no separate id).
+const PROCORE_TIMEZONES = [
+  "International Date Line West", "American Samoa", "Midway Island", "Hawaii", "Alaska",
+  "Pacific Time (US & Canada)", "Tijuana", "Arizona", "Mazatlan", "Mountain Time (US & Canada)",
+  "Central America", "Central Time (US & Canada)", "Chihuahua", "Guadalajara", "Mexico City",
+  "Monterrey", "Saskatchewan", "Bogota", "Eastern Time (US & Canada)", "Indiana (East)",
+  "Lima", "Quito", "Atlantic Time (Canada)", "Caracas", "Georgetown", "La Paz", "Puerto Rico",
+  "Santiago", "Newfoundland", "Brasilia", "Buenos Aires", "Montevideo", "Greenland",
+  "Mid-Atlantic", "Azores", "Cape Verde Is.", "Edinburgh", "Lisbon", "London", "Monrovia",
+  "UTC", "Amsterdam", "Belgrade", "Berlin", "Bern", "Bratislava", "Brussels", "Budapest",
+  "Casablanca", "Copenhagen", "Dublin", "Ljubljana", "Madrid", "Paris", "Prague", "Rome",
+  "Sarajevo", "Skopje", "Stockholm", "Vienna", "Warsaw", "West Central Africa", "Zagreb",
+  "Zurich", "Athens", "Bucharest", "Cairo", "Harare", "Helsinki", "Jerusalem", "Kaliningrad",
+  "Kyiv", "Pretoria", "Riga", "Sofia", "Tallinn", "Vilnius", "Baghdad", "Istanbul", "Kuwait",
+  "Minsk", "Moscow", "Nairobi", "Riyadh", "St. Petersburg", "Volgograd", "Tehran", "Abu Dhabi",
+  "Baku", "Muscat", "Samara", "Tbilisi", "Yerevan", "Kabul", "Almaty", "Astana", "Ekaterinburg",
+  "Islamabad", "Karachi", "Tashkent", "Chennai", "Kolkata", "Mumbai", "New Delhi",
+  "Sri Jayawardenepura", "Kathmandu", "Dhaka", "Urumqi", "Rangoon", "Bangkok", "Hanoi",
+  "Jakarta", "Krasnoyarsk", "Novosibirsk", "Beijing", "Chongqing", "Hong Kong", "Irkutsk",
+  "Kuala Lumpur", "Perth", "Singapore", "Taipei", "Ulaanbaatar", "Osaka", "Sapporo", "Seoul",
+  "Tokyo", "Yakutsk", "Adelaide", "Darwin", "Brisbane", "Canberra", "Guam", "Hobart",
+  "Melbourne", "Port Moresby", "Sydney", "Vladivostok", "Magadan", "New Caledonia",
+  "Solomon Is.", "Srednekolymsk", "Auckland", "Fiji", "Kamchatka", "Marshall Is.", "Wellington",
+  "Chatham Is.", "Nuku'alofa", "Samoa", "Tokelau Is.",
+];
+
 const priorityColor = {
   urgent: "#C1401C",
   high: "#E2871A",
@@ -467,6 +535,18 @@ export default function PunchBubbles() {
   const [expandedChecklistItem, setExpandedChecklistItem] = useState(null);
   const [procoreDetails, setProcoreDetails] = useState({});
   const [procoreDetailLoading, setProcoreDetailLoading] = useState(() => new Set());
+
+  // Write-back editor for the 9 Procore-native admin fields — which one (if any) is
+  // being edited, its dropdown options (fetched once per field and cached), and the
+  // in-progress form values. Starts blank on every open rather than pre-filled from
+  // the checklist label, since that label is a formatted display string, not a
+  // reliable source for a dropdown's underlying id.
+  const [editingChecklistField, setEditingChecklistField] = useState(null);
+  const [procoreOptions, setProcoreOptions] = useState({});
+  const [procoreOptionsLoading, setProcoreOptionsLoading] = useState(() => new Set());
+  const [editDraft, setEditDraft] = useState({});
+  const [savingChecklistField, setSavingChecklistField] = useState(false);
+  const [checklistFieldError, setChecklistFieldError] = useState(null);
   const [addTaskPanelOpen, setAddTaskPanelOpen] = useState(false);
   const [addTaskMode, setAddTaskMode] = useState("existing"); // "existing" | "new" — inside an opened project
 
@@ -1332,6 +1412,203 @@ export default function PunchBubbles() {
       return `${detail.count} budget code${detail.count === 1 ? "" : "s"} added`;
     }
     return null;
+  }
+
+  const editInputStyle = {
+    padding: "4px 8px",
+    borderRadius: 4,
+    border: "1px solid #C9C0AC",
+    background: "transparent",
+    fontFamily: FONT_MONO,
+    fontSize: SIZE_XS,
+    color: "#5C5850",
+    width: "100%",
+    boxSizing: "border-box",
+  };
+
+  function editSelect(field, options, valueKey, getLabel) {
+    const current = editDraft.id != null ? String(editDraft.id) : "";
+    return (
+      <select
+        autoFocus
+        value={current}
+        onChange={(e) => {
+          const opt = options.find((o) => String(o[valueKey]) === e.target.value);
+          setEditDraft(opt ? { ...opt } : {});
+        }}
+        style={editInputStyle}
+      >
+        <option value="">— select —</option>
+        {options.map((o) => (
+          <option key={o[valueKey]} value={o[valueKey]}>
+            {getLabel(o)}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  // Draft is always shaped to exactly match what buildProcoreWriteback expects for
+  // this field on the worker — see saveChecklistField.
+  function renderChecklistFieldEditor(key) {
+    if (LIVE_OPTION_FIELDS.has(key) || key === "department" || key === "currency") {
+      const options = procoreOptions[key];
+      if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>Loading options…</div>;
+      if (key === "currency") return editSelect(key, options, "id", (o) => o.label);
+      return editSelect(key, options, "id", (o) => o.name);
+    }
+
+    if (key === "timezone") {
+      return (
+        <select
+          autoFocus
+          value={editDraft.name || ""}
+          onChange={(e) => setEditDraft({ name: e.target.value })}
+          style={editInputStyle}
+        >
+          <option value="">— select —</option>
+          {PROCORE_TIMEZONES.map((tz) => (
+            <option key={tz} value={tz}>
+              {tz}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (key === "address") {
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <input
+            autoFocus
+            placeholder="Street"
+            value={editDraft.street || ""}
+            onChange={(e) => setEditDraft((d) => ({ ...d, street: e.target.value }))}
+            style={editInputStyle}
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              placeholder="City"
+              value={editDraft.city || ""}
+              onChange={(e) => setEditDraft((d) => ({ ...d, city: e.target.value }))}
+              style={editInputStyle}
+            />
+            <input
+              placeholder="State/Prov."
+              value={editDraft.state || ""}
+              onChange={(e) => setEditDraft((d) => ({ ...d, state: e.target.value }))}
+              style={{ ...editInputStyle, maxWidth: 90 }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              placeholder="Zip/Postal"
+              value={editDraft.zip || ""}
+              onChange={(e) => setEditDraft((d) => ({ ...d, zip: e.target.value }))}
+              style={editInputStyle}
+            />
+            <input
+              placeholder="Country (e.g. CA)"
+              value={editDraft.country || ""}
+              onChange={(e) => setEditDraft((d) => ({ ...d, country: e.target.value }))}
+              style={{ ...editInputStyle, maxWidth: 110 }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    if (key === "dates") {
+      return (
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            autoFocus
+            type="date"
+            value={editDraft.startDate || ""}
+            onChange={(e) => setEditDraft((d) => ({ ...d, startDate: e.target.value }))}
+            style={editInputStyle}
+          />
+          <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>→</span>
+          <input
+            type="date"
+            value={editDraft.endDate || ""}
+            onChange={(e) => setEditDraft((d) => ({ ...d, endDate: e.target.value }))}
+            style={editInputStyle}
+          />
+        </div>
+      );
+    }
+
+    if (key === "po_number") {
+      return (
+        <input
+          autoFocus
+          placeholder="PO Number"
+          value={editDraft.text || ""}
+          onChange={(e) => setEditDraft({ text: e.target.value })}
+          style={editInputStyle}
+        />
+      );
+    }
+
+    return null;
+  }
+
+  // Fields whose valid options live in Procore and can change over time — fetched
+  // once per field and cached for the rest of the session.
+  const LIVE_OPTION_FIELDS = new Set(["stage", "region", "customer"]);
+
+  function loadProcoreOptions(field) {
+    if (procoreOptions[field] || procoreOptionsLoading.has(field)) return;
+    setProcoreOptionsLoading((prev) => new Set(prev).add(field));
+    apiGet(`/portfolio/procore-options?field=${field}`)
+      .then((data) => setProcoreOptions((prev) => ({ ...prev, [field]: data.options })))
+      .catch(() => setProcoreOptions((prev) => ({ ...prev, [field]: [] })))
+      .finally(() =>
+        setProcoreOptionsLoading((prev) => {
+          const next = new Set(prev);
+          next.delete(field);
+          return next;
+        })
+      );
+  }
+
+  function startEditChecklistField(key) {
+    setEditingChecklistField(key);
+    setEditDraft({});
+    setChecklistFieldError(null);
+    if (LIVE_OPTION_FIELDS.has(key)) loadProcoreOptions(key);
+    if (key === "department" && !procoreOptions.department) {
+      setProcoreOptions((prev) => ({ ...prev, department: PROCORE_DEPARTMENTS }));
+    }
+    if (key === "currency" && !procoreOptions.currency) {
+      setProcoreOptions((prev) => ({ ...prev, currency: PROCORE_CURRENCIES }));
+    }
+  }
+
+  function cancelEditChecklistField() {
+    setEditingChecklistField(null);
+    setEditDraft({});
+    setChecklistFieldError(null);
+  }
+
+  // editDraft is always shaped to match exactly what the worker's buildProcoreWriteback
+  // expects for the field being edited (e.g. {id, name} for a dropdown pick, {text} for
+  // PO Number) — see saveChecklistField's callers for each field's shape.
+  function saveChecklistField() {
+    const field = editingChecklistField;
+    setSavingChecklistField(true);
+    setChecklistFieldError(null);
+    apiPatch(`/portfolio/procore-writeback?task_id=${selected.id}`, { field, value: editDraft })
+      .then((data) => {
+        setTasks((prev) => prev.map((t) => (t.id === selected.id ? { ...t, checklist: data.checklist } : t)));
+        setSelected((prev) => ({ ...prev, checklist: data.checklist }));
+        pushHistory(selected.id, "procore_writeback", `Updated in Procore: ${data.item.label}`);
+        setEditingChecklistField(null);
+        setEditDraft({});
+      })
+      .catch((err) => setChecklistFieldError(err.message || "Couldn't save to Procore"))
+      .finally(() => setSavingChecklistField(false));
   }
 
   function addNoteOnly() {
@@ -3955,6 +4232,8 @@ export default function PunchBubbles() {
                 {selected.checklist.map((item) => {
                   const detailType = CHECKLIST_DETAIL_ITEMS[item.key];
                   const isLink = item.key === "directory" || item.key === "estimates_reviewed";
+                  const isWriteback = WRITEBACK_FIELDS.has(item.key);
+                  const isEditingThis = editingChecklistField === item.key;
                   const projectId = procoreProjectIdFromUrl(selected.sourceUrl);
                   const linkHref = !isLink
                     ? null
@@ -3970,13 +4249,13 @@ export default function PunchBubbles() {
                   return (
                     <div key={item.key}>
                       <div
-                        onClick={() => toggleChecklistItem(item.key)}
+                        onClick={isWriteback ? undefined : () => toggleChecklistItem(item.key)}
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: 8,
                           padding: "5px 0",
-                          cursor: "pointer",
+                          cursor: isWriteback ? "default" : "pointer",
                         }}
                       >
                         <div
@@ -4005,6 +4284,32 @@ export default function PunchBubbles() {
                         >
                           {item.label}
                         </div>
+                        {isWriteback && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              isEditingThis ? cancelEditChecklistField() : startEditChecklistField(item.key);
+                            }}
+                            title="Update this in Procore"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 3,
+                              padding: "2px 6px",
+                              background: "transparent",
+                              border: "1px solid #C9C0AC",
+                              borderRadius: 3,
+                              fontFamily: FONT_MONO,
+                              fontWeight: 700,
+                              fontSize: SIZE_XS,
+                              color: "#8A8375",
+                              cursor: "pointer",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isEditingThis ? "✕ CANCEL" : "✎ EDIT"}
+                          </button>
+                        )}
                         {detailType && (
                           <button
                             onClick={(e) => {
@@ -4075,6 +4380,66 @@ export default function PunchBubbles() {
                             <span style={{ color: "#C1401C" }}>{detail.error}</span>
                           )}
                           {!isLoading && detail && !detail.error && renderProcoreDetail(detailType, detail)}
+                        </div>
+                      )}
+
+                      {isEditingThis && (
+                        <div
+                          style={{
+                            marginLeft: 24,
+                            marginBottom: 8,
+                            padding: "8px 10px",
+                            background: "#EDE6D6",
+                            borderRadius: 4,
+                          }}
+                        >
+                          {renderChecklistFieldEditor(item.key)}
+                          {checklistFieldError && (
+                            <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#C1401C", marginTop: 6 }}>
+                              {checklistFieldError}
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                            <button
+                              onClick={saveChecklistField}
+                              disabled={
+                                savingChecklistField ||
+                                ((LIVE_OPTION_FIELDS.has(item.key) || item.key === "department" || item.key === "currency" || item.key === "timezone") &&
+                                  editDraft.id == null &&
+                                  !editDraft.name)
+                              }
+                              style={{
+                                padding: "4px 10px",
+                                borderRadius: 4,
+                                border: "1px solid #5B8C5A",
+                                background: "#5B8C5A",
+                                color: "#F1ECE1",
+                                fontFamily: FONT_MONO,
+                                fontWeight: 700,
+                                fontSize: SIZE_XS,
+                                cursor: "pointer",
+                                opacity: savingChecklistField ? 0.6 : 1,
+                              }}
+                            >
+                              {savingChecklistField ? "SAVING…" : "SAVE TO PROCORE"}
+                            </button>
+                            <button
+                              onClick={cancelEditChecklistField}
+                              style={{
+                                padding: "4px 10px",
+                                borderRadius: 4,
+                                border: "1px solid #C9C0AC",
+                                background: "transparent",
+                                color: "#8A8375",
+                                fontFamily: FONT_MONO,
+                                fontWeight: 700,
+                                fontSize: SIZE_XS,
+                                cursor: "pointer",
+                              }}
+                            >
+                              CANCEL
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
