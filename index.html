@@ -88,11 +88,12 @@ const CHECKLIST_REGISTRY = [
 ];
 const ONTARIO_ITEM = { key: "form1000", label: "Form 1000 Filled out" };
 function templateForProjectType(projectType) {
-  return CHECKLIST_REGISTRY.filter((item) => !projectType || item.types[projectType]);
+  if (!projectType) return [];
+  return CHECKLIST_REGISTRY.filter((item) => item.types[projectType]);
 }
 function buildChecklist(projectType, isOntario, previousChecklist) {
   const base = templateForProjectType(projectType);
-  const items = isOntario ? [...base, ONTARIO_ITEM] : base;
+  const items = projectType && isOntario ? [...base, ONTARIO_ITEM] : base;
   const prevByKey = new Map((previousChecklist || []).map((c) => [c.key, c]));
   return items.map((item) => {
     const prev = prevByKey.get(item.key);
@@ -251,6 +252,21 @@ const WRITEBACK_FIELDS = /* @__PURE__ */ new Set(["stage", "address", "timezone"
 const PROCORE_CURRENCIES = [
   { id: 562949954003313, label: "CAD $" },
   { id: 562949954003314, label: "USD $" }
+];
+const PROCORE_PROVINCES = [
+  { id: "AB", name: "Alberta" },
+  { id: "BC", name: "British Columbia" },
+  { id: "MB", name: "Manitoba" },
+  { id: "NB", name: "New Brunswick" },
+  { id: "NL", name: "Newfoundland and Labrador" },
+  { id: "NT", name: "Northwest Territories" },
+  { id: "NS", name: "Nova Scotia" },
+  { id: "NU", name: "Nunavut" },
+  { id: "ON", name: "Ontario" },
+  { id: "PE", name: "Prince Edward Island" },
+  { id: "QC", name: "Quebec" },
+  { id: "SK", name: "Saskatchewan" },
+  { id: "YT", name: "Yukon Territory" }
 ];
 const PROCORE_DEPARTMENTS = [
   { id: 562949953453259, name: "Warren Wagler" },
@@ -1195,6 +1211,19 @@ function PunchBubbles() {
     setForceCompleteConfirm(false);
     setDeleteReason("");
     setModalTab("details");
+    setExpandedChecklistItem(null);
+    setProcoreDetails({});
+    setProcoreDetailLoading(/* @__PURE__ */ new Set());
+    setEditingChecklistField(null);
+    setEditDraft({});
+    setChecklistFieldError(null);
+    if (task.list === "portfolio" && task.checklist && task.sourceUrl) {
+      apiGet(`/portfolio/procore-refresh?task_id=${task.id}`).then((row) => {
+        const refreshed = normalizeTask(row);
+        updateStore(task.id, (t) => ({ ...t, ...refreshed }));
+        setSelected((prev) => prev && prev.id === task.id ? { ...prev, ...refreshed } : prev);
+      }).catch((err) => console.error("Procore refresh failed:", err));
+    }
   }
   function saveCategoryDirect(value) {
     if (value === selected.category) return;
@@ -1352,6 +1381,8 @@ function PunchBubbles() {
       );
     }
     if (key === "address") {
+      const countryOptions = procoreOptions.country;
+      const stateOptions = procoreOptions.state || PROCORE_PROVINCES;
       return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement(
         "input",
         {
@@ -1370,13 +1401,14 @@ function PunchBubbles() {
           style: editInputStyle
         }
       ), /* @__PURE__ */ React.createElement(
-        "input",
+        "select",
         {
-          placeholder: "State/Prov.",
           value: editDraft.state || "",
           onChange: (e) => setEditDraft((d) => ({ ...d, state: e.target.value })),
-          style: { ...editInputStyle, maxWidth: 90 }
-        }
+          style: { ...editInputStyle, maxWidth: 130 }
+        },
+        /* @__PURE__ */ React.createElement("option", { value: "" }, "State/Prov."),
+        stateOptions.map((s) => /* @__PURE__ */ React.createElement("option", { key: s.id, value: s.id }, s.name))
       )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement(
         "input",
         {
@@ -1385,15 +1417,16 @@ function PunchBubbles() {
           onChange: (e) => setEditDraft((d) => ({ ...d, zip: e.target.value })),
           style: editInputStyle
         }
-      ), /* @__PURE__ */ React.createElement(
-        "input",
+      ), countryOptions ? /* @__PURE__ */ React.createElement(
+        "select",
         {
-          placeholder: "Country (e.g. CA)",
           value: editDraft.country || "",
           onChange: (e) => setEditDraft((d) => ({ ...d, country: e.target.value })),
-          style: { ...editInputStyle, maxWidth: 110 }
-        }
-      )));
+          style: { ...editInputStyle, maxWidth: 140 }
+        },
+        /* @__PURE__ */ React.createElement("option", { value: "" }, "Country"),
+        countryOptions.map((c) => /* @__PURE__ */ React.createElement("option", { key: c.id, value: c.id }, c.name))
+      ) : /* @__PURE__ */ React.createElement("div", { style: { ...editInputStyle, maxWidth: 140, color: "#8A8375" } }, "Loading countries\u2026")));
     }
     if (key === "dates") {
       return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ React.createElement(
@@ -1451,6 +1484,12 @@ function PunchBubbles() {
     }
     if (key === "currency" && !procoreOptions.currency) {
       setProcoreOptions((prev) => ({ ...prev, currency: PROCORE_CURRENCIES }));
+    }
+    if (key === "address") {
+      loadProcoreOptions("country");
+      if (!procoreOptions.state) {
+        setProcoreOptions((prev) => ({ ...prev, state: PROCORE_PROVINCES }));
+      }
     }
   }
   function cancelEditChecklistField() {
@@ -2966,6 +3005,8 @@ function PunchBubbles() {
     })) : /* @__PURE__ */ React.createElement("div", null, activeTasks.map((t) => {
       const color = priorityColor[effectivePriority(t)];
       const age = daysOpen(t.createdAt);
+      const hasNote = (t.history || []).some((h) => h.type === "note");
+      const checklistDone = t.checklist ? t.checklist.filter((c) => c.done).length : null;
       return /* @__PURE__ */ React.createElement(
         "div",
         {
@@ -3010,20 +3051,22 @@ function PunchBubbles() {
               whiteSpace: "nowrap"
             }
           },
-          t.summary
+          t.summary.replace(/^New Procore project:\s*/, "")
         ), /* @__PURE__ */ React.createElement(
           "div",
           {
             style: {
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
-              color: "#8B8680"
+              color: "#8B8680",
+              display: "flex",
+              alignItems: "center",
+              gap: 6
             }
           },
-          "#",
-          t.ticket,
-          " \xB7 ",
-          t.category.toUpperCase()
+          /* @__PURE__ */ React.createElement("span", null, "#", t.ticket, " \xB7 ", t.category.toUpperCase()),
+          checklistDone !== null && /* @__PURE__ */ React.createElement("span", { title: "Checklist items complete", style: { color: "#B8AF9E" } }, checklistDone, "/", t.checklist.length),
+          hasNote && /* @__PURE__ */ React.createElement("span", { title: "Has a note", style: { color: "#B8AF9E" } }, "\u270E")
         )),
         /* @__PURE__ */ React.createElement(
           "div",
@@ -3498,7 +3541,7 @@ function PunchBubbles() {
             "#",
             selected.ticket
           ),
-          /* @__PURE__ */ React.createElement(
+          selected.list !== "portfolio" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
             "select",
             {
               value: effectivePriority(selected),
@@ -3515,8 +3558,7 @@ function PunchBubbles() {
               }
             },
             priorityOptions.map((p) => /* @__PURE__ */ React.createElement("option", { key: p, value: p }, p.toUpperCase()))
-          ),
-          /* @__PURE__ */ React.createElement(
+          ), /* @__PURE__ */ React.createElement(
             "span",
             {
               title: effectivePriority(selected) !== selected.priority ? `Auto-aged up from ${selected.priority.toUpperCase()}. Next bump in ${daysUntilEscalation(selected)}d if untouched.` : `Ages up automatically \u2014 next bump in ${daysUntilEscalation(selected)}d if untouched.`,
@@ -3527,7 +3569,7 @@ function PunchBubbles() {
               }
             },
             /* @__PURE__ */ React.createElement(TrendingUp, { size: 13 })
-          ),
+          )),
           /* @__PURE__ */ React.createElement(
             "span",
             {
@@ -3619,7 +3661,7 @@ function PunchBubbles() {
           getLatestActionableEvent(selected.history).type.replace("_", " ").toUpperCase(),
           ": ",
           /* @__PURE__ */ React.createElement("span", { style: { color: "#5C5850" } }, getLatestActionableEvent(selected.history).text)
-        ), /* @__PURE__ */ React.createElement(
+        ), selected.list !== "portfolio" && /* @__PURE__ */ React.createElement(
           "div",
           {
             style: {
@@ -3833,8 +3875,8 @@ function PunchBubbles() {
           /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement(
             "select",
             {
-              value: selected.projectType,
-              onChange: (e) => switchProjectType(e.target.value),
+              value: selected.projectType || "",
+              onChange: (e) => switchProjectType(e.target.value || null),
               title: "Preset from the project's admin page \u2014 toggle here if it was set up wrong",
               style: {
                 padding: "4px 8px",
@@ -3847,6 +3889,7 @@ function PunchBubbles() {
                 color: "#5C5850"
               }
             },
+            /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 SELECT TYPE \u2014"),
             PROJECT_TYPES.map((pt) => /* @__PURE__ */ React.createElement("option", { key: pt, value: pt }, pt.toUpperCase()))
           ), /* @__PURE__ */ React.createElement(
             "label",
@@ -3864,7 +3907,7 @@ function PunchBubbles() {
             /* @__PURE__ */ React.createElement("input", { type: "checkbox", checked: selected.isOntario, onChange: toggleOntario }),
             "ONTARIO"
           )),
-          selected.checklist.map((item) => {
+          /* @__PURE__ */ React.createElement("div", { style: { maxHeight: 320, overflowY: "auto", paddingRight: 4 } }, selected.checklist.map((item) => {
             const detailType = CHECKLIST_DETAIL_ITEMS[item.key];
             const isLink = item.key === "directory" || item.key === "estimates_reviewed";
             const isWriteback = WRITEBACK_FIELDS.has(item.key);
@@ -4061,7 +4104,7 @@ function PunchBubbles() {
                 "CANCEL"
               ))
             ));
-          }),
+          })),
           /* @__PURE__ */ React.createElement(
             "div",
             {

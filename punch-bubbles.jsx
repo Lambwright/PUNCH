@@ -74,13 +74,18 @@ const CHECKLIST_REGISTRY = [
 
 const ONTARIO_ITEM = { key: "form1000", label: "Form 1000 Filled out" };
 
+// No project type selected means an empty checklist, not "show everything" — a
+// blanket list mixed items that don't actually apply to every type (e.g. Labour
+// Budget/Estimates Reviewed showing on a T&M project), so it's safer to show nothing
+// until the type is actually known.
 function templateForProjectType(projectType) {
-  return CHECKLIST_REGISTRY.filter((item) => !projectType || item.types[projectType]);
+  if (!projectType) return [];
+  return CHECKLIST_REGISTRY.filter((item) => item.types[projectType]);
 }
 
 function buildChecklist(projectType, isOntario, previousChecklist) {
   const base = templateForProjectType(projectType);
-  const items = isOntario ? [...base, ONTARIO_ITEM] : base;
+  const items = projectType && isOntario ? [...base, ONTARIO_ITEM] : base;
   const prevByKey = new Map((previousChecklist || []).map((c) => [c.key, c]));
   return items.map((item) => {
     const prev = prevByKey.get(item.key);
@@ -282,6 +287,26 @@ const WRITEBACK_FIELDS = new Set(["stage", "address", "timezone", "region", "dep
 const PROCORE_CURRENCIES = [
   { id: 562949954003313, label: "CAD $" },
   { id: 562949954003314, label: "USD $" },
+];
+
+// Procore's state_code field expects the 2-letter code, not the full province name —
+// pulled from Ben's live dropdown (F12) since Procore's own live endpoint for this
+// (/rest/v1.0/internal/regions/{country}) proved unreliable to call server-side.
+// Canada only for now, since that's every project this account has.
+const PROCORE_PROVINCES = [
+  { id: "AB", name: "Alberta" },
+  { id: "BC", name: "British Columbia" },
+  { id: "MB", name: "Manitoba" },
+  { id: "NB", name: "New Brunswick" },
+  { id: "NL", name: "Newfoundland and Labrador" },
+  { id: "NT", name: "Northwest Territories" },
+  { id: "NS", name: "Nova Scotia" },
+  { id: "NU", name: "Nunavut" },
+  { id: "ON", name: "Ontario" },
+  { id: "PE", name: "Prince Edward Island" },
+  { id: "QC", name: "Quebec" },
+  { id: "SK", name: "Saskatchewan" },
+  { id: "YT", name: "Yukon Territory" },
 ];
 
 // Confirmed with Ben directly — Einbau's Department list is really named after its
@@ -1273,6 +1298,29 @@ export default function PunchBubbles() {
     setForceCompleteConfirm(false);
     setDeleteReason("");
     setModalTab("details");
+
+    // Peek-panel/edit-editor state was keyed by item type only, not by task — leaving
+    // it set when switching between two Portfolio records could show one task's
+    // cached Drawings/Forms/etc. on a different task. Clear on every open.
+    setExpandedChecklistItem(null);
+    setProcoreDetails({});
+    setProcoreDetailLoading(new Set());
+    setEditingChecklistField(null);
+    setEditDraft({});
+    setChecklistFieldError(null);
+
+    // Portfolio records are a live mirror of Procore, not PUNCH's own data — refresh
+    // on open so a PM's change made directly in Procore (not through PUNCH) is never
+    // silently stale here. Manual checklist items are preserved server-side.
+    if (task.list === "portfolio" && task.checklist && task.sourceUrl) {
+      apiGet(`/portfolio/procore-refresh?task_id=${task.id}`)
+        .then((row) => {
+          const refreshed = normalizeTask(row);
+          updateStore(task.id, (t) => ({ ...t, ...refreshed }));
+          setSelected((prev) => (prev && prev.id === task.id ? { ...prev, ...refreshed } : prev));
+        })
+        .catch((err) => console.error("Procore refresh failed:", err));
+    }
   }
 
   function saveCategoryDirect(value) {
@@ -1492,6 +1540,10 @@ export default function PunchBubbles() {
     }
 
     if (key === "address") {
+      // Country/State are Procore dropdowns, not free text — writing "Canada" instead
+      // of "CA" is what caused the write-back 502 Ben hit, so these send codes only.
+      const countryOptions = procoreOptions.country;
+      const stateOptions = procoreOptions.state || PROCORE_PROVINCES;
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <input
@@ -1508,12 +1560,18 @@ export default function PunchBubbles() {
               onChange={(e) => setEditDraft((d) => ({ ...d, city: e.target.value }))}
               style={editInputStyle}
             />
-            <input
-              placeholder="State/Prov."
+            <select
               value={editDraft.state || ""}
               onChange={(e) => setEditDraft((d) => ({ ...d, state: e.target.value }))}
-              style={{ ...editInputStyle, maxWidth: 90 }}
-            />
+              style={{ ...editInputStyle, maxWidth: 130 }}
+            >
+              <option value="">State/Prov.</option>
+              {stateOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <input
@@ -1522,12 +1580,22 @@ export default function PunchBubbles() {
               onChange={(e) => setEditDraft((d) => ({ ...d, zip: e.target.value }))}
               style={editInputStyle}
             />
-            <input
-              placeholder="Country (e.g. CA)"
-              value={editDraft.country || ""}
-              onChange={(e) => setEditDraft((d) => ({ ...d, country: e.target.value }))}
-              style={{ ...editInputStyle, maxWidth: 110 }}
-            />
+            {countryOptions ? (
+              <select
+                value={editDraft.country || ""}
+                onChange={(e) => setEditDraft((d) => ({ ...d, country: e.target.value }))}
+                style={{ ...editInputStyle, maxWidth: 140 }}
+              >
+                <option value="">Country</option>
+                {countryOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div style={{ ...editInputStyle, maxWidth: 140, color: "#8A8375" }}>Loading countries…</div>
+            )}
           </div>
         </div>
       );
@@ -1598,6 +1666,12 @@ export default function PunchBubbles() {
     }
     if (key === "currency" && !procoreOptions.currency) {
       setProcoreOptions((prev) => ({ ...prev, currency: PROCORE_CURRENCIES }));
+    }
+    if (key === "address") {
+      loadProcoreOptions("country");
+      if (!procoreOptions.state) {
+        setProcoreOptions((prev) => ({ ...prev, state: PROCORE_PROVINCES }));
+      }
     }
   }
 
@@ -3309,6 +3383,8 @@ export default function PunchBubbles() {
             {activeTasks.map((t) => {
               const color = priorityColor[effectivePriority(t)];
               const age = daysOpen(t.createdAt);
+              const hasNote = (t.history || []).some((h) => h.type === "note");
+              const checklistDone = t.checklist ? t.checklist.filter((c) => c.done).length : null;
               return (
                 <div
                   key={t.id}
@@ -3348,16 +3424,31 @@ export default function PunchBubbles() {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {t.summary}
+                      {t.summary.replace(/^New Procore project:\s*/, "")}
                     </div>
                     <div
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 10,
                         color: "#8B8680",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
                       }}
                     >
-                      #{t.ticket} · {t.category.toUpperCase()}
+                      <span>
+                        #{t.ticket} · {t.category.toUpperCase()}
+                      </span>
+                      {checklistDone !== null && (
+                        <span title="Checklist items complete" style={{ color: "#B8AF9E" }}>
+                          {checklistDone}/{t.checklist.length}
+                        </span>
+                      )}
+                      {hasNote && (
+                        <span title="Has a note" style={{ color: "#B8AF9E" }}>
+                          ✎
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div
@@ -3866,40 +3957,44 @@ export default function PunchBubbles() {
               >
                 #{selected.ticket}
               </span>
-              <select
-                value={effectivePriority(selected)}
-                onChange={(e) => savePriority(e.target.value)}
-                style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: priorityColor[effectivePriority(selected)],
-                  background: "transparent",
-                  border: `1px solid ${priorityColor[effectivePriority(selected)]}`,
-                  borderRadius: 3,
-                  padding: "1px 4px",
-                }}
-              >
-                {priorityOptions.map((p) => (
-                  <option key={p} value={p}>
-                    {p.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-              <span
-                title={
-                  effectivePriority(selected) !== selected.priority
-                    ? `Auto-aged up from ${selected.priority.toUpperCase()}. Next bump in ${daysUntilEscalation(selected)}d if untouched.`
-                    : `Ages up automatically — next bump in ${daysUntilEscalation(selected)}d if untouched.`
-                }
-                style={{
-                  display: "flex",
-                  color: effectivePriority(selected) !== selected.priority ? priorityColor[effectivePriority(selected)] : "#B8AF9E",
-                  cursor: "help",
-                }}
-              >
-                <TrendingUp size={13} />
-              </span>
+              {selected.list !== "portfolio" && (
+                <>
+                  <select
+                    value={effectivePriority(selected)}
+                    onChange={(e) => savePriority(e.target.value)}
+                    style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: priorityColor[effectivePriority(selected)],
+                      background: "transparent",
+                      border: `1px solid ${priorityColor[effectivePriority(selected)]}`,
+                      borderRadius: 3,
+                      padding: "1px 4px",
+                    }}
+                  >
+                    {priorityOptions.map((p) => (
+                      <option key={p} value={p}>
+                        {p.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                  <span
+                    title={
+                      effectivePriority(selected) !== selected.priority
+                        ? `Auto-aged up from ${selected.priority.toUpperCase()}. Next bump in ${daysUntilEscalation(selected)}d if untouched.`
+                        : `Ages up automatically — next bump in ${daysUntilEscalation(selected)}d if untouched.`
+                    }
+                    style={{
+                      display: "flex",
+                      color: effectivePriority(selected) !== selected.priority ? priorityColor[effectivePriority(selected)] : "#B8AF9E",
+                      cursor: "help",
+                    }}
+                  >
+                    <TrendingUp size={13} />
+                  </span>
+                </>
+              )}
               <span
                 style={{
                   fontFamily: FONT_MONO,
@@ -3989,6 +4084,7 @@ export default function PunchBubbles() {
                 </span>
               </div>
             )}
+            {selected.list !== "portfolio" && (
             <div
               style={{
                 display: "flex",
@@ -4080,6 +4176,7 @@ export default function PunchBubbles() {
                 </div>
               )}
             </div>
+            )}
 
             {editingLink ? (
               <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
@@ -4208,8 +4305,8 @@ export default function PunchBubbles() {
               >
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
                   <select
-                    value={selected.projectType}
-                    onChange={(e) => switchProjectType(e.target.value)}
+                    value={selected.projectType || ""}
+                    onChange={(e) => switchProjectType(e.target.value || null)}
                     title="Preset from the project's admin page — toggle here if it was set up wrong"
                     style={{
                       padding: "4px 8px",
@@ -4222,6 +4319,7 @@ export default function PunchBubbles() {
                       color: "#5C5850",
                     }}
                   >
+                    <option value="">— SELECT TYPE —</option>
                     {PROJECT_TYPES.map((pt) => (
                       <option key={pt} value={pt}>
                         {pt.toUpperCase()}
@@ -4244,6 +4342,7 @@ export default function PunchBubbles() {
                   </label>
                 </div>
 
+                <div style={{ maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
                 {selected.checklist.map((item) => {
                   const detailType = CHECKLIST_DETAIL_ITEMS[item.key];
                   const isLink = item.key === "directory" || item.key === "estimates_reviewed";
@@ -4460,6 +4559,7 @@ export default function PunchBubbles() {
                     </div>
                   );
                 })}
+                </div>
                 <div
                   style={{
                     fontFamily: "'JetBrains Mono', monospace",
