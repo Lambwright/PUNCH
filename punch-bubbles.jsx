@@ -220,8 +220,12 @@ function daysUntilEscalation(task) {
   return ESCALATE_EVERY_DAYS - (daysSince % ESCALATE_EVERY_DAYS);
 }
 
+// Deliberately NOT the module-level `now` (frozen at page load) — a history event
+// needs the real time it happened, not whenever the tab was last opened. Using the
+// stale `now` here meant every note/change logged in a session showed the same
+// wrong timestamp until the page was refreshed.
 function historyEvent(type, text) {
-  return { type, text, at: now.toISOString() };
+  return { type, text, at: new Date().toISOString() };
 }
 
 // The front-card status line should show real substance — a note, a reply, a
@@ -1269,15 +1273,16 @@ export default function PunchBubbles() {
   }
 
   function pushHistory(taskId, type, text) {
+    // newHistory has to be computed synchronously, not inside the setState updater
+    // below — React doesn't guarantee that updater runs before this function
+    // continues, so relying on it to assign a variable used a few lines later was
+    // sending an empty {} body to the PATCH (history silently dropped as undefined)
+    // whenever the updater happened to run after this point instead of before it.
     const event = historyEvent(type, text);
-    let newHistory;
-    updateStore(taskId, (t) => {
-      newHistory = [...(t.history || []), event];
-      return { ...t, history: newHistory };
-    });
-    setSelected((prev) =>
-      prev && prev.id === taskId ? { ...prev, history: [...(prev.history || []), event] } : prev
-    );
+    const current = (selected && selected.id === taskId ? selected.history : null) || [];
+    const newHistory = [...current, event];
+    updateStore(taskId, (t) => ({ ...t, history: newHistory }));
+    setSelected((prev) => (prev && prev.id === taskId ? { ...prev, history: newHistory } : prev));
     persist(apiPatch(apiPathFor(taskId), { history: newHistory }));
   }
 
@@ -1704,6 +1709,7 @@ export default function PunchBubbles() {
     if (!note.trim()) return;
     pushHistory(selected.id, "note", note.trim());
     setNote("");
+    setSelected(null);
   }
 
   function toggleChecklistItem(key) {
@@ -1745,7 +1751,7 @@ export default function PunchBubbles() {
       apiPatch(`/tasks/${selected.id}`, {
         status: "done",
         resolution_note: note,
-        completed_at: now.toISOString(),
+        completed_at: new Date().toISOString(),
       })
     );
     setTasks((prev) => prev.filter((t) => t.id !== selected.id));
@@ -1854,7 +1860,7 @@ export default function PunchBubbles() {
       apiPatch(`/tasks/${selected.id}`, {
         status: "done",
         resolution_note: note,
-        completed_at: now.toISOString(),
+        completed_at: new Date().toISOString(),
       })
     );
     setTasks((prev) => prev.filter((t) => t.id !== selected.id));

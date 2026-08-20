@@ -208,7 +208,7 @@ function daysUntilEscalation(task) {
   return ESCALATE_EVERY_DAYS - daysSince % ESCALATE_EVERY_DAYS;
 }
 function historyEvent(type, text) {
-  return { type, text, at: now.toISOString() };
+  return { type, text, at: (/* @__PURE__ */ new Date()).toISOString() };
 }
 const ACTIONABLE_HISTORY_TYPES = /* @__PURE__ */ new Set([
   "note",
@@ -1184,14 +1184,10 @@ function PunchBubbles() {
   }
   function pushHistory(taskId, type, text) {
     const event = historyEvent(type, text);
-    let newHistory;
-    updateStore(taskId, (t) => {
-      newHistory = [...t.history || [], event];
-      return { ...t, history: newHistory };
-    });
-    setSelected(
-      (prev) => prev && prev.id === taskId ? { ...prev, history: [...prev.history || [], event] } : prev
-    );
+    const current = (selected && selected.id === taskId ? selected.history : null) || [];
+    const newHistory = [...current, event];
+    updateStore(taskId, (t) => ({ ...t, history: newHistory }));
+    setSelected((prev) => prev && prev.id === taskId ? { ...prev, history: newHistory } : prev);
     persist(apiPatch(apiPathFor(taskId), { history: newHistory }));
   }
   function openDetail(task) {
@@ -1513,6 +1509,7 @@ function PunchBubbles() {
     if (!note.trim()) return;
     pushHistory(selected.id, "note", note.trim());
     setNote("");
+    setSelected(null);
   }
   function toggleChecklistItem(key) {
     const item = selected.checklist.find((c) => c.key === key);
@@ -1550,7 +1547,7 @@ function PunchBubbles() {
       apiPatch(`/tasks/${selected.id}`, {
         status: "done",
         resolution_note: note,
-        completed_at: now.toISOString()
+        completed_at: (/* @__PURE__ */ new Date()).toISOString()
       })
     );
     setTasks((prev) => prev.filter((t) => t.id !== selected.id));
@@ -1648,7 +1645,7 @@ function PunchBubbles() {
       apiPatch(`/tasks/${selected.id}`, {
         status: "done",
         resolution_note: note,
-        completed_at: now.toISOString()
+        completed_at: (/* @__PURE__ */ new Date()).toISOString()
       })
     );
     setTasks((prev) => prev.filter((t) => t.id !== selected.id));
