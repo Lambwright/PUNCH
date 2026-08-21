@@ -576,6 +576,14 @@ export default function PunchBubbles() {
   const [editDraft, setEditDraft] = useState({});
   const [savingChecklistField, setSavingChecklistField] = useState(false);
   const [checklistFieldError, setChecklistFieldError] = useState(null);
+
+  // Address suggestions — null: not checked yet (or not applicable), []: checked,
+  // no known location matched the project title, [...]: candidates to offer before
+  // showing the blank manual-entry form. showManualAddress skips straight past
+  // suggestions once Ben picks "Enter manually" (or there's nothing to suggest).
+  const [addressSuggestions, setAddressSuggestions] = useState(null);
+  const [addressSuggestLoading, setAddressSuggestLoading] = useState(false);
+  const [showManualAddress, setShowManualAddress] = useState(false);
   const [addTaskPanelOpen, setAddTaskPanelOpen] = useState(false);
   const [addTaskMode, setAddTaskMode] = useState("existing"); // "existing" | "new" — inside an opened project
 
@@ -1313,6 +1321,8 @@ export default function PunchBubbles() {
     setEditingChecklistField(null);
     setEditDraft({});
     setChecklistFieldError(null);
+    setAddressSuggestions(null);
+    setShowManualAddress(false);
 
     // Portfolio records are a live mirror of Procore, not PUNCH's own data — refresh
     // on open so a PM's change made directly in Procore (not through PUNCH) is never
@@ -1545,6 +1555,76 @@ export default function PunchBubbles() {
     }
 
     if (key === "address") {
+      if (addressSuggestLoading) {
+        return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>Checking known locations…</div>;
+      }
+      if (!showManualAddress && addressSuggestions && addressSuggestions.length > 0) {
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {addressSuggestions.map((loc) => (
+              <div
+                key={loc.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  padding: "6px 8px",
+                  border: "1px solid #C9C0AC",
+                  borderRadius: 4,
+                  background: "#F1ECE1",
+                }}
+              >
+                <div style={{ fontFamily: FONT_BODY, fontSize: SIZE_XS, color: "#2A2419" }}>
+                  <div style={{ fontWeight: 700 }}>{loc.name}</div>
+                  <div style={{ color: "#8A8375" }}>
+                    {loc.address}
+                    {loc.city ? `, ${loc.city}` : ""}
+                    {loc.province ? `, ${loc.province}` : ""}
+                  </div>
+                  <div style={{ color: "#B8AF9E", fontFamily: FONT_MONO, fontSize: 9 }}>
+                    matched on "{loc.matchedOn}" — used {loc.times_used}×
+                  </div>
+                </div>
+                <button
+                  onClick={() => useSuggestedAddress(loc)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 4,
+                    border: "1px solid #5B8C5A",
+                    background: "#5B8C5A",
+                    color: "#F1ECE1",
+                    fontFamily: FONT_MONO,
+                    fontWeight: 700,
+                    fontSize: SIZE_XS,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  USE THIS
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => setShowManualAddress(true)}
+              style={{
+                padding: "4px 8px",
+                border: "1px dashed #C9C0AC",
+                background: "transparent",
+                borderRadius: 4,
+                color: "#8A8375",
+                fontFamily: FONT_MONO,
+                fontSize: SIZE_XS,
+                cursor: "pointer",
+                alignSelf: "flex-start",
+              }}
+            >
+              None of these — enter manually
+            </button>
+          </div>
+        );
+      }
+
       // Country/State are Procore dropdowns, not free text — writing "Canada" instead
       // of "CA" is what caused the write-back 502 Ben hit, so these send codes only.
       const countryOptions = procoreOptions.country;
@@ -1661,7 +1741,7 @@ export default function PunchBubbles() {
       );
   }
 
-  function startEditChecklistField(key) {
+  function startEditChecklistField(key, itemDone) {
     setEditingChecklistField(key);
     setEditDraft({});
     setChecklistFieldError(null);
@@ -1677,13 +1757,38 @@ export default function PunchBubbles() {
       if (!procoreOptions.state) {
         setProcoreOptions((prev) => ({ ...prev, state: PROCORE_PROVINCES }));
       }
+      setShowManualAddress(false);
+      if (itemDone) {
+        // Already has an address — nothing to suggest, go straight to the form.
+        setAddressSuggestions([]);
+      } else {
+        setAddressSuggestions(null);
+        setAddressSuggestLoading(true);
+        apiGet(`/locations/suggest?query=${encodeURIComponent(selected.summary)}`)
+          .then((data) => setAddressSuggestions(data.matches || []))
+          .catch(() => setAddressSuggestions([]))
+          .finally(() => setAddressSuggestLoading(false));
+      }
     }
+  }
+
+  function useSuggestedAddress(loc) {
+    setEditDraft({
+      street: loc.address,
+      city: loc.city || "",
+      state: loc.province || "",
+      zip: loc.postal_code || "",
+      country: loc.country || "",
+    });
+    setShowManualAddress(true);
   }
 
   function cancelEditChecklistField() {
     setEditingChecklistField(null);
     setEditDraft({});
     setChecklistFieldError(null);
+    setAddressSuggestions(null);
+    setShowManualAddress(false);
   }
 
   // editDraft is always shaped to match exactly what the worker's buildProcoreWriteback
@@ -1700,6 +1805,8 @@ export default function PunchBubbles() {
         pushHistory(selected.id, "procore_writeback", `Updated in Procore: ${data.item.label}`);
         setEditingChecklistField(null);
         setEditDraft({});
+        setAddressSuggestions(null);
+        setShowManualAddress(false);
       })
       .catch((err) => setChecklistFieldError(err.message || "Couldn't save to Procore"))
       .finally(() => setSavingChecklistField(false));
@@ -4408,7 +4515,7 @@ export default function PunchBubbles() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              isEditingThis ? cancelEditChecklistField() : startEditChecklistField(item.key);
+                              isEditingThis ? cancelEditChecklistField() : startEditChecklistField(item.key, item.done);
                             }}
                             title="Update this in Procore"
                             style={{
