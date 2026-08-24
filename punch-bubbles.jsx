@@ -646,11 +646,15 @@ export default function PunchBubbles() {
     };
   }, []);
 
-  // Poll every 45s for new tasks (new emails/Teams messages) without a manual reload.
+  // Poll for new tasks (new emails/Teams messages) without a manual reload. Bumped
+  // from 45s to 15min after a Neon public-network-transfer overage warning — the
+  // dominant cost was GET /tasks re-shipping every open task on every poll, not the
+  // interval itself, but this is a cheap extra lever while that bill month settles.
+  // Ben wants to revisit this once the raw_text fix's actual impact is visible.
   useEffect(() => {
     const interval = setInterval(() => {
       fetchAndMergeTasks(false).catch((err) => console.error("Background refresh failed:", err));
-    }, 45000);
+    }, 900000);
     return () => clearInterval(interval);
   }, []);
 

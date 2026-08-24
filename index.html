@@ -679,7 +679,7 @@ function PunchBubbles() {
   useEffect(() => {
     const interval = setInterval(() => {
       fetchAndMergeTasks(false).catch((err) => console.error("Background refresh failed:", err));
-    }, 45e3);
+    }, 9e5);
     return () => clearInterval(interval);
   }, []);
   async function manualRefresh() {
