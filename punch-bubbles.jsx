@@ -593,6 +593,7 @@ export default function PunchBubbles() {
   const lastChildDragPos = useRef(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [portfolioSortMode, setPortfolioSortMode] = useState("age"); // "age" | "number"
   const [digests, setDigests] = useState([]);
   const [digestLoading, setDigestLoading] = useState(false);
   const [digestGenerating, setDigestGenerating] = useState(false);
@@ -714,7 +715,7 @@ export default function PunchBubbles() {
 
   const currentTab = tabs.find((t) => t.id === tab);
   const snoozedTasks = tasks.filter((t) => t.status === "snoozed");
-  const activeTasks =
+  const activeTasksUnsorted =
     tab === "snoozed"
       ? snoozedTasks
       : tab === "recurring"
@@ -722,6 +723,18 @@ export default function PunchBubbles() {
       // Nested project children live only inside their project's opened view,
       // never on the top-level board.
       : tasks.filter((t) => t.status === "open" && t.list === tab && !t.parentTaskId);
+
+  // Portfolio defaults to age (insertion order) same as everywhere else, but project
+  // number is often more useful there — extracted from the summary's leading
+  // "YYYY_NNNN" token, newest first.
+  function projectNumberOf(t) {
+    const m = (t.summary || "").match(/(\d{4}_\d{4})/);
+    return m ? m[1] : "";
+  }
+  const activeTasks =
+    tab === "portfolio" && portfolioSortMode === "number"
+      ? [...activeTasksUnsorted].sort((a, b) => projectNumberOf(b).localeCompare(projectNumberOf(a)))
+      : activeTasksUnsorted;
   const inboxOpenCount = tasks.filter((t) => t.status === "open" && t.list === "inbox").length;
 
   // Physics only reruns when the task list itself changes — not on every drag move.
@@ -1839,11 +1852,32 @@ export default function PunchBubbles() {
 
   function switchProjectType(newType) {
     if (newType === selected.projectType) return;
-    const newChecklist = buildChecklist(newType, selected.isOntario, selected.checklist);
-    updateStore(selected.id, (t) => ({ ...t, projectType: newType, checklist: newChecklist }));
-    setSelected((prev) => ({ ...prev, projectType: newType, checklist: newChecklist }));
-    persist(apiPatch(`/tasks/${selected.id}`, { project_type: newType, checklist: newChecklist }));
-    pushHistory(selected.id, "project_type_changed", `Project type set to ${newType} (was ${selected.projectType}) — checklist updated`);
+    const taskId = selected.id;
+    const oldType = selected.projectType;
+
+    if (!newType) {
+      // Clearing back to no type — no Procore data needed, just an empty checklist.
+      const newChecklist = [];
+      updateStore(taskId, (t) => ({ ...t, projectType: newType, checklist: newChecklist }));
+      setSelected((prev) => (prev && prev.id === taskId ? { ...prev, projectType: newType, checklist: newChecklist } : prev));
+      persist(apiPatch(`/tasks/${taskId}`, { project_type: newType, checklist: newChecklist }));
+      pushHistory(taskId, "project_type_changed", `Project type cleared (was ${oldType})`);
+      return;
+    }
+
+    // Picking a real type always re-fetches live from Procore rather than just
+    // re-templating whatever checklist was already loaded client-side — that
+    // client-side-only path was how a project with no type set in Procore (which
+    // starts with an empty checklist) ended up showing every field as blank after
+    // picking a type, even when Procore genuinely had values for them.
+    apiGet(`/portfolio/procore-refresh?task_id=${taskId}&type=${encodeURIComponent(newType)}`)
+      .then((row) => {
+        const refreshed = normalizeTask(row);
+        updateStore(taskId, (t) => ({ ...t, ...refreshed }));
+        setSelected((prev) => (prev && prev.id === taskId ? { ...prev, ...refreshed } : prev));
+        pushHistory(taskId, "project_type_changed", `Project type set to ${newType} (was ${oldType}) — refreshed from Procore`);
+      })
+      .catch((err) => console.error("Project type refresh failed:", err));
   }
 
   function toggleOntario() {
@@ -3502,6 +3536,33 @@ export default function PunchBubbles() {
           </div>
         ) : (
           <div>
+            {tab === "portfolio" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>SORT:</span>
+                {[
+                  { key: "age", label: "AGE" },
+                  { key: "number", label: "PROJECT #" },
+                ].map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setPortfolioSortMode(opt.key)}
+                    style={{
+                      padding: "3px 8px",
+                      borderRadius: 4,
+                      border: `1px solid ${portfolioSortMode === opt.key ? "#E2871A" : "#3A3632"}`,
+                      background: portfolioSortMode === opt.key ? "#E2871A22" : "transparent",
+                      color: portfolioSortMode === opt.key ? "#E2871A" : "#8A8375",
+                      fontFamily: FONT_MONO,
+                      fontWeight: 700,
+                      fontSize: SIZE_XS,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
             {activeTasks.map((t) => {
               const color = priorityColor[effectivePriority(t)];
               const age = daysOpen(t.createdAt);
