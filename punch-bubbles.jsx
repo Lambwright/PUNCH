@@ -661,6 +661,11 @@ export default function PunchBubbles() {
   async function manualRefresh() {
     setIsRefreshing(true);
     try {
+      // Portfolio sync now runs hourly on its own (previously it never ran
+      // automatically at all), but pull it into the manual refresh too so clicking
+      // this button doesn't mean waiting up to an hour for a brand-new Procore
+      // project to show up.
+      await apiGet("/portfolio/sync").catch((err) => console.error("Portfolio sync failed:", err));
       await fetchAndMergeTasks(false);
     } catch (err) {
       console.error("Manual refresh failed:", err);

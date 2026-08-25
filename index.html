@@ -685,6 +685,7 @@ function PunchBubbles() {
   async function manualRefresh() {
     setIsRefreshing(true);
     try {
+      await apiGet("/portfolio/sync").catch((err) => console.error("Portfolio sync failed:", err));
       await fetchAndMergeTasks(false);
     } catch (err) {
       console.error("Manual refresh failed:", err);
