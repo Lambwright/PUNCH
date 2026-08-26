@@ -36,13 +36,24 @@ const API_BASE = "https://punch-worker.ben-a90.workers.dev";
 const AUTH_URL = "https://auth.ben-a90.workers.dev";
 const PUNCH_TOKEN_KEY = "einbau_punch_token";
 let punchAuthToken = null;
-function handleUnauthorized() {
+let onUnauthorizedCallback = null;
+async function handleUnauthorized(res) {
   punchAuthToken = null;
   try {
     localStorage.removeItem(PUNCH_TOKEN_KEY);
   } catch (e) {
   }
-  window.location.reload();
+  let reason = `HTTP ${res.status}`;
+  try {
+    const body = await res.json();
+    if (body.reason) reason = body.reason;
+  } catch (e) {
+  }
+  if (onUnauthorizedCallback) {
+    onUnauthorizedCallback(reason);
+  } else {
+    window.location.reload();
+  }
 }
 function authHeaders(extra) {
   const headers = { ...extra };
@@ -51,7 +62,7 @@ function authHeaders(extra) {
 }
 async function apiGet(path) {
   const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
-  if (res.status === 401) return handleUnauthorized();
+  if (res.status === 401) return handleUnauthorized(res);
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
   return res.json();
 }
@@ -61,7 +72,7 @@ async function apiPost(path, body) {
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body)
   });
-  if (res.status === 401) return handleUnauthorized();
+  if (res.status === 401) return handleUnauthorized(res);
   if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
   return res.json();
 }
@@ -71,13 +82,13 @@ async function apiPatch(path, body) {
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body)
   });
-  if (res.status === 401) return handleUnauthorized();
+  if (res.status === 401) return handleUnauthorized(res);
   if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
   return res.json();
 }
 async function apiDelete(path) {
   const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", headers: authHeaders() });
-  if (res.status === 401) return handleUnauthorized();
+  if (res.status === 401) return handleUnauthorized(res);
   if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`);
   return res.json();
 }
@@ -602,12 +613,28 @@ function PunchBubbles() {
     setAuthUser(user || null);
   }
   useEffect(() => {
+    onUnauthorizedCallback = (reason) => {
+      setAuthToken(null);
+      setAuthUser(null);
+      setTasks([]);
+      setRecurringTasks([]);
+      setLoginError(reason);
+    };
+    return () => {
+      onUnauthorizedCallback = null;
+    };
+  }, []);
+  useEffect(() => {
     const stored = localStorage.getItem(PUNCH_TOKEN_KEY);
     if (!stored) {
       setAuthChecking(false);
       return;
     }
-    fetch(`${AUTH_URL}/auth/verify`, { headers: { Authorization: `Bearer ${stored}` } }).then((res) => res.json()).then((data) => {
+    fetch(`${AUTH_URL}/auth/verify`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${stored}`, "Content-Type": "application/json" },
+      body: "{}"
+    }).then((res) => res.json()).then((data) => {
       if (data.valid) {
         const fresh = data.refreshedToken || stored;
         if (data.refreshedToken) localStorage.setItem(PUNCH_TOKEN_KEY, data.refreshedToken);

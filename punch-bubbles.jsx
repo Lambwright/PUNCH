@@ -12,16 +12,32 @@ const PUNCH_TOKEN_KEY = "einbau_punch_token";
 // already use for their own auth tokens.
 let punchAuthToken = null;
 
-// A 401 means the token is missing/expired/revoked — drop it and force a clean
-// re-login rather than leaving the app stuck retrying with a dead token.
-function handleUnauthorized() {
+// A 401 means the token is missing/expired/revoked, or (for PUNCH specifically)
+// a valid login from an account that isn't Ben's. Either way, drop the token —
+// but instead of silently reloading (which wiped the actual reason off-screen
+// before it could be read — exactly what made the last round of this hard to
+// diagnose), hand the reason to the login screen via a callback it registers
+// on mount, and only fall back to a hard reload if nothing's registered yet.
+let onUnauthorizedCallback = null;
+async function handleUnauthorized(res) {
   punchAuthToken = null;
   try {
     localStorage.removeItem(PUNCH_TOKEN_KEY);
   } catch (e) {
     // ignore storage errors
   }
-  window.location.reload();
+  let reason = `HTTP ${res.status}`;
+  try {
+    const body = await res.json();
+    if (body.reason) reason = body.reason;
+  } catch (e) {
+    // ignore — body wasn't JSON, stick with the plain status
+  }
+  if (onUnauthorizedCallback) {
+    onUnauthorizedCallback(reason);
+  } else {
+    window.location.reload();
+  }
 }
 function authHeaders(extra) {
   const headers = { ...extra };
@@ -31,7 +47,7 @@ function authHeaders(extra) {
 
 async function apiGet(path) {
   const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
-  if (res.status === 401) return handleUnauthorized();
+  if (res.status === 401) return handleUnauthorized(res);
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
   return res.json();
 }
@@ -41,7 +57,7 @@ async function apiPost(path, body) {
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
-  if (res.status === 401) return handleUnauthorized();
+  if (res.status === 401) return handleUnauthorized(res);
   if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
   return res.json();
 }
@@ -51,13 +67,13 @@ async function apiPatch(path, body) {
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
-  if (res.status === 401) return handleUnauthorized();
+  if (res.status === 401) return handleUnauthorized(res);
   if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
   return res.json();
 }
 async function apiDelete(path) {
   const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", headers: authHeaders() });
-  if (res.status === 401) return handleUnauthorized();
+  if (res.status === 401) return handleUnauthorized(res);
   if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`);
   return res.json();
 }
@@ -564,12 +580,29 @@ export default function PunchBubbles() {
   }
 
   useEffect(() => {
+    onUnauthorizedCallback = (reason) => {
+      setAuthToken(null);
+      setAuthUser(null);
+      setTasks([]);
+      setRecurringTasks([]);
+      setLoginError(reason);
+    };
+    return () => {
+      onUnauthorizedCallback = null;
+    };
+  }, []);
+
+  useEffect(() => {
     const stored = localStorage.getItem(PUNCH_TOKEN_KEY);
     if (!stored) {
       setAuthChecking(false);
       return;
     }
-    fetch(`${AUTH_URL}/auth/verify`, { headers: { Authorization: `Bearer ${stored}` } })
+    fetch(`${AUTH_URL}/auth/verify`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${stored}`, "Content-Type": "application/json" },
+      body: "{}",
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.valid) {
