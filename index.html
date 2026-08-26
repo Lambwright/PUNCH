@@ -653,6 +653,7 @@ function PunchBubbles() {
       const existingIds = new Set(prev.map((t) => t.id));
       const newOnes = normalizedTasks.filter((t) => !existingIds.has(t.id));
       newOnes.forEach((t) => flashNewlyAdded(t.id));
+      markUnseenBatch(newOnes.filter((t) => !t.isProject).map((t) => t.id));
       return [...prev, ...newOnes];
     });
     setRecurringTasks((prev) => {
@@ -759,6 +760,36 @@ function PunchBubbles() {
   }
   function updatePosition(id, x, y) {
     persistPositions({ ...positionsRef.current, [id]: { x, y } });
+  }
+  const UNSEEN_KEY = "punch_unseen_task_ids";
+  const [unseenIds, setUnseenIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem(UNSEEN_KEY);
+      return raw ? new Set(JSON.parse(raw)) : /* @__PURE__ */ new Set();
+    } catch (e) {
+      return /* @__PURE__ */ new Set();
+    }
+  });
+  const unseenIdsRef = useRef(unseenIds);
+  useEffect(() => {
+    unseenIdsRef.current = unseenIds;
+  }, [unseenIds]);
+  function persistUnseen(next) {
+    setUnseenIds(next);
+    try {
+      localStorage.setItem(UNSEEN_KEY, JSON.stringify([...next]));
+    } catch (e) {
+    }
+  }
+  function markUnseenBatch(ids) {
+    if (!ids.length) return;
+    persistUnseen(/* @__PURE__ */ new Set([...unseenIdsRef.current, ...ids]));
+  }
+  function markSeen(id) {
+    if (!unseenIdsRef.current.has(id)) return;
+    const next = new Set(unseenIdsRef.current);
+    next.delete(id);
+    persistUnseen(next);
   }
   const PROJECT_POSITIONS_KEY = "punch_project_child_positions";
   const [projectPositions, setProjectPositions] = useState(() => {
@@ -1073,6 +1104,7 @@ function PunchBubbles() {
   }
   function renderBubble(n, i) {
     const color = n.isProject ? n.color || DEFAULT_PROJECT_COLOR : tab === "snoozed" ? "#6B7A8C" : priorityColor[n.effPriority];
+    const isUnseen = !n.isProject && unseenIds.has(n.id);
     const age = daysOpen(n.createdAt);
     const daysUntilDue2 = n.dueDate ? Math.ceil((new Date(n.dueDate) - now) / 864e5) : null;
     return /* @__PURE__ */ React.createElement(
@@ -1118,6 +1150,10 @@ function PunchBubbles() {
           }
         ),
         /* @__PURE__ */ React.createElement("circle", { r: n.r - 5, fill: color, fillOpacity: "0.14" }),
+        isUnseen && // Neon-green halo: a new inbound task nobody's looked at yet. Persists
+        // across reloads (unlike the brief inflate/drift pop-in) and only clears
+        // the first time this task is actually opened.
+        /* @__PURE__ */ React.createElement("circle", { r: n.r + 5, fill: "none", stroke: "#39FF14", strokeWidth: "2.5", style: { animation: "unseenFlash 0.9s ease-in-out infinite" } }),
         n.isProject ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("circle", { r: n.r - 8, fill: "none", stroke: color, strokeWidth: "1", strokeOpacity: "0.55" }), Array.from({ length: Math.min(n.childCount, 10) }).map((_, di) => {
           const dAngle = di * 2.399963;
           const dRadius = Math.min(n.r - 16, 6 + di * ((n.r - 20) / 10));
@@ -1201,6 +1237,7 @@ function PunchBubbles() {
     persist(apiPatch(apiPathFor(taskId), { history: newHistory }));
   }
   function openDetail(task) {
+    markSeen(task.id);
     setSelected(task);
     setNote("");
     setDraftSummary(task.summary);
@@ -1935,6 +1972,7 @@ function PunchBubbles() {
         @keyframes rowIn { 0% { opacity: 0; transform: scale(0.9) translateY(-4px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes overduePulse { 0%,100% { filter: drop-shadow(0 0 0px rgba(193,64,28,0)); } 50% { filter: drop-shadow(0 0 7px rgba(193,64,28,0.85)); } }
+        @keyframes unseenFlash { 0%,100% { opacity: 0.35; filter: drop-shadow(0 0 2px rgba(57,255,20,0.7)); } 50% { opacity: 1; filter: drop-shadow(0 0 10px rgba(57,255,20,1)); } }
         .punch-hover-edit { transition: border-color .12s ease, background-color .12s ease; }
         .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: #4A473F !important; background-color: #1E1C1A !important; }
         .punch-color-hover { position: relative; }
@@ -4811,8 +4849,7 @@ function PunchBubbles() {
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(React.createElement(PunchBubbles));
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PunchBubbles));
 </script>
 </body>
 </html>

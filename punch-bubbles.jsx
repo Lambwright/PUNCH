@@ -621,6 +621,7 @@ export default function PunchBubbles() {
       const existingIds = new Set(prev.map((t) => t.id));
       const newOnes = normalizedTasks.filter((t) => !existingIds.has(t.id));
       newOnes.forEach((t) => flashNewlyAdded(t.id));
+      markUnseenBatch(newOnes.filter((t) => !t.isProject).map((t) => t.id));
       return [...prev, ...newOnes];
     });
     setRecurringTasks((prev) => {
@@ -763,6 +764,44 @@ export default function PunchBubbles() {
 
   function updatePosition(id, x, y) {
     persistPositions({ ...positionsRef.current, [id]: { x, y } });
+  }
+
+  // Neon-green "unread" ring: unlike newlyAddedIds (a few-second pop-in animation,
+  // cleared by its own setTimeout), this persists across reloads until the task is
+  // actually opened — so an inbound bubble you haven't looked at yet keeps flashing
+  // even if you close the tab and come back tomorrow.
+  const UNSEEN_KEY = "punch_unseen_task_ids";
+  const [unseenIds, setUnseenIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem(UNSEEN_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (e) {
+      return new Set();
+    }
+  });
+  const unseenIdsRef = useRef(unseenIds);
+  useEffect(() => {
+    unseenIdsRef.current = unseenIds;
+  }, [unseenIds]);
+  function persistUnseen(next) {
+    setUnseenIds(next);
+    try {
+      localStorage.setItem(UNSEEN_KEY, JSON.stringify([...next]));
+    } catch (e) {
+      // ignore storage errors (e.g. private browsing quota)
+    }
+  }
+  // Batches so a forEach over several new tasks in the same tick doesn't clobber
+  // itself reading a stale ref between calls.
+  function markUnseenBatch(ids) {
+    if (!ids.length) return;
+    persistUnseen(new Set([...unseenIdsRef.current, ...ids]));
+  }
+  function markSeen(id) {
+    if (!unseenIdsRef.current.has(id)) return;
+    const next = new Set(unseenIdsRef.current);
+    next.delete(id);
+    persistUnseen(next);
   }
 
   // Same pattern as the board's own position store, nested one level by project id —
@@ -1164,6 +1203,7 @@ export default function PunchBubbles() {
   // being dragged/clicked via draggingId/openedProjectId.
   function renderBubble(n, i) {
     const color = n.isProject ? n.color || DEFAULT_PROJECT_COLOR : tab === "snoozed" ? "#6B7A8C" : priorityColor[n.effPriority];
+    const isUnseen = !n.isProject && unseenIds.has(n.id);
     const age = daysOpen(n.createdAt);
     const daysUntilDue = n.dueDate ? Math.ceil((new Date(n.dueDate) - now) / 86400000) : null;
     return (
@@ -1207,6 +1247,12 @@ export default function PunchBubbles() {
             strokeWidth={n.isProject ? "3.5" : "2.5"}
           />
           <circle r={n.r - 5} fill={color} fillOpacity="0.14" />
+          {isUnseen && (
+            // Neon-green halo: a new inbound task nobody's looked at yet. Persists
+            // across reloads (unlike the brief inflate/drift pop-in) and only clears
+            // the first time this task is actually opened.
+            <circle r={n.r + 5} fill="none" stroke="#39FF14" strokeWidth="2.5" style={{ animation: "unseenFlash 0.9s ease-in-out infinite" }} />
+          )}
           {n.isProject ? (
             <>
               {/* inner ring — marks a project as a container, not a single task */}
@@ -1317,6 +1363,7 @@ export default function PunchBubbles() {
   }
 
   function openDetail(task) {
+    markSeen(task.id);
     setSelected(task);
     setNote("");
     setDraftSummary(task.summary);
@@ -2225,6 +2272,7 @@ export default function PunchBubbles() {
         @keyframes rowIn { 0% { opacity: 0; transform: scale(0.9) translateY(-4px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes overduePulse { 0%,100% { filter: drop-shadow(0 0 0px rgba(193,64,28,0)); } 50% { filter: drop-shadow(0 0 7px rgba(193,64,28,0.85)); } }
+        @keyframes unseenFlash { 0%,100% { opacity: 0.35; filter: drop-shadow(0 0 2px rgba(57,255,20,0.7)); } 50% { opacity: 1; filter: drop-shadow(0 0 10px rgba(57,255,20,1)); } }
         .punch-hover-edit { transition: border-color .12s ease, background-color .12s ease; }
         .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: #4A473F !important; background-color: #1E1C1A !important; }
         .punch-color-hover { position: relative; }
