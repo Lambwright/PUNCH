@@ -452,6 +452,16 @@ const PROJECT_COLORS = [
 ];
 const DEFAULT_PROJECT_COLOR = PROJECT_COLORS[0];
 
+// The app-switcher dropdown, mirrored across PUNCH/SCOUT/INTAKE. PUNCH is
+// Ben's personal tool (see the username check in punch-worker) so it's listed
+// but not linked from the other two — everyone can see it exists, only Ben
+// can actually get in.
+const APP_SWITCHER_LINKS = [
+  { name: "PUNCH", url: "https://lambwright.github.io/PUNCH/", color: "#E2871A", current: true },
+  { name: "SCOUT", url: "https://lambwright.github.io/scout-addin/app.html", color: "#8FC742", current: false },
+  { name: "INTAKE", url: "https://lambwright.github.io/scout-intake/", color: "#8FC742", current: false },
+];
+
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 86400000));
 }
@@ -545,6 +555,7 @@ export default function PunchBubbles() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
 
   function setAuth(token, user) {
     punchAuthToken = token;
@@ -2445,17 +2456,81 @@ export default function PunchBubbles() {
       ) : (
       <div style={{ margin: "0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <div
-            style={{
-              fontFamily: "'Oswald', sans-serif",
-              fontWeight: 700,
-              fontSize: 36,
-              letterSpacing: "0.04em",
-              color: "#F1ECE1",
-              textTransform: "uppercase",
-            }}
-          >
-            Punch
+          <div style={{ position: "relative" }}>
+            <div
+              onClick={() => setAppSwitcherOpen((v) => !v)}
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                gap: 6,
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "'Oswald', sans-serif",
+                  fontWeight: 700,
+                  fontSize: 36,
+                  letterSpacing: "0.04em",
+                  color: "#F1ECE1",
+                  textTransform: "uppercase",
+                }}
+              >
+                Punch
+              </div>
+              <span style={{ color: "#8A8375", fontSize: 12, transform: appSwitcherOpen ? "rotate(180deg)" : "none" }}>▾</span>
+            </div>
+            {appSwitcherOpen && (
+              <>
+                <div
+                  onClick={() => setAppSwitcherOpen(false)}
+                  style={{ position: "fixed", inset: 0, zIndex: 999 }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    marginTop: 6,
+                    background: "#26221D",
+                    border: "1px solid #3A352C",
+                    borderRadius: 4,
+                    minWidth: 180,
+                    zIndex: 1000,
+                    overflow: "hidden",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  {APP_SWITCHER_LINKS.map((app) => (
+                    <a
+                      key={app.name}
+                      href={app.comingSoon ? undefined : app.url}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "10px 14px",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: "0.05em",
+                        textDecoration: "none",
+                        color: app.current ? app.color : app.comingSoon ? "#5C5850" : "#D9D2C4",
+                        background: app.current ? "rgba(226,135,26,0.08)" : "transparent",
+                        cursor: app.comingSoon ? "default" : "pointer",
+                        borderBottom: "1px solid #2E2A24",
+                      }}
+                    >
+                      {app.name}
+                      {app.comingSoon && (
+                        <span style={{ fontSize: 9, color: "#5C5850", fontWeight: 400 }}>COMING SOON</span>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           <button
             onClick={manualRefresh}

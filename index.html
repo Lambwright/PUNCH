@@ -517,6 +517,11 @@ const PROJECT_COLORS = [
   // lavender
 ];
 const DEFAULT_PROJECT_COLOR = PROJECT_COLORS[0];
+const APP_SWITCHER_LINKS = [
+  { name: "PUNCH", url: "https://lambwright.github.io/PUNCH/", color: "#E2871A", current: true },
+  { name: "SCOUT", url: "https://lambwright.github.io/scout-addin/app.html", color: "#8FC742", current: false },
+  { name: "INTAKE", url: "https://lambwright.github.io/scout-intake/", color: "#8FC742", current: false }
+];
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 864e5));
 }
@@ -590,6 +595,7 @@ function PunchBubbles() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [appSwitcherOpen, setAppSwitcherOpen] = useState(false);
   function setAuth(token, user) {
     punchAuthToken = token;
     setAuthToken(token);
@@ -2114,20 +2120,81 @@ function PunchBubbles() {
       loadError,
       /* @__PURE__ */ React.createElement("br", null),
       /* @__PURE__ */ React.createElement("span", { style: { color: "#8B8680", fontSize: 11 } }, "Check the Worker's deployed, CORS is open, and the URL in API_BASE is correct.")
-    ) : /* @__PURE__ */ React.createElement("div", { style: { margin: "0" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 4 } }, /* @__PURE__ */ React.createElement(
+    ) : /* @__PURE__ */ React.createElement("div", { style: { margin: "0" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 4 } }, /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        onClick: () => setAppSwitcherOpen((v) => !v),
+        style: {
+          display: "flex",
+          alignItems: "baseline",
+          gap: 6,
+          cursor: "pointer",
+          userSelect: "none"
+        }
+      },
+      /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          style: {
+            fontFamily: "'Oswald', sans-serif",
+            fontWeight: 700,
+            fontSize: 36,
+            letterSpacing: "0.04em",
+            color: "#F1ECE1",
+            textTransform: "uppercase"
+          }
+        },
+        "Punch"
+      ),
+      /* @__PURE__ */ React.createElement("span", { style: { color: "#8A8375", fontSize: 12, transform: appSwitcherOpen ? "rotate(180deg)" : "none" } }, "\u25BE")
+    ), appSwitcherOpen && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        onClick: () => setAppSwitcherOpen(false),
+        style: { position: "fixed", inset: 0, zIndex: 999 }
+      }
+    ), /* @__PURE__ */ React.createElement(
       "div",
       {
         style: {
-          fontFamily: "'Oswald', sans-serif",
-          fontWeight: 700,
-          fontSize: 36,
-          letterSpacing: "0.04em",
-          color: "#F1ECE1",
-          textTransform: "uppercase"
+          position: "absolute",
+          top: "100%",
+          left: 0,
+          marginTop: 6,
+          background: "#26221D",
+          border: "1px solid #3A352C",
+          borderRadius: 4,
+          minWidth: 180,
+          zIndex: 1e3,
+          overflow: "hidden",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.4)"
         }
       },
-      "Punch"
-    ), /* @__PURE__ */ React.createElement(
+      APP_SWITCHER_LINKS.map((app) => /* @__PURE__ */ React.createElement(
+        "a",
+        {
+          key: app.name,
+          href: app.comingSoon ? void 0 : app.url,
+          style: {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 14px",
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.05em",
+            textDecoration: "none",
+            color: app.current ? app.color : app.comingSoon ? "#5C5850" : "#D9D2C4",
+            background: app.current ? "rgba(226,135,26,0.08)" : "transparent",
+            cursor: app.comingSoon ? "default" : "pointer",
+            borderBottom: "1px solid #2E2A24"
+          }
+        },
+        app.name,
+        app.comingSoon && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: "#5C5850", fontWeight: 400 } }, "COMING SOON")
+      ))
+    ))), /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: manualRefresh,
