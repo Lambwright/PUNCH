@@ -190,6 +190,36 @@ function isOverdue(task) {
   return d !== null && d < 0 && task.status === "open";
 }
 
+// Synthesized "win" chime for resolving a task — a quick ascending major triad,
+// generated with the Web Audio API so there's no audio asset to load. Reuses a
+// single AudioContext across calls; browsers cap how many can exist per page.
+let resolveAudioCtx = null;
+function playResolveChime() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!resolveAudioCtx) resolveAudioCtx = new Ctx();
+    const ctx = resolveAudioCtx;
+    if (ctx.state === "suspended") ctx.resume();
+    const start0 = ctx.currentTime;
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      const start = start0 + i * 0.07;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.18, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.35);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.4);
+    });
+  } catch (e) {
+    // sound is decorative — never let it break the actual resolve action
+  }
+}
+
 function dueDateColor(task) {
   const d = daysUntilTaskDue(task);
   if (d === null) return "#8A8375";
@@ -546,6 +576,7 @@ export default function PunchBubbles() {
   const [recurNotesDraft, setRecurNotesDraft] = useState("");
   const [pickedRecordIdx, setPickedRecordIdx] = useState("");
   const [newlyAddedIds, setNewlyAddedIds] = useState(() => new Set());
+  const [resolveBurst, setResolveBurst] = useState(null);
   const [copilotLoading, setCopilotLoading] = useState(false);
 
   // Project bubbles: which project (if any) is currently expanded in place,
@@ -2051,7 +2082,15 @@ export default function PunchBubbles() {
       .catch((err) => console.error("PUNCH sync failed:", err));
   }
 
+  function celebrateResolve() {
+    playResolveChime();
+    const id = Date.now();
+    setResolveBurst(id);
+    setTimeout(() => setResolveBurst((prev) => (prev === id ? null : prev)), 900);
+  }
+
   function resolveTask() {
+    celebrateResolve();
     pushHistory(selected.id, "resolved", note.trim() || "Marked resolved");
     persist(
       apiPatch(`/tasks/${selected.id}`, {
@@ -2273,6 +2312,7 @@ export default function PunchBubbles() {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes overduePulse { 0%,100% { filter: drop-shadow(0 0 0px rgba(193,64,28,0)); } 50% { filter: drop-shadow(0 0 7px rgba(193,64,28,0.85)); } }
         @keyframes unseenFlash { 0%,100% { opacity: 0.35; filter: drop-shadow(0 0 2px rgba(57,255,20,0.7)); } 50% { opacity: 1; filter: drop-shadow(0 0 10px rgba(57,255,20,1)); } }
+        @keyframes burstOut { 0% { transform: translate(-50%,-50%) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.25); opacity: 0; } }
         .punch-hover-edit { transition: border-color .12s ease, background-color .12s ease; }
         .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: #4A473F !important; background-color: #1E1C1A !important; }
         .punch-color-hover { position: relative; }
@@ -5378,6 +5418,37 @@ export default function PunchBubbles() {
               </>
             )}
           </div>
+        </div>
+      )}
+      {resolveBurst && (
+        // The "win" moment for MARK RESOLVED — fixed to the viewport (not the modal)
+        // so it stays visible through the modal closing, rather than getting
+        // unmounted the instant setSelected(null) runs.
+        <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9999 }}>
+          {Array.from({ length: 20 }).map((_, i) => {
+            const angle = (i / 20) * 360 + (Math.random() * 14 - 7);
+            const distance = 90 + Math.random() * 80;
+            const dx = Math.cos((angle * Math.PI) / 180) * distance;
+            const dy = Math.sin((angle * Math.PI) / 180) * distance;
+            const dot = ["#E2871A", "#39FF14", "#F1ECE1", "#C9A227"][i % 4];
+            return (
+              <span
+                key={`${resolveBurst}-${i}`}
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: 9,
+                  height: 9,
+                  borderRadius: "50%",
+                  background: dot,
+                  "--dx": `${dx}px`,
+                  "--dy": `${dy}px`,
+                  animation: "burstOut 0.8s cubic-bezier(0.2,0.8,0.3,1) both",
+                }}
+              />
+            );
+          })}
         </div>
       )}
     </div>
