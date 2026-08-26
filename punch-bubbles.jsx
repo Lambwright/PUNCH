@@ -3,32 +3,61 @@ import * as d3 from "d3";
 import { X, Link as LinkIcon, Check, Clock, Bot, User, History as HistoryIcon, TrendingUp, HelpCircle, RefreshCw as RefreshIcon } from "lucide-react";
 
 const API_BASE = "https://punch-worker.ben-a90.workers.dev";
+const AUTH_URL = "https://auth.ben-a90.workers.dev";
+const PUNCH_TOKEN_KEY = "einbau_punch_token";
+
+// Set by the login screen after a successful login/verify — read by every api*
+// call below. A plain module-level variable (not React state) because these
+// are standalone functions outside the component, same pattern SCOUT/INTAKE
+// already use for their own auth tokens.
+let punchAuthToken = null;
+
+// A 401 means the token is missing/expired/revoked — drop it and force a clean
+// re-login rather than leaving the app stuck retrying with a dead token.
+function handleUnauthorized() {
+  punchAuthToken = null;
+  try {
+    localStorage.removeItem(PUNCH_TOKEN_KEY);
+  } catch (e) {
+    // ignore storage errors
+  }
+  window.location.reload();
+}
+function authHeaders(extra) {
+  const headers = { ...extra };
+  if (punchAuthToken) headers["Authorization"] = `Bearer ${punchAuthToken}`;
+  return headers;
+}
 
 async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  if (res.status === 401) return handleUnauthorized();
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
   return res.json();
 }
 async function apiPost(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
+  if (res.status === 401) return handleUnauthorized();
   if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
   return res.json();
 }
 async function apiPatch(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
+  if (res.status === 401) return handleUnauthorized();
   if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
   return res.json();
 }
 async function apiDelete(path) {
-  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" });
+  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE", headers: authHeaders() });
+  if (res.status === 401) return handleUnauthorized();
   if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`);
   return res.json();
 }
@@ -505,6 +534,69 @@ export default function PunchBubbles() {
   const [recurringTasks, setRecurringTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+
+  // Einbau ID login — same shared auth as SCOUT/INTAKE. Nothing else in this
+  // component fetches real data until authToken is set; punchAuthToken (the
+  // module-level copy the api* helpers actually read) is kept in sync alongside it.
+  const [authToken, setAuthToken] = useState(null);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [authUser, setAuthUser] = useState(null);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
+
+  function setAuth(token, user) {
+    punchAuthToken = token;
+    setAuthToken(token);
+    setAuthUser(user || null);
+  }
+
+  useEffect(() => {
+    const stored = localStorage.getItem(PUNCH_TOKEN_KEY);
+    if (!stored) {
+      setAuthChecking(false);
+      return;
+    }
+    fetch(`${AUTH_URL}/auth/verify`, { headers: { Authorization: `Bearer ${stored}` } })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.valid) {
+          const fresh = data.refreshedToken || stored;
+          if (data.refreshedToken) localStorage.setItem(PUNCH_TOKEN_KEY, data.refreshedToken);
+          setAuth(fresh, data.user);
+        } else {
+          localStorage.removeItem(PUNCH_TOKEN_KEY);
+        }
+      })
+      .catch(() => localStorage.removeItem(PUNCH_TOKEN_KEY))
+      .finally(() => setAuthChecking(false));
+  }, []);
+
+  async function doLogin(e) {
+    e.preventDefault();
+    setLoginError("");
+    setLoginSubmitting(true);
+    try {
+      const res = await fetch(`${AUTH_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: loginUsername.trim(), password: loginPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.token) {
+        setLoginError("Invalid username or password.");
+        return;
+      }
+      localStorage.setItem(PUNCH_TOKEN_KEY, data.token);
+      setLoginPassword("");
+      setAuth(data.token, data.user);
+    } catch (err) {
+      setLoginError("Couldn't reach the login server — check your connection.");
+    } finally {
+      setLoginSubmitting(false);
+    }
+  }
   // Shadows the module-level WIDTH/HEIGHT (620x480 default) with the actual
   // available window size, so the bubble canvas isn't stuck in a fixed box
   // with dead space on either side, and can't extend below the visible page.
@@ -663,6 +755,7 @@ export default function PunchBubbles() {
   }
 
   useEffect(() => {
+    if (!authToken) return;
     let cancelled = false;
     async function load() {
       try {
@@ -677,7 +770,7 @@ export default function PunchBubbles() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authToken]);
 
   // Poll for new tasks (new emails/Teams messages) without a manual reload. Bumped
   // from 45s to 15min after a Neon public-network-transfer overage warning — the
@@ -685,11 +778,12 @@ export default function PunchBubbles() {
   // interval itself, but this is a cheap extra lever while that bill month settles.
   // Ben wants to revisit this once the raw_text fix's actual impact is visible.
   useEffect(() => {
+    if (!authToken) return;
     const interval = setInterval(() => {
       fetchAndMergeTasks(false).catch((err) => console.error("Background refresh failed:", err));
     }, 900000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authToken]);
 
   async function manualRefresh() {
     setIsRefreshing(true);
@@ -5449,6 +5543,106 @@ export default function PunchBubbles() {
               />
             );
           })}
+        </div>
+      )}
+      {authToken && (
+        <div
+          style={{
+            position: "fixed", top: 10, right: 16, zIndex: 500,
+            display: "flex", alignItems: "center", gap: 8,
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375",
+          }}
+        >
+          {authUser && <span>{(authUser.displayName || authUser.username || "").toUpperCase()}</span>}
+          <button
+            onClick={() => {
+              localStorage.removeItem(PUNCH_TOKEN_KEY);
+              setTasks([]);
+              setRecurringTasks([]);
+              setAuth(null, null);
+            }}
+            style={{
+              background: "transparent", border: "1px solid #3A352C", color: "#8A8375",
+              borderRadius: 4, padding: "4px 8px", fontFamily: "inherit", fontSize: 10, cursor: "pointer",
+            }}
+          >
+            LOG OUT
+          </button>
+        </div>
+      )}
+      {(authChecking || !authToken) && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 100000, background: "#1E1C1A",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "'Inter', sans-serif",
+          }}
+        >
+          {authChecking ? (
+            <div style={{ color: "#8A8375", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.05em" }}>
+              CHECKING SESSION…
+            </div>
+          ) : (
+            <form
+              onSubmit={doLogin}
+              style={{ background: "#26221D", border: "1px solid #3A352C", borderRadius: 6, padding: 32, width: 300 }}
+            >
+              <div style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700, fontSize: 20, letterSpacing: "0.05em", color: "#E2871A", marginBottom: 4 }}>
+                PUNCH
+              </div>
+              <div
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375",
+                  marginBottom: 20, textTransform: "uppercase", letterSpacing: "0.08em",
+                }}
+              >
+                Einbau ID sign-in
+              </div>
+              <input
+                type="text"
+                autoComplete="username"
+                placeholder="Username"
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                required
+                style={{
+                  width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 10,
+                  background: "#1E1C1A", border: "1px solid #3A352C", borderRadius: 4,
+                  color: "#F1ECE1", fontFamily: "'Inter', sans-serif", fontSize: 13,
+                }}
+              />
+              <input
+                type="password"
+                autoComplete="current-password"
+                placeholder="Password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                required
+                style={{
+                  width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 14,
+                  background: "#1E1C1A", border: "1px solid #3A352C", borderRadius: 4,
+                  color: "#F1ECE1", fontFamily: "'Inter', sans-serif", fontSize: 13,
+                }}
+              />
+              <button
+                type="submit"
+                disabled={loginSubmitting}
+                style={{
+                  width: "100%", padding: "10px 0", background: "#E2871A", color: "#1E1C1A",
+                  border: "none", borderRadius: 4, fontFamily: "'JetBrains Mono', monospace",
+                  fontWeight: 700, fontSize: 12, letterSpacing: "0.05em",
+                  cursor: loginSubmitting ? "default" : "pointer", opacity: loginSubmitting ? 0.6 : 1,
+                }}
+              >
+                {loginSubmitting ? "SIGNING IN…" : "SIGN IN"}
+              </button>
+              {loginError && (
+                <div style={{ marginTop: 10, color: "#C1401C", fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
+                  {loginError}
+                </div>
+              )}
+            </form>
+          )}
         </div>
       )}
     </div>
