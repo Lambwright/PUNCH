@@ -84,8 +84,10 @@ function persist(promise) {
   promise.catch((err) => console.error("PUNCH sync failed:", err));
 }
 
-// now/daysAgo are still used by the Portfolio/Searches "record picker" mock pool below —
-// that feature stays mock until real Procore/NetSuite polling exists (see initialAvailableRecords).
+// now/daysAgo are still used by the Portfolio "record picker" mock pool below — that
+// feature stays mock until real Procore polling exists (see initialAvailableRecords).
+// Saved Searches (searches tab) is no longer part of this — it's a live NetSuite
+// proxy view with its own fetch/save cycle, not a tasks-backed list at all.
 const now = new Date();
 
 const PROJECT_TYPES = ["T&M", "Contract", "Service Call", "Warranty", "Overhead"];
@@ -196,10 +198,6 @@ const initialAvailableRecords = {
   portfolio: [
     { summary: "New project: Oakridge Residence — admin setup pending", category: "Portfolio", priority: "normal", sourceUrl: "https://app.procore.com/projects/mock-oakridge" },
     { summary: "New project: Fenwick Library addition — PO not yet confirmed", category: "Portfolio", priority: "high", sourceUrl: "https://app.procore.com/projects/mock-fenwick" },
-  ],
-  searches: [
-    { summary: "Saved search: unsynced Procore/NetSuite project records", category: "Sync", priority: "normal", sourceUrl: null },
-    { summary: "Saved search: NetSuite inbound projects awaiting approval", category: "Sync", priority: "normal", sourceUrl: null },
   ],
 };
 
@@ -767,6 +765,21 @@ export default function PunchBubbles() {
   const [digestError, setDigestError] = useState(null);
   const [digestsFetched, setDigestsFetched] = useState(false);
 
+  // Saved Searches (NetSuite Inbound Projects) — a live proxy view, not a local
+  // tasks list like every other tab. "Done" here just means "NetSuite already has
+  // the value," so there's nothing to persist locally; pendingEdits holds only the
+  // in-progress draft for whichever record(s) are currently being edited.
+  const [pendingProjects, setPendingProjects] = useState([]);
+  const [pendingOptions, setPendingOptions] = useState({ department: [], class: [], location: [], approvalStatus: [] });
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingError, setPendingError] = useState(null);
+  const [pendingFetched, setPendingFetched] = useState(false);
+  const [pendingEdits, setPendingEdits] = useState({}); // { [recordId]: { customer?, projectManager?, department?, class?, location?, approvalStatus? } }
+  const [pendingSavingId, setPendingSavingId] = useState(null);
+  const [pmOptions, setPmOptions] = useState([]); // full employee list (~50), fetched once
+  const [customerQuery, setCustomerQuery] = useState({}); // { [recordId]: text typed so far }
+  const [customerResults, setCustomerResults] = useState({}); // { [recordId]: [{id,name}] }
+
   async function fetchAndMergeTasks(replaceAll) {
     const [openRows, snoozedRows, recurRows] = await Promise.all([
       apiGet("/tasks?status=open"),
@@ -876,6 +889,96 @@ export default function PunchBubbles() {
       setDigestGenerating(false);
     }
   }
+
+  async function loadPendingProjects() {
+    setPendingLoading(true);
+    setPendingError(null);
+    try {
+      const data = await apiGet("/netsuite/pending-projects");
+      setPendingProjects(data.projects || []);
+      setPendingOptions((prev) => ({ ...prev, ...data.options }));
+    } catch (err) {
+      setPendingError(err.message);
+    } finally {
+      setPendingLoading(false);
+      setPendingFetched(true);
+    }
+  }
+
+  // Project Manager (~50 active employees) is small enough to fetch in full once,
+  // rather than search-as-you-type like Customer (~1,500 records) needs.
+  async function loadPmOptions() {
+    try {
+      const data = await apiGet("/netsuite/pending-options?field=projectManager");
+      setPmOptions(data.options || []);
+    } catch (err) {
+      console.error("Failed to load project manager list:", err);
+    }
+  }
+
+  function updatePendingEdit(recordId, field, value) {
+    setPendingEdits((prev) => ({ ...prev, [recordId]: { ...prev[recordId], [field]: value } }));
+  }
+
+  // Debounced customer search — fires ~300ms after typing stops, not per keystroke,
+  // to avoid hammering NetSuite with a query for every character typed.
+  const customerSearchTimers = useRef({});
+  function searchCustomers(recordId, query) {
+    setCustomerQuery((prev) => ({ ...prev, [recordId]: query }));
+    clearTimeout(customerSearchTimers.current[recordId]);
+    if (query.trim().length < 2) {
+      setCustomerResults((prev) => ({ ...prev, [recordId]: [] }));
+      return;
+    }
+    customerSearchTimers.current[recordId] = setTimeout(() => {
+      apiGet(`/netsuite/pending-options?field=customer&q=${encodeURIComponent(query.trim())}`)
+        .then((data) => setCustomerResults((prev) => ({ ...prev, [recordId]: data.options || [] })))
+        .catch((err) => console.error("Customer search failed:", err));
+    }, 300);
+  }
+
+  // Writes only the fields actually touched in this record's draft — a record with
+  // no edits yet has no entry in pendingEdits at all, so this is a no-op for those.
+  async function savePendingProject(recordId) {
+    const draft = pendingEdits[recordId];
+    if (!draft || Object.keys(draft).length === 0) return;
+    setPendingSavingId(recordId);
+    try {
+      const body = {};
+      if (draft.customer !== undefined) body.customer = draft.customer?.id || null;
+      if (draft.projectManager !== undefined) body.projectManager = draft.projectManager || null;
+      if (draft.department !== undefined) body.department = draft.department || null;
+      if (draft.class !== undefined) body.class = draft.class || null;
+      if (draft.location !== undefined) body.location = draft.location || null;
+      if (draft.approvalStatus !== undefined) body.approvalStatus = draft.approvalStatus || null;
+      await apiPatch(`/netsuite/pending-projects/${recordId}`, body);
+      // Approval Status moving off "Pending Completion" means this record no longer
+      // belongs on the worklist at all — drop it locally rather than waiting on a
+      // full re-fetch, same instant-feedback principle as everywhere else in PUNCH.
+      if (draft.approvalStatus !== undefined && draft.approvalStatus !== "4") {
+        setPendingProjects((prev) => prev.filter((p) => p.id !== recordId));
+      } else {
+        await loadPendingProjects();
+      }
+      setPendingEdits((prev) => {
+        const next = { ...prev };
+        delete next[recordId];
+        return next;
+      });
+    } catch (err) {
+      console.error("Failed to save Inbound Project fields:", err);
+      setPendingError(err.message);
+    } finally {
+      setPendingSavingId(null);
+    }
+  }
+
+  useEffect(() => {
+    if (tab === "searches" && !pendingFetched) {
+      loadPendingProjects();
+      loadPmOptions();
+    }
+  }, [tab, pendingFetched]);
 
   useEffect(() => {
     if (tab === "digest" && !digestsFetched) {
@@ -2639,7 +2742,7 @@ export default function PunchBubbles() {
               </button>
             );
           })}
-          {tab !== "snoozed" && tab !== "digest" && !openedProjectId && (
+          {tab !== "snoozed" && tab !== "digest" && tab !== "searches" && !openedProjectId && (
             <button
               onClick={() => setAddPanelOpen((v) => !v)}
               aria-label="Add"
@@ -2662,7 +2765,7 @@ export default function PunchBubbles() {
           )}
         </div>
 
-        {addPanelOpen && tab !== "snoozed" && tab !== "digest" && !openedProjectId && (
+        {addPanelOpen && tab !== "snoozed" && tab !== "digest" && tab !== "searches" && !openedProjectId && (
           <div
             style={{
               background: "#2A2724",
@@ -3032,7 +3135,244 @@ export default function PunchBubbles() {
         )}
 
         <div style={{ maxWidth: WIDTH, margin: "0 auto" }}>
-        {tab === "digest" ? (
+        {tab === "searches" ? (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <button
+                onClick={loadPendingProjects}
+                disabled={pendingLoading}
+                style={{
+                  padding: "9px 16px",
+                  background: pendingLoading ? "#E9E2D2" : "#E2871A",
+                  color: "#1E1C1A",
+                  border: "none",
+                  borderRadius: 4,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontWeight: 700,
+                  fontSize: 11,
+                  cursor: pendingLoading ? "default" : "pointer",
+                }}
+              >
+                {pendingLoading ? "LOADING..." : "REFRESH FROM NETSUITE"}
+              </button>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680" }}>
+                NetSuite Inbound Projects sitting at "Pending Completion" — read and written live, nothing cached here.
+              </span>
+            </div>
+
+            {pendingError && (
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 }}>
+                {pendingError}
+              </div>
+            )}
+
+            {pendingLoading && pendingProjects.length === 0 ? (
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 }}>
+                LOADING...
+              </div>
+            ) : pendingProjects.length === 0 ? (
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", color: "#5C5850", fontSize: 13 }}>
+                Nothing pending completion right now.
+              </div>
+            ) : (
+              pendingProjects.map((p) => {
+                const draft = pendingEdits[p.id] || {};
+                const hasDraft = Object.keys(draft).length > 0;
+                const fieldValue = (field, idKey) => {
+                  if (draft[field] !== undefined) return draft[field] || "";
+                  return p[idKey] || "";
+                };
+                const isMissing = (field) => p.missingFields.includes(field) && draft[field] === undefined;
+                const selectStyle = (missing) => ({
+                  padding: 7,
+                  borderRadius: 4,
+                  border: `1px solid ${missing ? "#C1401C88" : "#4A473F"}`,
+                  background: "#1E1C1A",
+                  color: "#F1ECE1",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 11,
+                  width: "100%",
+                });
+                const customerDisplay =
+                  draft.customer !== undefined ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
+
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      background: "#2A2724",
+                      border: "1px solid #3A3733",
+                      borderRadius: 4,
+                      padding: "14px 16px",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+                      <div
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 13.5,
+                          color: "#F1ECE1",
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {p.name}
+                      </div>
+                      {p.procoreId && (
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", flexShrink: 0 }}>
+                          {p.procoreId}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
+                          CUSTOMER
+                        </div>
+                        <input
+                          list={`customer-list-${p.id}`}
+                          value={customerDisplay}
+                          placeholder="Type to search..."
+                          onChange={(e) => {
+                            const text = e.target.value;
+                            searchCustomers(p.id, text);
+                            const match = (customerResults[p.id] || []).find((o) => o.name === text);
+                            if (match) updatePendingEdit(p.id, "customer", match);
+                            else setPendingEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], customer: undefined } }));
+                          }}
+                          style={selectStyle(isMissing("customer"))}
+                        />
+                        <datalist id={`customer-list-${p.id}`}>
+                          {(customerResults[p.id] || []).map((o) => (
+                            <option key={o.id} value={o.name} />
+                          ))}
+                        </datalist>
+                      </div>
+
+                      <div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
+                          PROJECT MANAGER
+                        </div>
+                        <select
+                          value={fieldValue("projectManager", "projectManagerId")}
+                          onChange={(e) => updatePendingEdit(p.id, "projectManager", e.target.value)}
+                          style={selectStyle(isMissing("projectManager"))}
+                        >
+                          <option value="">— Select —</option>
+                          {pmOptions.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
+                          DEPARTMENT
+                        </div>
+                        <select
+                          value={fieldValue("department", "departmentId")}
+                          onChange={(e) => updatePendingEdit(p.id, "department", e.target.value)}
+                          style={selectStyle(isMissing("department"))}
+                        >
+                          <option value="">— Select —</option>
+                          {pendingOptions.department.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
+                          CLASS
+                        </div>
+                        <select
+                          value={fieldValue("class", "classId")}
+                          onChange={(e) => updatePendingEdit(p.id, "class", e.target.value)}
+                          style={selectStyle(isMissing("class"))}
+                        >
+                          <option value="">— Select —</option>
+                          {pendingOptions.class.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
+                          LOCATION
+                        </div>
+                        <select
+                          value={fieldValue("location", "locationId")}
+                          onChange={(e) => updatePendingEdit(p.id, "location", e.target.value)}
+                          style={selectStyle(isMissing("location"))}
+                        >
+                          <option value="">— Select —</option>
+                          {pendingOptions.location.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
+                          APPROVAL STATUS
+                        </div>
+                        <select
+                          value={fieldValue("approvalStatus", "approvalStatusId") || "4"}
+                          onChange={(e) => updatePendingEdit(p.id, "approvalStatus", e.target.value)}
+                          style={selectStyle(false)}
+                        >
+                          {pendingOptions.approvalStatus.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {p.address.street && (
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", marginBottom: 10 }}>
+                        {[p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country].filter(Boolean).join(", ")}
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => savePendingProject(p.id)}
+                      disabled={!hasDraft || pendingSavingId === p.id}
+                      style={{
+                        padding: "6px 14px",
+                        background: hasDraft && pendingSavingId !== p.id ? "#E2871A" : "#3A3733",
+                        color: hasDraft && pendingSavingId !== p.id ? "#1E1C1A" : "#8B8680",
+                        border: "none",
+                        borderRadius: 4,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 700,
+                        fontSize: 10.5,
+                        cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default",
+                      }}
+                    >
+                      {pendingSavingId === p.id ? "SAVING..." : "SAVE"}
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : tab === "digest" ? (
           <div>
             <button
               onClick={generateDigest}
