@@ -3655,6 +3655,13 @@ export default function PunchBubbles() {
                 !hoveredNode.isProject && hoveredNode.history && hoveredNode.history.length > 0
                   ? hoveredNode.history[hoveredNode.history.length - 1]
                   : null;
+              // foreignObject doesn't auto-size to its content like a normal div would -
+              // it needs an explicit height, and the old fixed 108/148 clipped anything
+              // longer than about one line of summary. Estimate wrapped line count at
+              // this box's actual width instead (capped so a pathological summary can't
+              // blow the tooltip up into a full paragraph).
+              const summaryLines = Math.min(4, Math.max(1, Math.ceil((hoveredNode.summary || "").length / 30)));
+              const tooltipHeight = 92 + summaryLines * 16 + (latest ? 44 : 0);
               return (
                 <g
                   transform={`translate(${hoveredNode.x},${hoveredNode.y})`}
@@ -3662,7 +3669,7 @@ export default function PunchBubbles() {
                   onPointerEnter={(e) => handleHoverEnter(hoveredNode.id, e)}
                   onPointerLeave={handleHoverLeave}
                 >
-                  <foreignObject x={-110} y={hoveredNode.r + 8} width={220} height={latest ? 148 : 108}>
+                  <foreignObject x={-110} y={hoveredNode.r + 8} width={220} height={tooltipHeight}>
                     <div
                       style={{
                         background: "#F1ECE1",

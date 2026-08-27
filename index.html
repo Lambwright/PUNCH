@@ -3183,6 +3183,8 @@ function PunchBubbles() {
         if (!hoveredNode) return null;
         const color = hoveredNode.isProject ? hoveredNode.color || DEFAULT_PROJECT_COLOR : tab === "snoozed" ? "#6B7A8C" : priorityColor[hoveredNode.effPriority];
         const latest = !hoveredNode.isProject && hoveredNode.history && hoveredNode.history.length > 0 ? hoveredNode.history[hoveredNode.history.length - 1] : null;
+        const summaryLines = Math.min(4, Math.max(1, Math.ceil((hoveredNode.summary || "").length / 30)));
+        const tooltipHeight = 92 + summaryLines * 16 + (latest ? 44 : 0);
         return /* @__PURE__ */ React.createElement(
           "g",
           {
@@ -3191,7 +3193,7 @@ function PunchBubbles() {
             onPointerEnter: (e) => handleHoverEnter(hoveredNode.id, e),
             onPointerLeave: handleHoverLeave
           },
-          /* @__PURE__ */ React.createElement("foreignObject", { x: -110, y: hoveredNode.r + 8, width: 220, height: latest ? 148 : 108 }, /* @__PURE__ */ React.createElement(
+          /* @__PURE__ */ React.createElement("foreignObject", { x: -110, y: hoveredNode.r + 8, width: 220, height: tooltipHeight }, /* @__PURE__ */ React.createElement(
             "div",
             {
               style: {
