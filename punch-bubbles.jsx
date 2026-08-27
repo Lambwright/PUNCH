@@ -952,10 +952,11 @@ export default function PunchBubbles() {
       if (draft.location !== undefined) body.location = draft.location || null;
       if (draft.approvalStatus !== undefined) body.approvalStatus = draft.approvalStatus || null;
       await apiPatch(`/netsuite/pending-projects/${recordId}`, body);
-      // Approval Status moving off "Pending Completion" means this record no longer
-      // belongs on the worklist at all — drop it locally rather than waiting on a
-      // full re-fetch, same instant-feedback principle as everywhere else in PUNCH.
-      if (draft.approvalStatus !== undefined && draft.approvalStatus !== "4") {
+      // The worklist is "not Rejected and no NS Project yet" (matches Ben's own real
+      // saved search) — an Approved record stays on it until some separate downstream
+      // process actually turns it into a Job, so only Rejected means "gone from here
+      // right now." Anything else just needs a re-fetch to reflect the new values.
+      if (draft.approvalStatus === "3") {
         setPendingProjects((prev) => prev.filter((p) => p.id !== recordId));
       } else {
         await loadPendingProjects();

@@ -913,7 +913,7 @@ function PunchBubbles() {
       if (draft.location !== void 0) body.location = draft.location || null;
       if (draft.approvalStatus !== void 0) body.approvalStatus = draft.approvalStatus || null;
       await apiPatch(`/netsuite/pending-projects/${recordId}`, body);
-      if (draft.approvalStatus !== void 0 && draft.approvalStatus !== "4") {
+      if (draft.approvalStatus === "3") {
         setPendingProjects((prev) => prev.filter((p) => p.id !== recordId));
       } else {
         await loadPendingProjects();
