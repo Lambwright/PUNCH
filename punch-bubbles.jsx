@@ -2514,6 +2514,19 @@ export default function PunchBubbles() {
               </div>
               <span style={{ color: "#8A8375", fontSize: 12, transform: appSwitcherOpen ? "rotate(180deg)" : "none" }}>▾</span>
             </div>
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 9,
+                fontStyle: "italic",
+                color: "#8A8375",
+                opacity: 0.5,
+                display: "block",
+                marginTop: 2,
+              }}
+            >
+              An Einbau Product
+            </span>
             {appSwitcherOpen && (
               <>
                 <div
@@ -5629,6 +5642,18 @@ export default function PunchBubbles() {
           </div>
         </div>
       )}
+      <div style={{ textAlign: "center", padding: "40px 0 10px", pointerEvents: "none" }}>
+        <img
+          src="https://lambwright.github.io/scout-addin/logo.png"
+          alt=""
+          style={{
+            height: 80,
+            opacity: 0.1,
+            WebkitMaskImage: "linear-gradient(to bottom, black, transparent)",
+            maskImage: "linear-gradient(to bottom, black, transparent)",
+          }}
+        />
+      </div>
       {resolveBurst && (
         // The "win" moment for MARK RESOLVED — fixed to the viewport (not the modal)
         // so it stays visible through the modal closing, rather than getting

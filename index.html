@@ -2174,6 +2174,20 @@ function PunchBubbles() {
         "Punch"
       ),
       /* @__PURE__ */ React.createElement("span", { style: { color: "#8A8375", fontSize: 12, transform: appSwitcherOpen ? "rotate(180deg)" : "none" } }, "\u25BE")
+    ), /* @__PURE__ */ React.createElement(
+      "span",
+      {
+        style: {
+          fontFamily: "'Inter', sans-serif",
+          fontSize: 9,
+          fontStyle: "italic",
+          color: "#8A8375",
+          opacity: 0.5,
+          display: "block",
+          marginTop: 2
+        }
+      },
+      "An Einbau Product"
     ), appSwitcherOpen && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -5050,6 +5064,19 @@ function PunchBubbles() {
         )))))))
       )
     ),
+    /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", padding: "40px 0 10px", pointerEvents: "none" } }, /* @__PURE__ */ React.createElement(
+      "img",
+      {
+        src: "https://lambwright.github.io/scout-addin/logo.png",
+        alt: "",
+        style: {
+          height: 80,
+          opacity: 0.1,
+          WebkitMaskImage: "linear-gradient(to bottom, black, transparent)",
+          maskImage: "linear-gradient(to bottom, black, transparent)"
+        }
+      }
+    )),
     resolveBurst && // The "win" moment for MARK RESOLVED — fixed to the viewport (not the modal)
     // so it stays visible through the modal closing, rather than getting
     // unmounted the instant setSelected(null) runs.
