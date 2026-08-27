@@ -4,7 +4,7 @@ import { X, Link as LinkIcon, Check, Clock, Bot, User, History as HistoryIcon, T
 
 const API_BASE = "https://punch-worker.ben-a90.workers.dev";
 const AUTH_URL = "https://auth.ben-a90.workers.dev";
-const PUNCH_TOKEN_KEY = "einbau_punch_token";
+const PUNCH_TOKEN_KEY = "einbau_id_token"; // shared with SCOUT/INTAKE - same origin, one login carries across all three
 
 // Set by the login screen after a successful login/verify — read by every api*
 // call below. A plain module-level variable (not React state) because these
