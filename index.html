@@ -741,6 +741,8 @@ function PunchBubbles() {
   const [expandedChecklistItem, setExpandedChecklistItem] = useState(null);
   const [procoreDetails, setProcoreDetails] = useState({});
   const [procoreDetailLoading, setProcoreDetailLoading] = useState(() => /* @__PURE__ */ new Set());
+  const [budgetPopulating, setBudgetPopulating] = useState(false);
+  const [budgetPopulateResult, setBudgetPopulateResult] = useState(null);
   const [editingChecklistField, setEditingChecklistField] = useState(null);
   const [procoreOptions, setProcoreOptions] = useState({});
   const [procoreOptionsLoading, setProcoreOptionsLoading] = useState(() => /* @__PURE__ */ new Set());
@@ -1469,6 +1471,7 @@ function PunchBubbles() {
     setExpandedChecklistItem(null);
     setProcoreDetails({});
     setProcoreDetailLoading(/* @__PURE__ */ new Set());
+    setBudgetPopulateResult(null);
     setEditingChecklistField(null);
     setEditDraft({});
     setChecklistFieldError(null);
@@ -1569,6 +1572,17 @@ function PunchBubbles() {
         return next;
       })
     );
+  }
+  function populateBudget() {
+    setBudgetPopulating(true);
+    setBudgetPopulateResult(null);
+    apiPost(`/portfolio/populate-budget?task_id=${selected.id}`, {}).then((result) => {
+      setBudgetPopulateResult(result);
+      if (result.checklist) {
+        updateStore(selected.id, (t) => ({ ...t, checklist: result.checklist }));
+        setSelected((prev) => ({ ...prev, checklist: result.checklist }));
+      }
+    }).catch((err) => setBudgetPopulateResult({ error: err.message })).finally(() => setBudgetPopulating(false));
   }
   function renderProcoreDetail(detailType, detail) {
     if (detailType === "drawings" || detailType === "po_on_file") {
@@ -4614,6 +4628,33 @@ function PunchBubbles() {
                 isExpanded ? "\u25BE" : "\u25B8",
                 " VIEW"
               ),
+              item.key === "budget_populated" && /* @__PURE__ */ React.createElement(
+                "button",
+                {
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    populateBudget();
+                  },
+                  disabled: budgetPopulating,
+                  title: "Fetch this project's live cost codes and post any missing boilerplate budget lines",
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 3,
+                    padding: "2px 6px",
+                    background: "transparent",
+                    border: "1px solid #C9C0AC",
+                    borderRadius: 3,
+                    fontFamily: FONT_MONO,
+                    fontWeight: 700,
+                    fontSize: SIZE_XS,
+                    color: budgetPopulating ? "#C9C0AC" : "#8A8375",
+                    cursor: budgetPopulating ? "default" : "pointer",
+                    flexShrink: 0
+                  }
+                },
+                budgetPopulating ? "RUNNING\u2026" : "\u25B6 RUN"
+              ),
               isLink && /* @__PURE__ */ React.createElement(
                 "button",
                 {
@@ -4655,6 +4696,22 @@ function PunchBubbles() {
               isLoading && "Loading from Procore\u2026",
               !isLoading && detail && detail.error && /* @__PURE__ */ React.createElement("span", { style: { color: "#C1401C" } }, detail.error),
               !isLoading && detail && !detail.error && renderProcoreDetail(detailType, detail)
+            ), item.key === "budget_populated" && budgetPopulateResult && /* @__PURE__ */ React.createElement(
+              "div",
+              {
+                style: {
+                  marginLeft: 24,
+                  marginBottom: 8,
+                  padding: "6px 10px",
+                  background: "#EDE6D6",
+                  borderRadius: 4,
+                  fontFamily: FONT_MONO,
+                  fontSize: SIZE_XS,
+                  color: "#5C5850",
+                  lineHeight: 1.6
+                }
+              },
+              budgetPopulateResult.error ? /* @__PURE__ */ React.createElement("span", { style: { color: "#C1401C" } }, budgetPopulateResult.error) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null, budgetPopulateResult.templateUsed, " template \u2014 ", budgetPopulateResult.posted.length, " added,", " ", budgetPopulateResult.skipped.length, " already there", budgetPopulateResult.errors.length ? `, ${budgetPopulateResult.errors.length} failed` : ""), budgetPopulateResult.errors.map((e, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { color: "#C1401C" } }, e.code, ": ", e.reason)))
             ), isEditingThis && /* @__PURE__ */ React.createElement(
               "div",
               {

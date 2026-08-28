@@ -729,6 +729,8 @@ export default function PunchBubbles() {
   const [expandedChecklistItem, setExpandedChecklistItem] = useState(null);
   const [procoreDetails, setProcoreDetails] = useState({});
   const [procoreDetailLoading, setProcoreDetailLoading] = useState(() => new Set());
+  const [budgetPopulating, setBudgetPopulating] = useState(false);
+  const [budgetPopulateResult, setBudgetPopulateResult] = useState(null);
 
   // Write-back editor for the 9 Procore-native admin fields — which one (if any) is
   // being edited, its dropdown options (fetched once per field and cached), and the
@@ -1660,6 +1662,7 @@ export default function PunchBubbles() {
     setExpandedChecklistItem(null);
     setProcoreDetails({});
     setProcoreDetailLoading(new Set());
+    setBudgetPopulateResult(null);
     setEditingChecklistField(null);
     setEditDraft({});
     setChecklistFieldError(null);
@@ -1783,6 +1786,25 @@ export default function PunchBubbles() {
           return next;
         })
       );
+  }
+
+  // Replaces the old "Procore Budget Importer" PA flow — runs against just the one
+  // project being looked at, on click, instead of a twice-daily scan of the whole
+  // company. Safe to click more than once: the backend skips anything already on
+  // the budget, same duplicate protection the old flow had.
+  function populateBudget() {
+    setBudgetPopulating(true);
+    setBudgetPopulateResult(null);
+    apiPost(`/portfolio/populate-budget?task_id=${selected.id}`, {})
+      .then((result) => {
+        setBudgetPopulateResult(result);
+        if (result.checklist) {
+          updateStore(selected.id, (t) => ({ ...t, checklist: result.checklist }));
+          setSelected((prev) => ({ ...prev, checklist: result.checklist }));
+        }
+      })
+      .catch((err) => setBudgetPopulateResult({ error: err.message }))
+      .finally(() => setBudgetPopulating(false));
   }
 
   // Renders the "take a peek" panel content for a checklist item wired to
@@ -5284,6 +5306,33 @@ export default function PunchBubbles() {
                             {isExpanded ? "▾" : "▸"} VIEW
                           </button>
                         )}
+                        {item.key === "budget_populated" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              populateBudget();
+                            }}
+                            disabled={budgetPopulating}
+                            title="Fetch this project's live cost codes and post any missing boilerplate budget lines"
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 3,
+                              padding: "2px 6px",
+                              background: "transparent",
+                              border: "1px solid #C9C0AC",
+                              borderRadius: 3,
+                              fontFamily: FONT_MONO,
+                              fontWeight: 700,
+                              fontSize: SIZE_XS,
+                              color: budgetPopulating ? "#C9C0AC" : "#8A8375",
+                              cursor: budgetPopulating ? "default" : "pointer",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {budgetPopulating ? "RUNNING…" : "▶ RUN"}
+                          </button>
+                        )}
                         {isLink && (
                           <button
                             onClick={(e) => {
@@ -5328,6 +5377,39 @@ export default function PunchBubbles() {
                             <span style={{ color: "#C1401C" }}>{detail.error}</span>
                           )}
                           {!isLoading && detail && !detail.error && renderProcoreDetail(detailType, detail)}
+                        </div>
+                      )}
+
+                      {item.key === "budget_populated" && budgetPopulateResult && (
+                        <div
+                          style={{
+                            marginLeft: 24,
+                            marginBottom: 8,
+                            padding: "6px 10px",
+                            background: "#EDE6D6",
+                            borderRadius: 4,
+                            fontFamily: FONT_MONO,
+                            fontSize: SIZE_XS,
+                            color: "#5C5850",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {budgetPopulateResult.error ? (
+                            <span style={{ color: "#C1401C" }}>{budgetPopulateResult.error}</span>
+                          ) : (
+                            <>
+                              <div>
+                                {budgetPopulateResult.templateUsed} template — {budgetPopulateResult.posted.length} added,{" "}
+                                {budgetPopulateResult.skipped.length} already there
+                                {budgetPopulateResult.errors.length ? `, ${budgetPopulateResult.errors.length} failed` : ""}
+                              </div>
+                              {budgetPopulateResult.errors.map((e, i) => (
+                                <div key={i} style={{ color: "#C1401C" }}>
+                                  {e.code}: {e.reason}
+                                </div>
+                              ))}
+                            </>
+                          )}
                         </div>
                       )}
 
