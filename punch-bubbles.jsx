@@ -474,6 +474,7 @@ const APP_SWITCHER_LINKS = [
   { name: "PUNCH", url: "https://lambwright.github.io/PUNCH/", color: "#E2871A", current: true },
   { name: "SCOUT", url: "https://lambwright.github.io/scout-addin/app.html", color: "#8FC742", current: false },
   { name: "INTAKE", url: "https://lambwright.github.io/scout-intake/", color: "#8FC742", current: false },
+  { name: "TALLY", url: "https://lambwright.github.io/tally/", color: "#E2871A", current: false },
 ];
 
 function daysOpen(createdAt) {
