@@ -4446,6 +4446,16 @@ export default function PunchBubbles() {
                       }}
                     >
                       {formatDateTime(ev.at)} · {ev.type.replace("_", " ").toUpperCase()}
+                      {ev.source_url && (
+                        <a
+                          href={ev.source_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ marginLeft: 6, color: "#8FC742", textDecoration: "none" }}
+                        >
+                          ↗ view
+                        </a>
+                      )}
                     </div>
                     <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#2A2419" }}>
                       {ev.text}
