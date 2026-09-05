@@ -533,6 +533,12 @@ const tabs = [
   { id: "recurring", label: "RECURRING", view: "recurring" },
   { id: "snoozed", label: "SNOOZED", view: "bubbles" },
   { id: "digest", label: "DIGEST", view: "digest" },
+  // Stage Enforcer-flagged tasks (punch-worker sets list: "stage_review"). Reuses the
+  // bubbles view as-is rather than a new bespoke layout — category already carries the
+  // origin stage bucket (On Hold / Completed and Invoiced / Pre-Construction) and shows
+  // on hover + in the detail modal, and each accumulated record already gets its own
+  // linked History entry via the same mechanism email replies use.
+  { id: "stage_review", label: "STAGE REVIEW", view: "bubbles" },
 ];
 
 const WIDTH = 620;
