@@ -6242,8 +6242,6 @@ export default function PunchBubbles() {
                 background: "#F1ECE1",
                 width: 460,
                 maxWidth: "90vw",
-                maxHeight: "85vh",
-                overflowY: "auto",
                 borderRadius: 6,
                 padding: 28,
                 position: "relative",
