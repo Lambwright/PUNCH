@@ -346,14 +346,25 @@ function procoreProjectIdFromUrl(url) {
   return m ? m[1] : null;
 }
 
-// Cross-references a NetSuite pending project's linked Procore id against
-// PUNCH's own Portfolio list, so Saved Searches can show whether Procore's own
-// admin-page checklist has actually been filled out before this gets completed
-// in NetSuite — matches on the exact same source_url shape syncPortfolio uses
-// (`${PROCORE_API_BASE}/${id}/project/home`), via procoreProjectIdFromUrl.
-function findPortfolioTaskForProcoreId(tasks, procoreId) {
-  if (!procoreId) return null;
-  return tasks.find((t) => t.list === "portfolio" && procoreProjectIdFromUrl(t.sourceUrl) === String(procoreId)) || null;
+// Cross-references a NetSuite pending project against PUNCH's own Portfolio
+// list, so Saved Searches can show whether Procore's own admin-page checklist
+// has actually been filled out before this gets completed in NetSuite.
+// IMPORTANT: NetSuite's "procoreId" field on the Inbound Project record is
+// actually the Procore project NUMBER (e.g. "2026_0348"), not Procore's raw
+// internal numeric id — confirmed live (the UI was displaying it as "#2026_0348").
+// An earlier version of this compared it against procoreProjectIdFromUrl(t.sourceUrl)
+// (the raw numeric id), which could never match anything — every row silently
+// showed COMPLETE regardless of real Portfolio status. Matches on the same
+// "YYYY_NNNN" token Portfolio's own summary already carries instead.
+function findPortfolioTaskForProjectNumber(tasks, projectNumber) {
+  if (!projectNumber) return null;
+  return (
+    tasks.find((t) => {
+      if (t.list !== "portfolio") return false;
+      const m = (t.summary || "").match(/(\d{4}_\d{4})/);
+      return Boolean(m) && m[1] === String(projectNumber);
+    }) || null
+  );
 }
 
 function procoreDirectoryLink(projectId) {
@@ -674,8 +685,8 @@ export default function PunchBubbles() {
   // available window size, so the bubble canvas isn't stuck in a fixed box
   // with dead space on either side, and can't extend below the visible page.
   function computeCanvasSize() {
-    if (typeof window === "undefined") return { w: 700, h: 540 };
-    const w = Math.max(700, Math.min(window.innerWidth - 80, 1600));
+    if (typeof window === "undefined") return { w: 620, h: 480 };
+    const w = Math.max(620, Math.min(window.innerWidth - 80, 1400));
     const aspectH = Math.round(w * (480 / 620));
     const maxViewportH = Math.max(320, window.innerHeight - 280); // room for header/tabs/legend
     return { w, h: Math.min(aspectH, maxViewportH) };
@@ -1939,12 +1950,12 @@ export default function PunchBubbles() {
   }
 
   const editInputStyle = {
-    padding: "7px 10px",
+    padding: "10px 14px",
     borderRadius: 4,
     border: "1px solid #C9C0AC",
     background: "transparent",
     fontFamily: FONT_MONO,
-    fontSize: SIZE_SM,
+    fontSize: SIZE_MD,
     color: "#5C5850",
     width: "100%",
     boxSizing: "border-box",
@@ -3275,7 +3286,7 @@ export default function PunchBubbles() {
           </div>
         )}
 
-        <div style={{ maxWidth: WIDTH, margin: "0 auto" }}>
+        <div style={{ maxWidth: currentTab.view === "bubbles" ? WIDTH : 1100, width: "100%", boxSizing: "border-box", margin: "0 auto" }}>
         {tab === "searches" ? (
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -3347,7 +3358,7 @@ export default function PunchBubbles() {
                 .map((p) => {
                 const missingCount = p.missingFields.length;
                 const color = missingCount > 0 ? "#C1401C" : "#8FC742";
-                const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
+                const portfolioTask = findPortfolioTaskForProjectNumber(tasks, p.procoreId);
                 // Not found on Portfolio is the GOOD state here — it means the checklist
                 // got completed and it's since moved on, not that nothing's been done.
                 const portfolioComplete = !portfolioTask;
@@ -5313,14 +5324,14 @@ export default function PunchBubbles() {
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: 4,
-                              padding: "4px 8px",
+                              gap: 5,
+                              padding: "6px 10px",
                               background: "transparent",
                               border: "1px solid #C9C0AC",
                               borderRadius: 3,
                               fontFamily: FONT_MONO,
                               fontWeight: 700,
-                              fontSize: SIZE_SM,
+                              fontSize: SIZE_MD,
                               color: "#8A8375",
                               cursor: "pointer",
                               flexShrink: 0,
@@ -5488,14 +5499,14 @@ export default function PunchBubbles() {
                                   !editDraft.name)
                               }
                               style={{
-                                padding: "7px 14px",
+                                padding: "10px 18px",
                                 borderRadius: 4,
                                 border: "1px solid #5B8C5A",
                                 background: "#5B8C5A",
                                 color: "#F1ECE1",
                                 fontFamily: FONT_MONO,
                                 fontWeight: 700,
-                                fontSize: SIZE_SM,
+                                fontSize: SIZE_MD,
                                 cursor: "pointer",
                                 opacity: savingChecklistField ? 0.6 : 1,
                               }}
@@ -5505,14 +5516,14 @@ export default function PunchBubbles() {
                             <button
                               onClick={cancelEditChecklistField}
                               style={{
-                                padding: "7px 14px",
+                                padding: "10px 18px",
                                 borderRadius: 4,
                                 border: "1px solid #C9C0AC",
                                 background: "transparent",
                                 color: "#8A8375",
                                 fontFamily: FONT_MONO,
                                 fontWeight: 700,
-                                fontSize: SIZE_SM,
+                                fontSize: SIZE_MD,
                                 cursor: "pointer",
                               }}
                             >
@@ -6206,7 +6217,7 @@ export default function PunchBubbles() {
         });
         const customerDisplay =
           draft.customer !== undefined ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
-        const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
+        const portfolioTask = findPortfolioTaskForProjectNumber(tasks, p.procoreId);
         const portfolioComplete = !portfolioTask;
         const portfolioNumber = portfolioTask ? projectNumberOf(portfolioTask) : "";
         const addressLine = [p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country]
@@ -6371,14 +6382,14 @@ export default function PunchBubbles() {
                   onClick={() => savePendingProject(p.id)}
                   disabled={!hasDraft || pendingSavingId === p.id}
                   style={{
-                    padding: "7px 14px",
+                    padding: "10px 18px",
                     background: hasDraft && pendingSavingId !== p.id ? "#5B8C5A" : "#D8D0BE",
                     color: hasDraft && pendingSavingId !== p.id ? "#F1ECE1" : "#8A8375",
                     border: "none",
                     borderRadius: 4,
                     fontFamily: "'JetBrains Mono', monospace",
                     fontWeight: 700,
-                    fontSize: 11,
+                    fontSize: SIZE_MD,
                     cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default",
                   }}
                 >

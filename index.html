@@ -294,9 +294,13 @@ function procoreProjectIdFromUrl(url) {
   const m = url.match(/procore\.com\/(\d+)\//);
   return m ? m[1] : null;
 }
-function findPortfolioTaskForProcoreId(tasks, procoreId) {
-  if (!procoreId) return null;
-  return tasks.find((t) => t.list === "portfolio" && procoreProjectIdFromUrl(t.sourceUrl) === String(procoreId)) || null;
+function findPortfolioTaskForProjectNumber(tasks, projectNumber) {
+  if (!projectNumber) return null;
+  return tasks.find((t) => {
+    if (t.list !== "portfolio") return false;
+    const m = (t.summary || "").match(/(\d{4}_\d{4})/);
+    return Boolean(m) && m[1] === String(projectNumber);
+  }) || null;
 }
 function procoreDirectoryLink(projectId) {
   return `https://us02.procore.com/${projectId}/project/directory`;
@@ -690,8 +694,8 @@ function PunchBubbles() {
     }
   }
   function computeCanvasSize() {
-    if (typeof window === "undefined") return { w: 700, h: 540 };
-    const w = Math.max(700, Math.min(window.innerWidth - 80, 1600));
+    if (typeof window === "undefined") return { w: 620, h: 480 };
+    const w = Math.max(620, Math.min(window.innerWidth - 80, 1400));
     const aspectH = Math.round(w * (480 / 620));
     const maxViewportH = Math.max(320, window.innerHeight - 280);
     return { w, h: Math.min(aspectH, maxViewportH) };
@@ -1648,12 +1652,12 @@ function PunchBubbles() {
     return null;
   }
   const editInputStyle = {
-    padding: "7px 10px",
+    padding: "10px 14px",
     borderRadius: 4,
     border: "1px solid #C9C0AC",
     background: "transparent",
     fontFamily: FONT_MONO,
-    fontSize: SIZE_SM,
+    fontSize: SIZE_MD,
     color: "#5C5850",
     width: "100%",
     boxSizing: "border-box"
@@ -2809,7 +2813,7 @@ function PunchBubbles() {
         },
         "ADD"
       ))
-    ), /* @__PURE__ */ React.createElement("div", { style: { maxWidth: WIDTH2, margin: "0 auto" } }, tab === "searches" ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 14 } }, /* @__PURE__ */ React.createElement(
+    ), /* @__PURE__ */ React.createElement("div", { style: { maxWidth: currentTab.view === "bubbles" ? WIDTH2 : 1100, width: "100%", boxSizing: "border-box", margin: "0 auto" } }, tab === "searches" ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 14 } }, /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: loadPendingProjects,
@@ -2854,7 +2858,7 @@ function PunchBubbles() {
       [...pendingProjects].sort((a, b) => (savedSearchSortDesc ? -1 : 1) * (Number(a.id) - Number(b.id))).map((p) => {
         const missingCount = p.missingFields.length;
         const color = missingCount > 0 ? "#C1401C" : "#8FC742";
-        const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
+        const portfolioTask = findPortfolioTaskForProjectNumber(tasks, p.procoreId);
         const portfolioComplete = !portfolioTask;
         const portfolioLabel = !p.procoreId ? null : portfolioComplete ? "PORTFOLIO CHECKLIST COMPLETE" : "PORTFOLIO CHECKLIST INCOMPLETE";
         const portfolioColor = portfolioComplete ? "#8FC742" : "#B8AF9E";
@@ -4633,14 +4637,14 @@ function PunchBubbles() {
                   style: {
                     display: "flex",
                     alignItems: "center",
-                    gap: 4,
-                    padding: "4px 8px",
+                    gap: 5,
+                    padding: "6px 10px",
                     background: "transparent",
                     border: "1px solid #C9C0AC",
                     borderRadius: 3,
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
-                    fontSize: SIZE_SM,
+                    fontSize: SIZE_MD,
                     color: "#8A8375",
                     cursor: "pointer",
                     flexShrink: 0
@@ -4778,14 +4782,14 @@ function PunchBubbles() {
                   onClick: saveChecklistField,
                   disabled: savingChecklistField || (LIVE_OPTION_FIELDS.has(item.key) || item.key === "department" || item.key === "currency" || item.key === "timezone") && editDraft.id == null && !editDraft.name,
                   style: {
-                    padding: "7px 14px",
+                    padding: "10px 18px",
                     borderRadius: 4,
                     border: "1px solid #5B8C5A",
                     background: "#5B8C5A",
                     color: "#F1ECE1",
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
-                    fontSize: SIZE_SM,
+                    fontSize: SIZE_MD,
                     cursor: "pointer",
                     opacity: savingChecklistField ? 0.6 : 1
                   }
@@ -4796,14 +4800,14 @@ function PunchBubbles() {
                 {
                   onClick: cancelEditChecklistField,
                   style: {
-                    padding: "7px 14px",
+                    padding: "10px 18px",
                     borderRadius: 4,
                     border: "1px solid #C9C0AC",
                     background: "transparent",
                     color: "#8A8375",
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
-                    fontSize: SIZE_SM,
+                    fontSize: SIZE_MD,
                     cursor: "pointer"
                   }
                 },
@@ -5489,7 +5493,7 @@ function PunchBubbles() {
         border: `1px solid ${missing ? "#C1401C" : "#C9C0AC"}`
       });
       const customerDisplay = draft.customer !== void 0 ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
-      const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
+      const portfolioTask = findPortfolioTaskForProjectNumber(tasks, p.procoreId);
       const portfolioComplete = !portfolioTask;
       const portfolioNumber = portfolioTask ? projectNumberOf(portfolioTask) : "";
       const addressLine = [p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country].filter(Boolean).join(", ");
@@ -5616,14 +5620,14 @@ function PunchBubbles() {
               onClick: () => savePendingProject(p.id),
               disabled: !hasDraft || pendingSavingId === p.id,
               style: {
-                padding: "7px 14px",
+                padding: "10px 18px",
                 background: hasDraft && pendingSavingId !== p.id ? "#5B8C5A" : "#D8D0BE",
                 color: hasDraft && pendingSavingId !== p.id ? "#F1ECE1" : "#8A8375",
                 border: "none",
                 borderRadius: 4,
                 fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 700,
-                fontSize: 11,
+                fontSize: SIZE_MD,
                 cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default"
               }
             },
