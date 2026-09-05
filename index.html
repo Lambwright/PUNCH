@@ -690,8 +690,8 @@ function PunchBubbles() {
     }
   }
   function computeCanvasSize() {
-    if (typeof window === "undefined") return { w: 620, h: 480 };
-    const w = Math.max(620, Math.min(window.innerWidth - 80, 1400));
+    if (typeof window === "undefined") return { w: 700, h: 540 };
+    const w = Math.max(700, Math.min(window.innerWidth - 80, 1600));
     const aspectH = Math.round(w * (480 / 620));
     const maxViewportH = Math.max(320, window.innerHeight - 280);
     return { w, h: Math.min(aspectH, maxViewportH) };
@@ -935,14 +935,16 @@ function PunchBubbles() {
     }, 300);
   }
   async function savePendingProject(recordId) {
-    const draft = pendingEdits[recordId];
-    if (!draft || Object.keys(draft).length === 0) return;
+    const draft = pendingEdits[recordId] || {};
+    const record = pendingProjects.find((pp) => pp.id === recordId);
+    const departmentAlwaysNeeded = record?.missingFields.includes("department");
+    if (Object.keys(draft).length === 0 && !departmentAlwaysNeeded) return;
     setPendingSavingId(recordId);
     try {
       const body = {};
       if (draft.customer !== void 0) body.customer = draft.customer?.id || null;
       if (draft.projectManager !== void 0) body.projectManager = draft.projectManager || null;
-      if (draft.department !== void 0) body.department = draft.department || null;
+      body.department = "1";
       if (draft.class !== void 0) body.class = draft.class || null;
       if (draft.location !== void 0) body.location = draft.location || null;
       if (draft.approvalStatus !== void 0) body.approvalStatus = draft.approvalStatus || null;
@@ -1666,6 +1668,25 @@ function PunchBubbles() {
     );
   }
   function renderChecklistFieldEditor(key) {
+    if (key === "customer") {
+      const options = procoreOptions.customer;
+      if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "Loading options\u2026");
+      const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name));
+      return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          list: "portfolio-customer-datalist",
+          autoFocus: true,
+          defaultValue: editDraft.name || "",
+          placeholder: "Type to search...",
+          onChange: (e) => {
+            const match = sorted.find((o) => o.name === e.target.value);
+            setEditDraft(match ? { ...match } : {});
+          },
+          style: editInputStyle
+        }
+      ), /* @__PURE__ */ React.createElement("datalist", { id: "portfolio-customer-datalist" }, sorted.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.name }))));
+    }
     if (LIVE_OPTION_FIELDS.has(key) || key === "department" || key === "currency") {
       const options = procoreOptions[key];
       if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "Loading options\u2026");
@@ -2808,9 +2829,10 @@ function PunchBubbles() {
         const missingCount = p.missingFields.length;
         const color = missingCount > 0 ? "#C1401C" : "#8FC742";
         const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
-        const portfolioDone = portfolioTask?.checklist ? portfolioTask.checklist.filter((c) => c.done).length : null;
-        const portfolioLabel = !p.procoreId ? null : portfolioTask ? `PORTFOLIO ${portfolioDone}/${portfolioTask.checklist.length}` : "NOT ON PORTFOLIO";
-        const portfolioColor = !portfolioTask ? "#C1401C" : portfolioDone === portfolioTask.checklist.length ? "#8FC742" : "#B8AF9E";
+        const portfolioComplete = !portfolioTask;
+        const portfolioLabel = !p.procoreId ? null : portfolioComplete ? "PORTFOLIO CHECKLIST COMPLETE" : "PORTFOLIO CHECKLIST INCOMPLETE";
+        const portfolioColor = portfolioComplete ? "#8FC742" : "#B8AF9E";
+        const portfolioNumber = portfolioTask ? projectNumberOf(portfolioTask) : "";
         return /* @__PURE__ */ React.createElement(
           "div",
           {
@@ -2819,33 +2841,33 @@ function PunchBubbles() {
             style: {
               display: "flex",
               alignItems: "center",
-              gap: 10,
+              gap: 12,
               background: "#2A2724",
               border: `1px solid ${color}55`,
               borderLeft: `4px solid ${color}`,
               borderRadius: 4,
-              padding: "10px 12px",
-              marginBottom: 8,
+              padding: "14px 16px",
+              marginBottom: 10,
               cursor: "pointer"
             }
           },
-          /* @__PURE__ */ React.createElement("div", { style: { width: 14, height: 14, borderRadius: "50%", border: "1.5px solid #5C5850", flexShrink: 0 } }),
+          /* @__PURE__ */ React.createElement("div", { style: { width: 16, height: 16, borderRadius: "50%", border: "1.5px solid #5C5850", flexShrink: 0 } }),
           /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement(
             "div",
             {
               style: {
                 fontFamily: "'Inter', sans-serif",
-                fontSize: 13.5,
+                fontSize: 14.5,
                 color: "#F1ECE1",
-                marginBottom: 2,
+                marginBottom: 3,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap"
               }
             },
-            p.name
-          ), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement("span", null, p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"), portfolioLabel && /* @__PURE__ */ React.createElement("span", { style: { color: portfolioColor } }, "\xB7 ", portfolioLabel))),
-          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, color, flexShrink: 0 } }, missingCount > 0 ? `${missingCount} MISSING` : "COMPLETE")
+            portfolioNumber ? `${portfolioNumber} \u2014 ${p.name}` : p.name
+          ), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680", display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement("span", null, p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"), portfolioLabel && /* @__PURE__ */ React.createElement("span", { style: { color: portfolioColor } }, "\xB7 ", portfolioLabel))),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color, flexShrink: 0 } }, missingCount > 0 ? `${missingCount} MISSING` : "COMPLETE")
         );
       })
     )) : tab === "digest" ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
@@ -5414,7 +5436,7 @@ function PunchBubbles() {
       const p = pendingProjects.find((pp) => pp.id === openedPendingId);
       if (!p) return null;
       const draft = pendingEdits[p.id] || {};
-      const hasDraft = Object.keys(draft).length > 0;
+      const hasDraft = Object.keys(draft).length > 0 || p.missingFields.includes("department");
       const fieldValue = (field, idKey) => {
         if (draft[field] !== void 0) return draft[field] || "";
         return p[idKey] || "";
@@ -5433,7 +5455,8 @@ function PunchBubbles() {
       });
       const customerDisplay = draft.customer !== void 0 ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
       const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
-      const portfolioDone = portfolioTask?.checklist ? portfolioTask.checklist.filter((c) => c.done).length : null;
+      const portfolioComplete = !portfolioTask;
+      const portfolioNumber = portfolioTask ? projectNumberOf(portfolioTask) : "";
       const addressLine = [p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country].filter(Boolean).join(", ");
       return /* @__PURE__ */ React.createElement(
         "div",
@@ -5459,7 +5482,7 @@ function PunchBubbles() {
               maxHeight: "85vh",
               overflowY: "auto",
               borderRadius: 6,
-              padding: 24,
+              padding: 28,
               position: "relative",
               boxShadow: "0 12px 40px rgba(0,0,0,0.5)"
             },
@@ -5474,7 +5497,7 @@ function PunchBubbles() {
             },
             /* @__PURE__ */ React.createElement(X, { size: 18 })
           ),
-          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 15, color: "#2A2419", marginBottom: 2, paddingRight: 24 } }, p.name),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 15, color: "#2A2419", marginBottom: 2, paddingRight: 24 } }, portfolioNumber ? `${portfolioNumber} \u2014 ${p.name}` : p.name),
           /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 4 } }, p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"),
           p.procoreId && /* @__PURE__ */ React.createElement(
             "div",
@@ -5483,11 +5506,11 @@ function PunchBubbles() {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 10,
                 fontWeight: 700,
-                color: !portfolioTask ? "#C1401C" : portfolioDone === portfolioTask.checklist.length ? "#5B8C5A" : "#8A8375",
+                color: portfolioComplete ? "#5B8C5A" : "#8A8375",
                 marginBottom: 12
               }
             },
-            portfolioTask ? `PORTFOLIO CHECKLIST: ${portfolioDone}/${portfolioTask.checklist.length} DONE` : "NOT FOUND ON PORTFOLIO"
+            portfolioComplete ? "PORTFOLIO CHECKLIST COMPLETE" : "PORTFOLIO CHECKLIST INCOMPLETE"
           ),
           /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "ADDRESS (READ-ONLY, FROM PROCORE)"), /* @__PURE__ */ React.createElement(
             "div",
@@ -5525,15 +5548,6 @@ function PunchBubbles() {
             },
             /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
             pmOptions.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
-          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "DEPARTMENT"), /* @__PURE__ */ React.createElement(
-            "select",
-            {
-              value: fieldValue("department", "departmentId"),
-              onChange: (e) => updatePendingEdit(p.id, "department", e.target.value),
-              style: lightSelectStyle(isMissing("department"))
-            },
-            /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
-            pendingOptions.department.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
           )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "CLASS"), /* @__PURE__ */ React.createElement(
             "select",
             {

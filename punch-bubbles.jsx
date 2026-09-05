@@ -674,8 +674,8 @@ export default function PunchBubbles() {
   // available window size, so the bubble canvas isn't stuck in a fixed box
   // with dead space on either side, and can't extend below the visible page.
   function computeCanvasSize() {
-    if (typeof window === "undefined") return { w: 620, h: 480 };
-    const w = Math.max(620, Math.min(window.innerWidth - 80, 1400));
+    if (typeof window === "undefined") return { w: 700, h: 540 };
+    const w = Math.max(700, Math.min(window.innerWidth - 80, 1600));
     const aspectH = Math.round(w * (480 / 620));
     const maxViewportH = Math.max(320, window.innerHeight - 280); // room for header/tabs/legend
     return { w, h: Math.min(aspectH, maxViewportH) };
@@ -989,14 +989,21 @@ export default function PunchBubbles() {
   // Writes only the fields actually touched in this record's draft — a record with
   // no edits yet has no entry in pendingEdits at all, so this is a no-op for those.
   async function savePendingProject(recordId) {
-    const draft = pendingEdits[recordId];
-    if (!draft || Object.keys(draft).length === 0) return;
+    const draft = pendingEdits[recordId] || {};
+    // Department has no UI field anymore — it's always force-sent below — so a
+    // record missing only department still needs Save to actually be reachable
+    // even though nothing else was ever touched.
+    const record = pendingProjects.find((pp) => pp.id === recordId);
+    const departmentAlwaysNeeded = record?.missingFields.includes("department");
+    if (Object.keys(draft).length === 0 && !departmentAlwaysNeeded) return;
     setPendingSavingId(recordId);
     try {
       const body = {};
       if (draft.customer !== undefined) body.customer = draft.customer?.id || null;
       if (draft.projectManager !== undefined) body.projectManager = draft.projectManager || null;
-      if (draft.department !== undefined) body.department = draft.department || null;
+      // Department is always "Site" (NetSuite internal id "1") for anything completed
+      // from this tab — no UI field for it, this just always sends it on every save.
+      body.department = "1";
       if (draft.class !== undefined) body.class = draft.class || null;
       if (draft.location !== undefined) body.location = draft.location || null;
       if (draft.approvalStatus !== undefined) body.approvalStatus = draft.approvalStatus || null;
@@ -1945,6 +1952,37 @@ export default function PunchBubbles() {
   // Draft is always shaped to exactly match what buildProcoreWriteback expects for
   // this field on the worker — see saveChecklistField.
   function renderChecklistFieldEditor(key) {
+    // Customer specifically gets a typeable search instead of a plain <select> —
+    // Procore's vendor list is ~500 unsorted entries, which makes a native select's
+    // jump-to-type-a-letter behavior (has to be typed fast, resets after a pause)
+    // genuinely unusable for finding one by name. Stage/Region stay native selects;
+    // their option counts are small enough that jump-to-type isn't a real problem.
+    if (key === "customer") {
+      const options = procoreOptions.customer;
+      if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>Loading options…</div>;
+      const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name));
+      return (
+        <>
+          <input
+            list="portfolio-customer-datalist"
+            autoFocus
+            defaultValue={editDraft.name || ""}
+            placeholder="Type to search..."
+            onChange={(e) => {
+              const match = sorted.find((o) => o.name === e.target.value);
+              setEditDraft(match ? { ...match } : {});
+            }}
+            style={editInputStyle}
+          />
+          <datalist id="portfolio-customer-datalist">
+            {sorted.map((o) => (
+              <option key={o.id} value={o.name} />
+            ))}
+          </datalist>
+        </>
+      );
+    }
+
     if (LIVE_OPTION_FIELDS.has(key) || key === "department" || key === "currency") {
       const options = procoreOptions[key];
       if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>Loading options…</div>;
@@ -3264,13 +3302,12 @@ export default function PunchBubbles() {
                 const missingCount = p.missingFields.length;
                 const color = missingCount > 0 ? "#C1401C" : "#8FC742";
                 const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
-                const portfolioDone = portfolioTask?.checklist ? portfolioTask.checklist.filter((c) => c.done).length : null;
-                const portfolioLabel = !p.procoreId
-                  ? null
-                  : portfolioTask
-                  ? `PORTFOLIO ${portfolioDone}/${portfolioTask.checklist.length}`
-                  : "NOT ON PORTFOLIO";
-                const portfolioColor = !portfolioTask ? "#C1401C" : portfolioDone === portfolioTask.checklist.length ? "#8FC742" : "#B8AF9E";
+                // Not found on Portfolio is the GOOD state here — it means the checklist
+                // got completed and it's since moved on, not that nothing's been done.
+                const portfolioComplete = !portfolioTask;
+                const portfolioLabel = !p.procoreId ? null : portfolioComplete ? "PORTFOLIO CHECKLIST COMPLETE" : "PORTFOLIO CHECKLIST INCOMPLETE";
+                const portfolioColor = portfolioComplete ? "#8FC742" : "#B8AF9E";
+                const portfolioNumber = portfolioTask ? projectNumberOf(portfolioTask) : "";
                 return (
                   <div
                     key={p.id}
@@ -3278,37 +3315,37 @@ export default function PunchBubbles() {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 10,
+                      gap: 12,
                       background: "#2A2724",
                       border: `1px solid ${color}55`,
                       borderLeft: `4px solid ${color}`,
                       borderRadius: 4,
-                      padding: "10px 12px",
-                      marginBottom: 8,
+                      padding: "14px 16px",
+                      marginBottom: 10,
                       cursor: "pointer",
                     }}
                   >
-                    <div style={{ width: 14, height: 14, borderRadius: "50%", border: "1.5px solid #5C5850", flexShrink: 0 }} />
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: "1.5px solid #5C5850", flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
                           fontFamily: "'Inter', sans-serif",
-                          fontSize: 13.5,
+                          fontSize: 14.5,
                           color: "#F1ECE1",
-                          marginBottom: 2,
+                          marginBottom: 3,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {p.name}
+                        {portfolioNumber ? `${portfolioNumber} — ${p.name}` : p.name}
                       </div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", display: "flex", gap: 6 }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680", display: "flex", alignItems: "center", gap: 8 }}>
                         <span>{p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"}</span>
                         {portfolioLabel && <span style={{ color: portfolioColor }}>· {portfolioLabel}</span>}
                       </div>
                     </div>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, color, flexShrink: 0 }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>
                       {missingCount > 0 ? `${missingCount} MISSING` : "COMPLETE"}
                     </div>
                   </div>
@@ -6087,7 +6124,7 @@ export default function PunchBubbles() {
         const p = pendingProjects.find((pp) => pp.id === openedPendingId);
         if (!p) return null;
         const draft = pendingEdits[p.id] || {};
-        const hasDraft = Object.keys(draft).length > 0;
+        const hasDraft = Object.keys(draft).length > 0 || p.missingFields.includes("department");
         const fieldValue = (field, idKey) => {
           if (draft[field] !== undefined) return draft[field] || "";
           return p[idKey] || "";
@@ -6107,7 +6144,8 @@ export default function PunchBubbles() {
         const customerDisplay =
           draft.customer !== undefined ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
         const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
-        const portfolioDone = portfolioTask?.checklist ? portfolioTask.checklist.filter((c) => c.done).length : null;
+        const portfolioComplete = !portfolioTask;
+        const portfolioNumber = portfolioTask ? projectNumberOf(portfolioTask) : "";
         const addressLine = [p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country]
           .filter(Boolean)
           .join(", ");
@@ -6133,7 +6171,7 @@ export default function PunchBubbles() {
                 maxHeight: "85vh",
                 overflowY: "auto",
                 borderRadius: 6,
-                padding: 24,
+                padding: 28,
                 position: "relative",
                 boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
               }}
@@ -6148,7 +6186,7 @@ export default function PunchBubbles() {
               </button>
 
               <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 15, color: "#2A2419", marginBottom: 2, paddingRight: 24 }}>
-                {p.name}
+                {portfolioNumber ? `${portfolioNumber} — ${p.name}` : p.name}
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 4 }}>
                 {p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"}
@@ -6159,11 +6197,11 @@ export default function PunchBubbles() {
                     fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 10,
                     fontWeight: 700,
-                    color: !portfolioTask ? "#C1401C" : portfolioDone === portfolioTask.checklist.length ? "#5B8C5A" : "#8A8375",
+                    color: portfolioComplete ? "#5B8C5A" : "#8A8375",
                     marginBottom: 12,
                   }}
                 >
-                  {portfolioTask ? `PORTFOLIO CHECKLIST: ${portfolioDone}/${portfolioTask.checklist.length} DONE` : "NOT FOUND ON PORTFOLIO"}
+                  {portfolioComplete ? "PORTFOLIO CHECKLIST COMPLETE" : "PORTFOLIO CHECKLIST INCOMPLETE"}
                 </div>
               )}
 
@@ -6218,20 +6256,6 @@ export default function PunchBubbles() {
                   >
                     <option value="">— Select —</option>
                     {pmOptions.map((o) => (
-                      <option key={o.id} value={o.id}>{o.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>DEPARTMENT</div>
-                  <select
-                    value={fieldValue("department", "departmentId")}
-                    onChange={(e) => updatePendingEdit(p.id, "department", e.target.value)}
-                    style={lightSelectStyle(isMissing("department"))}
-                  >
-                    <option value="">— Select —</option>
-                    {pendingOptions.department.map((o) => (
                       <option key={o.id} value={o.id}>{o.name}</option>
                     ))}
                   </select>
