@@ -5443,15 +5443,8 @@ function PunchBubbles() {
       };
       const isMissing = (field) => p.missingFields.includes(field) && draft[field] === void 0;
       const lightSelectStyle = (missing) => ({
-        padding: "4px 8px",
-        borderRadius: 4,
-        border: `1px solid ${missing ? "#C1401C" : "#C9C0AC"}`,
-        background: "transparent",
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 11,
-        color: "#5C5850",
-        width: "100%",
-        boxSizing: "border-box"
+        ...editInputStyle,
+        border: `1px solid ${missing ? "#C1401C" : "#C9C0AC"}`
       });
       const customerDisplay = draft.customer !== void 0 ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
       const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
@@ -5581,7 +5574,7 @@ function PunchBubbles() {
               onClick: () => savePendingProject(p.id),
               disabled: !hasDraft || pendingSavingId === p.id,
               style: {
-                padding: "8px 16px",
+                padding: "7px 14px",
                 background: hasDraft && pendingSavingId !== p.id ? "#5B8C5A" : "#D8D0BE",
                 color: hasDraft && pendingSavingId !== p.id ? "#F1ECE1" : "#8A8375",
                 border: "none",

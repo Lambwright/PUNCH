@@ -6130,16 +6130,11 @@ export default function PunchBubbles() {
           return p[idKey] || "";
         };
         const isMissing = (field) => p.missingFields.includes(field) && draft[field] === undefined;
+        // Matches editInputStyle exactly (Portfolio's checklist-field editor) rather
+        // than maintaining a separate near-copy that can quietly drift out of sync.
         const lightSelectStyle = (missing) => ({
-          padding: "4px 8px",
-          borderRadius: 4,
+          ...editInputStyle,
           border: `1px solid ${missing ? "#C1401C" : "#C9C0AC"}`,
-          background: "transparent",
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 11,
-          color: "#5C5850",
-          width: "100%",
-          boxSizing: "border-box",
         });
         const customerDisplay =
           draft.customer !== undefined ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
@@ -6308,7 +6303,7 @@ export default function PunchBubbles() {
                   onClick={() => savePendingProject(p.id)}
                   disabled={!hasDraft || pendingSavingId === p.id}
                   style={{
-                    padding: "8px 16px",
+                    padding: "7px 14px",
                     background: hasDraft && pendingSavingId !== p.id ? "#5B8C5A" : "#D8D0BE",
                     color: hasDraft && pendingSavingId !== p.id ? "#F1ECE1" : "#8A8375",
                     border: "none",
