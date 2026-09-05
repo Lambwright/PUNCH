@@ -800,6 +800,7 @@ export default function PunchBubbles() {
   const [pendingEdits, setPendingEdits] = useState({}); // { [recordId]: { customer?, projectManager?, department?, class?, location?, approvalStatus? } }
   const [pendingSavingId, setPendingSavingId] = useState(null);
   const [pendingSavedId, setPendingSavedId] = useState(null); // brief post-save confirmation flash
+  const [openedPendingId, setOpenedPendingId] = useState(null); // which pendingProjects row's detail panel is open
   const [pmOptions, setPmOptions] = useState([]); // full employee list (~50), fetched once
   const [customerQuery, setCustomerQuery] = useState({}); // { [recordId]: text typed so far }
   const [customerResults, setCustomerResults] = useState({}); // { [recordId]: [{id,name}] }
@@ -3244,46 +3245,39 @@ export default function PunchBubbles() {
                 Nothing pending completion right now.
               </div>
             ) : (
+              // Compact row, same shape/spirit as Portfolio's list rows (colored left
+              // border, single summary line, small metadata line, right-aligned status)
+              // rather than an always-expanded card — click opens the actual editor
+              // below. Border color stands in for Portfolio's priority color here:
+              // green when nothing's missing, red when something needs attention.
               pendingProjects.map((p) => {
-                const draft = pendingEdits[p.id] || {};
-                const hasDraft = Object.keys(draft).length > 0;
-                const fieldValue = (field, idKey) => {
-                  if (draft[field] !== undefined) return draft[field] || "";
-                  return p[idKey] || "";
-                };
-                const isMissing = (field) => p.missingFields.includes(field) && draft[field] === undefined;
-                const selectStyle = (missing) => ({
-                  padding: 7,
-                  borderRadius: 4,
-                  border: `1px solid ${missing ? "#C1401C88" : "#4A473F"}`,
-                  background: "#1E1C1A",
-                  color: "#F1ECE1",
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: 11,
-                  width: "100%",
-                });
-                const customerDisplay =
-                  draft.customer !== undefined ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
-
+                const missingCount = p.missingFields.length;
+                const color = missingCount > 0 ? "#C1401C" : "#8FC742";
                 return (
                   <div
                     key={p.id}
+                    onClick={() => setOpenedPendingId(p.id)}
                     style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
                       background: "#2A2724",
-                      border: "1px solid #3A3733",
+                      border: `1px solid ${color}55`,
+                      borderLeft: `4px solid ${color}`,
                       borderRadius: 4,
-                      padding: "14px 16px",
-                      marginBottom: 12,
+                      padding: "10px 12px",
+                      marginBottom: 8,
+                      cursor: "pointer",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
+                    <div style={{ width: 14, height: 14, borderRadius: "50%", border: "1.5px solid #5C5850", flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
                           fontFamily: "'Inter', sans-serif",
                           fontSize: 13.5,
                           color: "#F1ECE1",
-                          flex: 1,
-                          minWidth: 0,
+                          marginBottom: 2,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
@@ -3291,157 +3285,12 @@ export default function PunchBubbles() {
                       >
                         {p.name}
                       </div>
-                      {p.procoreId && (
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", flexShrink: 0 }}>
-                          {p.procoreId}
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-                      <div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
-                          CUSTOMER
-                        </div>
-                        <input
-                          list={`customer-list-${p.id}`}
-                          value={customerDisplay}
-                          placeholder="Type to search..."
-                          onChange={(e) => {
-                            const text = e.target.value;
-                            searchCustomers(p.id, text);
-                            const match = (customerResults[p.id] || []).find((o) => o.name === text);
-                            if (match) updatePendingEdit(p.id, "customer", match);
-                            else setPendingEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], customer: undefined } }));
-                          }}
-                          style={selectStyle(isMissing("customer"))}
-                        />
-                        <datalist id={`customer-list-${p.id}`}>
-                          {(customerResults[p.id] || []).map((o) => (
-                            <option key={o.id} value={o.name} />
-                          ))}
-                        </datalist>
-                      </div>
-
-                      <div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
-                          PROJECT MANAGER
-                        </div>
-                        <select
-                          value={fieldValue("projectManager", "projectManagerId")}
-                          onChange={(e) => updatePendingEdit(p.id, "projectManager", e.target.value)}
-                          style={selectStyle(isMissing("projectManager"))}
-                        >
-                          <option value="">— Select —</option>
-                          {pmOptions.map((o) => (
-                            <option key={o.id} value={o.id}>
-                              {o.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
-                          DEPARTMENT
-                        </div>
-                        <select
-                          value={fieldValue("department", "departmentId")}
-                          onChange={(e) => updatePendingEdit(p.id, "department", e.target.value)}
-                          style={selectStyle(isMissing("department"))}
-                        >
-                          <option value="">— Select —</option>
-                          {pendingOptions.department.map((o) => (
-                            <option key={o.id} value={o.id}>
-                              {o.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
-                          CLASS
-                        </div>
-                        <select
-                          value={fieldValue("class", "classId")}
-                          onChange={(e) => updatePendingEdit(p.id, "class", e.target.value)}
-                          style={selectStyle(isMissing("class"))}
-                        >
-                          <option value="">— Select —</option>
-                          {pendingOptions.class.map((o) => (
-                            <option key={o.id} value={o.id}>
-                              {o.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
-                          LOCATION
-                        </div>
-                        <select
-                          value={fieldValue("location", "locationId")}
-                          onChange={(e) => updatePendingEdit(p.id, "location", e.target.value)}
-                          style={selectStyle(isMissing("location"))}
-                        >
-                          <option value="">— Select —</option>
-                          {pendingOptions.location.map((o) => (
-                            <option key={o.id} value={o.id}>
-                              {o.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
-                          APPROVAL STATUS
-                        </div>
-                        <select
-                          value={fieldValue("approvalStatus", "approvalStatusId") || "4"}
-                          onChange={(e) => updatePendingEdit(p.id, "approvalStatus", e.target.value)}
-                          style={selectStyle(false)}
-                        >
-                          {pendingOptions.approvalStatus.map((o) => (
-                            <option key={o.id} value={o.id}>
-                              {o.name}
-                            </option>
-                          ))}
-                        </select>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680" }}>
+                        {p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"}
                       </div>
                     </div>
-
-                    {p.address.street && (
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", marginBottom: 10 }}>
-                        {[p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country].filter(Boolean).join(", ")}
-                      </div>
-                    )}
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <button
-                        onClick={() => savePendingProject(p.id)}
-                        disabled={!hasDraft || pendingSavingId === p.id}
-                        style={{
-                          padding: "6px 14px",
-                          background: hasDraft && pendingSavingId !== p.id ? "#E2871A" : "#3A3733",
-                          color: hasDraft && pendingSavingId !== p.id ? "#1E1C1A" : "#8B8680",
-                          border: "none",
-                          borderRadius: 4,
-                          fontFamily: "'JetBrains Mono', monospace",
-                          fontWeight: 700,
-                          fontSize: 10.5,
-                          cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default",
-                        }}
-                      >
-                        {pendingSavingId === p.id ? "SAVING..." : "SAVE"}
-                      </button>
-                      {pendingSavedId === p.id && (
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, color: "#8FC742" }}>
-                          ✓ SAVED
-                        </span>
-                      )}
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, color, flexShrink: 0 }}>
+                      {missingCount > 0 ? `${missingCount} MISSING` : "COMPLETE"}
                     </div>
                   </div>
                 );
@@ -6196,6 +6045,206 @@ export default function PunchBubbles() {
           </button>
         </div>
       )}
+
+      {/* Saved Searches detail panel — separate from the shared task modal above
+          since pendingProjects (live NetSuite records) aren't tasks and have their
+          own field shape. Matches the shared modal's chrome (overlay, light card,
+          close button) so it still "rhymes" visually, even though its content is
+          necessarily different. */}
+      {openedPendingId && (() => {
+        const p = pendingProjects.find((pp) => pp.id === openedPendingId);
+        if (!p) return null;
+        const draft = pendingEdits[p.id] || {};
+        const hasDraft = Object.keys(draft).length > 0;
+        const fieldValue = (field, idKey) => {
+          if (draft[field] !== undefined) return draft[field] || "";
+          return p[idKey] || "";
+        };
+        const isMissing = (field) => p.missingFields.includes(field) && draft[field] === undefined;
+        const lightSelectStyle = (missing) => ({
+          padding: "4px 8px",
+          borderRadius: 4,
+          border: `1px solid ${missing ? "#C1401C" : "#C9C0AC"}`,
+          background: "transparent",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 11,
+          color: "#5C5850",
+          width: "100%",
+          boxSizing: "border-box",
+        });
+        const customerDisplay =
+          draft.customer !== undefined ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
+
+        return (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(10,9,8,0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 10,
+            }}
+            onClick={() => setOpenedPendingId(null)}
+          >
+            <div
+              style={{
+                background: "#F1ECE1",
+                width: 380,
+                maxWidth: "90vw",
+                maxHeight: "85vh",
+                overflowY: "auto",
+                borderRadius: 6,
+                padding: 24,
+                position: "relative",
+                boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setOpenedPendingId(null)}
+                style={{ position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#8A8375" }}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+
+              <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 15, color: "#2A2419", marginBottom: 2, paddingRight: 24 }}>
+                {p.name}
+              </div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 16 }}>
+                {p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>CUSTOMER</div>
+                  <input
+                    list={`customer-list-${p.id}`}
+                    value={customerDisplay}
+                    placeholder="Type to search..."
+                    onChange={(e) => {
+                      const text = e.target.value;
+                      searchCustomers(p.id, text);
+                      const match = (customerResults[p.id] || []).find((o) => o.name === text);
+                      if (match) updatePendingEdit(p.id, "customer", match);
+                      else setPendingEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], customer: undefined } }));
+                    }}
+                    style={lightSelectStyle(isMissing("customer"))}
+                  />
+                  <datalist id={`customer-list-${p.id}`}>
+                    {(customerResults[p.id] || []).map((o) => (
+                      <option key={o.id} value={o.name} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>PROJECT MANAGER</div>
+                  <select
+                    value={fieldValue("projectManager", "projectManagerId")}
+                    onChange={(e) => updatePendingEdit(p.id, "projectManager", e.target.value)}
+                    style={lightSelectStyle(isMissing("projectManager"))}
+                  >
+                    <option value="">— Select —</option>
+                    {pmOptions.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>DEPARTMENT</div>
+                  <select
+                    value={fieldValue("department", "departmentId")}
+                    onChange={(e) => updatePendingEdit(p.id, "department", e.target.value)}
+                    style={lightSelectStyle(isMissing("department"))}
+                  >
+                    <option value="">— Select —</option>
+                    {pendingOptions.department.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>CLASS</div>
+                  <select
+                    value={fieldValue("class", "classId")}
+                    onChange={(e) => updatePendingEdit(p.id, "class", e.target.value)}
+                    style={lightSelectStyle(isMissing("class"))}
+                  >
+                    <option value="">— Select —</option>
+                    {pendingOptions.class.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>LOCATION</div>
+                  <select
+                    value={fieldValue("location", "locationId")}
+                    onChange={(e) => updatePendingEdit(p.id, "location", e.target.value)}
+                    style={lightSelectStyle(isMissing("location"))}
+                  >
+                    <option value="">— Select —</option>
+                    {pendingOptions.location.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>APPROVAL STATUS</div>
+                  <select
+                    value={fieldValue("approvalStatus", "approvalStatusId") || "4"}
+                    onChange={(e) => updatePendingEdit(p.id, "approvalStatus", e.target.value)}
+                    style={lightSelectStyle(false)}
+                  >
+                    {pendingOptions.approvalStatus.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {p.address.street && (
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 14 }}>
+                  {[p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country].filter(Boolean).join(", ")}
+                </div>
+              )}
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => savePendingProject(p.id)}
+                  disabled={!hasDraft || pendingSavingId === p.id}
+                  style={{
+                    padding: "8px 16px",
+                    background: hasDraft && pendingSavingId !== p.id ? "#5B8C5A" : "#D8D0BE",
+                    color: hasDraft && pendingSavingId !== p.id ? "#F1ECE1" : "#8A8375",
+                    border: "none",
+                    borderRadius: 4,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontWeight: 700,
+                    fontSize: 11,
+                    cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default",
+                  }}
+                >
+                  {pendingSavingId === p.id ? "SAVING..." : "SAVE"}
+                </button>
+                {pendingSavedId === p.id && (
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#5B8C5A" }}>
+                    ✓ SAVED
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {(authChecking || !authToken) && (
         <div
           style={{

@@ -778,6 +778,7 @@ function PunchBubbles() {
   const [pendingEdits, setPendingEdits] = useState({});
   const [pendingSavingId, setPendingSavingId] = useState(null);
   const [pendingSavedId, setPendingSavedId] = useState(null);
+  const [openedPendingId, setOpenedPendingId] = useState(null);
   const [pmOptions, setPmOptions] = useState([]);
   const [customerQuery, setCustomerQuery] = useState({});
   const [customerResults, setCustomerResults] = useState({});
@@ -2776,134 +2777,46 @@ function PunchBubbles() {
       },
       pendingLoading ? "LOADING..." : "REFRESH FROM NETSUITE"
     ), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680" } }, 'NetSuite Inbound Projects sitting at "Pending Completion" \u2014 read and written live, nothing cached here.')), pendingError && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 } }, pendingError), pendingLoading && pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#5C5850", fontSize: 13 } }, "Nothing pending completion right now.") : pendingProjects.map((p) => {
-      const draft = pendingEdits[p.id] || {};
-      const hasDraft = Object.keys(draft).length > 0;
-      const fieldValue = (field, idKey) => {
-        if (draft[field] !== void 0) return draft[field] || "";
-        return p[idKey] || "";
-      };
-      const isMissing = (field) => p.missingFields.includes(field) && draft[field] === void 0;
-      const selectStyle = (missing) => ({
-        padding: 7,
-        borderRadius: 4,
-        border: `1px solid ${missing ? "#C1401C88" : "#4A473F"}`,
-        background: "#1E1C1A",
-        color: "#F1ECE1",
-        fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 11,
-        width: "100%"
-      });
-      const customerDisplay = draft.customer !== void 0 ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
-      return /* @__PURE__ */ React.createElement(
-        "div",
-        {
-          key: p.id,
-          style: {
-            background: "#2A2724",
-            border: "1px solid #3A3733",
-            borderRadius: 4,
-            padding: "14px 16px",
-            marginBottom: 12
-          }
-        },
-        /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 } }, /* @__PURE__ */ React.createElement(
+        const missingCount = p.missingFields.length;
+        const color = missingCount > 0 ? "#C1401C" : "#8FC742";
+        return /* @__PURE__ */ React.createElement(
           "div",
           {
+            key: p.id,
+            onClick: () => setOpenedPendingId(p.id),
             style: {
-              fontFamily: "'Inter', sans-serif",
-              fontSize: 13.5,
-              color: "#F1ECE1",
-              flex: 1,
-              minWidth: 0,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap"
-            }
-          },
-          p.name
-        ), p.procoreId && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", flexShrink: 0 } }, p.procoreId)),
-        /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "CUSTOMER"), /* @__PURE__ */ React.createElement(
-          "input",
-          {
-            list: `customer-list-${p.id}`,
-            value: customerDisplay,
-            placeholder: "Type to search...",
-            onChange: (e) => {
-              const text = e.target.value;
-              searchCustomers(p.id, text);
-              const match = (customerResults[p.id] || []).find((o) => o.name === text);
-              if (match) updatePendingEdit(p.id, "customer", match);
-              else setPendingEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], customer: void 0 } }));
-            },
-            style: selectStyle(isMissing("customer"))
-          }
-        ), /* @__PURE__ */ React.createElement("datalist", { id: `customer-list-${p.id}` }, (customerResults[p.id] || []).map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.name })))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "PROJECT MANAGER"), /* @__PURE__ */ React.createElement(
-          "select",
-          {
-            value: fieldValue("projectManager", "projectManagerId"),
-            onChange: (e) => updatePendingEdit(p.id, "projectManager", e.target.value),
-            style: selectStyle(isMissing("projectManager"))
-          },
-          /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
-          pmOptions.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
-        )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "DEPARTMENT"), /* @__PURE__ */ React.createElement(
-          "select",
-          {
-            value: fieldValue("department", "departmentId"),
-            onChange: (e) => updatePendingEdit(p.id, "department", e.target.value),
-            style: selectStyle(isMissing("department"))
-          },
-          /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
-          pendingOptions.department.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
-        )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "CLASS"), /* @__PURE__ */ React.createElement(
-          "select",
-          {
-            value: fieldValue("class", "classId"),
-            onChange: (e) => updatePendingEdit(p.id, "class", e.target.value),
-            style: selectStyle(isMissing("class"))
-          },
-          /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
-          pendingOptions.class.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
-        )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "LOCATION"), /* @__PURE__ */ React.createElement(
-          "select",
-          {
-            value: fieldValue("location", "locationId"),
-            onChange: (e) => updatePendingEdit(p.id, "location", e.target.value),
-            style: selectStyle(isMissing("location"))
-          },
-          /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
-          pendingOptions.location.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
-        )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "APPROVAL STATUS"), /* @__PURE__ */ React.createElement(
-          "select",
-          {
-            value: fieldValue("approvalStatus", "approvalStatusId") || "4",
-            onChange: (e) => updatePendingEdit(p.id, "approvalStatus", e.target.value),
-            style: selectStyle(false)
-          },
-          pendingOptions.approvalStatus.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
-        ))),
-        p.address.street && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", marginBottom: 10 } }, [p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country].filter(Boolean).join(", ")),
-        /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement(
-          "button",
-          {
-            onClick: () => savePendingProject(p.id),
-            disabled: !hasDraft || pendingSavingId === p.id,
-            style: {
-              padding: "6px 14px",
-              background: hasDraft && pendingSavingId !== p.id ? "#E2871A" : "#3A3733",
-              color: hasDraft && pendingSavingId !== p.id ? "#1E1C1A" : "#8B8680",
-              border: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              background: "#2A2724",
+              border: `1px solid ${color}55`,
+              borderLeft: `4px solid ${color}`,
               borderRadius: 4,
-              fontFamily: "'JetBrains Mono', monospace",
-              fontWeight: 700,
-              fontSize: 10.5,
-              cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default"
+              padding: "10px 12px",
+              marginBottom: 8,
+              cursor: "pointer"
             }
           },
-          pendingSavingId === p.id ? "SAVING..." : "SAVE"
-        ), pendingSavedId === p.id && /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, color: "#8FC742" } }, "✓ SAVED"))
-      );
-    })) : tab === "digest" ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
+          /* @__PURE__ */ React.createElement("div", { style: { width: 14, height: 14, borderRadius: "50%", border: "1.5px solid #5C5850", flexShrink: 0 } }),
+          /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement(
+            "div",
+            {
+              style: {
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13.5,
+                color: "#F1ECE1",
+                marginBottom: 2,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap"
+              }
+            },
+            p.name
+          ), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680" } }, p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID")),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, color, flexShrink: 0 } }, missingCount > 0 ? `${missingCount} MISSING` : "COMPLETE")
+        );
+      })
+    ) : tab === "digest" ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: generateDigest,
@@ -5448,6 +5361,152 @@ function PunchBubbles() {
         "LOG OUT"
       )
     ),
+    openedPendingId && (() => {
+      const p = pendingProjects.find((pp) => pp.id === openedPendingId);
+      if (!p) return null;
+      const draft = pendingEdits[p.id] || {};
+      const hasDraft = Object.keys(draft).length > 0;
+      const fieldValue = (field, idKey) => {
+        if (draft[field] !== void 0) return draft[field] || "";
+        return p[idKey] || "";
+      };
+      const isMissing = (field) => p.missingFields.includes(field) && draft[field] === void 0;
+      const lightSelectStyle = (missing) => ({
+        padding: "4px 8px",
+        borderRadius: 4,
+        border: `1px solid ${missing ? "#C1401C" : "#C9C0AC"}`,
+        background: "transparent",
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 11,
+        color: "#5C5850",
+        width: "100%",
+        boxSizing: "border-box"
+      });
+      const customerDisplay = draft.customer !== void 0 ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
+      return /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          style: {
+            position: "fixed",
+            inset: 0,
+            background: "rgba(10,9,8,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10
+          },
+          onClick: () => setOpenedPendingId(null)
+        },
+        /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            style: {
+              background: "#F1ECE1",
+              width: 380,
+              maxWidth: "90vw",
+              maxHeight: "85vh",
+              overflowY: "auto",
+              borderRadius: 6,
+              padding: 24,
+              position: "relative",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.5)"
+            },
+            onClick: (e) => e.stopPropagation()
+          },
+          /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              onClick: () => setOpenedPendingId(null),
+              style: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#8A8375" },
+              "aria-label": "Close"
+            },
+            /* @__PURE__ */ React.createElement(X, { size: 18 })
+          ),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 15, color: "#2A2419", marginBottom: 2, paddingRight: 24 } }, p.name),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 16 } }, p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"),
+          /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "CUSTOMER"), /* @__PURE__ */ React.createElement(
+            "input",
+            {
+              list: `customer-list-${p.id}`,
+              value: customerDisplay,
+              placeholder: "Type to search...",
+              onChange: (e) => {
+                const text = e.target.value;
+                searchCustomers(p.id, text);
+                const match = (customerResults[p.id] || []).find((o) => o.name === text);
+                if (match) updatePendingEdit(p.id, "customer", match);
+                else setPendingEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], customer: void 0 } }));
+              },
+              style: lightSelectStyle(isMissing("customer"))
+            }
+          ), /* @__PURE__ */ React.createElement("datalist", { id: `customer-list-${p.id}` }, (customerResults[p.id] || []).map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.name })))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "PROJECT MANAGER"), /* @__PURE__ */ React.createElement(
+            "select",
+            {
+              value: fieldValue("projectManager", "projectManagerId"),
+              onChange: (e) => updatePendingEdit(p.id, "projectManager", e.target.value),
+              style: lightSelectStyle(isMissing("projectManager"))
+            },
+            /* @__PURE__ */ React.createElement("option", { value: "" }, "— Select —"),
+            pmOptions.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
+          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "DEPARTMENT"), /* @__PURE__ */ React.createElement(
+            "select",
+            {
+              value: fieldValue("department", "departmentId"),
+              onChange: (e) => updatePendingEdit(p.id, "department", e.target.value),
+              style: lightSelectStyle(isMissing("department"))
+            },
+            /* @__PURE__ */ React.createElement("option", { value: "" }, "— Select —"),
+            pendingOptions.department.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
+          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "CLASS"), /* @__PURE__ */ React.createElement(
+            "select",
+            {
+              value: fieldValue("class", "classId"),
+              onChange: (e) => updatePendingEdit(p.id, "class", e.target.value),
+              style: lightSelectStyle(isMissing("class"))
+            },
+            /* @__PURE__ */ React.createElement("option", { value: "" }, "— Select —"),
+            pendingOptions.class.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
+          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "LOCATION"), /* @__PURE__ */ React.createElement(
+            "select",
+            {
+              value: fieldValue("location", "locationId"),
+              onChange: (e) => updatePendingEdit(p.id, "location", e.target.value),
+              style: lightSelectStyle(isMissing("location"))
+            },
+            /* @__PURE__ */ React.createElement("option", { value: "" }, "— Select —"),
+            pendingOptions.location.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
+          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "APPROVAL STATUS"), /* @__PURE__ */ React.createElement(
+            "select",
+            {
+              value: fieldValue("approvalStatus", "approvalStatusId") || "4",
+              onChange: (e) => updatePendingEdit(p.id, "approvalStatus", e.target.value),
+              style: lightSelectStyle(false)
+            },
+            pendingOptions.approvalStatus.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
+          ))),
+          p.address.street && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 14 } }, [p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country].filter(Boolean).join(", ")),
+          /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              onClick: () => savePendingProject(p.id),
+              disabled: !hasDraft || pendingSavingId === p.id,
+              style: {
+                padding: "8px 16px",
+                background: hasDraft && pendingSavingId !== p.id ? "#5B8C5A" : "#D8D0BE",
+                color: hasDraft && pendingSavingId !== p.id ? "#F1ECE1" : "#8A8375",
+                border: "none",
+                borderRadius: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700,
+                fontSize: 11,
+                cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default"
+              }
+            },
+            pendingSavingId === p.id ? "SAVING..." : "SAVE"
+          ), pendingSavedId === p.id && /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#5B8C5A" } }, "✓ SAVED"))
+        )
+      );
+    })(),
     (authChecking || !authToken) && /* @__PURE__ */ React.createElement(
       "div",
       {
