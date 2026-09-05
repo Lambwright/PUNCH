@@ -3361,9 +3361,19 @@ export default function PunchBubbles() {
                 const portfolioTask = findPortfolioTaskForProjectNumber(tasks, p.procoreId);
                 // Not found on Portfolio is the GOOD state here — it means the checklist
                 // got completed and it's since moved on, not that nothing's been done.
-                const portfolioComplete = !portfolioTask;
-                const portfolioLabel = !p.procoreId ? null : portfolioComplete ? "PORTFOLIO CHECKLIST COMPLETE" : "PORTFOLIO CHECKLIST INCOMPLETE";
-                const portfolioColor = portfolioComplete ? "#8FC742" : "#B8AF9E";
+                // Except when it's Cancelled: Portfolio's own sync excludes Cancelled
+                // projects entirely, so a cancelled one looks identical to a completed
+                // one from here unless we check the actual stage.
+                const isCancelled = p.stage === "Cancelled";
+                const portfolioComplete = !portfolioTask && !isCancelled;
+                const portfolioLabel = !p.procoreId
+                  ? null
+                  : isCancelled
+                  ? "PROJECT CANCELLED"
+                  : portfolioComplete
+                  ? "PORTFOLIO CHECKLIST COMPLETE"
+                  : "PORTFOLIO CHECKLIST INCOMPLETE";
+                const portfolioColor = isCancelled ? "#8A8375" : portfolioComplete ? "#8FC742" : "#B8AF9E";
                 const portfolioNumber = portfolioTask ? projectNumberOf(portfolioTask) : "";
                 return (
                   <div
@@ -6218,7 +6228,8 @@ export default function PunchBubbles() {
         const customerDisplay =
           draft.customer !== undefined ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
         const portfolioTask = findPortfolioTaskForProjectNumber(tasks, p.procoreId);
-        const portfolioComplete = !portfolioTask;
+        const isCancelled = p.stage === "Cancelled";
+        const portfolioComplete = !portfolioTask && !isCancelled;
         const portfolioNumber = portfolioTask ? projectNumberOf(portfolioTask) : "";
         const addressLine = [p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country]
           .filter(Boolean)
@@ -6269,11 +6280,11 @@ export default function PunchBubbles() {
                     fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 10,
                     fontWeight: 700,
-                    color: portfolioComplete ? "#5B8C5A" : "#8A8375",
+                    color: isCancelled ? "#8A8375" : portfolioComplete ? "#5B8C5A" : "#8A8375",
                     marginBottom: 12,
                   }}
                 >
-                  {portfolioComplete ? "PORTFOLIO CHECKLIST COMPLETE" : "PORTFOLIO CHECKLIST INCOMPLETE"}
+                  {isCancelled ? "PROJECT CANCELLED" : portfolioComplete ? "PORTFOLIO CHECKLIST COMPLETE" : "PORTFOLIO CHECKLIST INCOMPLETE"}
                 </div>
               )}
 
