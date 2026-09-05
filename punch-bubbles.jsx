@@ -477,6 +477,14 @@ const APP_SWITCHER_LINKS = [
   { name: "TALLY", url: "https://lambwright.github.io/tally/", color: "#E2871A", current: false },
 ];
 
+// The real Project Manager roster, as read off Procore's own live PM dropdown —
+// NetSuite's employee list has no field distinguishing these ~6 from the other
+// ~44 active employees, so this is filtered client-side against a maintained
+// list rather than a query. See loadPmOptions.
+const KNOWN_PM_NAMES = new Set([
+  "CHRIS HONG", "DEVID MANZKE", "HAL ROWAN", "PETER DYCK", "RUDI DYCK", "SCOT CARTER-NICHOLS",
+]);
+
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 86400000));
 }
@@ -538,7 +546,13 @@ const tabs = [
   // origin stage bucket (On Hold / Completed and Invoiced / Pre-Construction) and shows
   // on hover + in the detail modal, and each accumulated record already gets its own
   // linked History entry via the same mechanism email replies use.
-  { id: "stage_review", label: "STAGE REVIEW", view: "bubbles" },
+  // "list" (not "bubbles") deliberately — this is the same compact-row layout
+  // Portfolio uses, and since that row rendering is written generically (no
+  // tab === "portfolio" checks baked in), Stage Review tasks get the identical
+  // look/feel for free: priority-colored left border, single summary line,
+  // #ticket · category metadata line, age badge, click to open the shared detail
+  // modal (which already shows the linked History entries).
+  { id: "stage_review", label: "STAGE REVIEW", view: "list" },
 ];
 
 const WIDTH = 620;
@@ -785,6 +799,7 @@ export default function PunchBubbles() {
   const [pendingFetched, setPendingFetched] = useState(false);
   const [pendingEdits, setPendingEdits] = useState({}); // { [recordId]: { customer?, projectManager?, department?, class?, location?, approvalStatus? } }
   const [pendingSavingId, setPendingSavingId] = useState(null);
+  const [pendingSavedId, setPendingSavedId] = useState(null); // brief post-save confirmation flash
   const [pmOptions, setPmOptions] = useState([]); // full employee list (~50), fetched once
   const [customerQuery, setCustomerQuery] = useState({}); // { [recordId]: text typed so far }
   const [customerResults, setCustomerResults] = useState({}); // { [recordId]: [{id,name}] }
@@ -833,6 +848,11 @@ export default function PunchBubbles() {
       }
     }
     load();
+    // Fired here too, not just when the Saved Searches tab is opened — otherwise the
+    // tab's count badge reads 0 on the main page until someone actually clicks into
+    // it once, since pendingProjects starts empty and nothing else populates it.
+    loadPendingProjects();
+    loadPmOptions();
     return () => {
       cancelled = true;
     };
@@ -919,7 +939,16 @@ export default function PunchBubbles() {
   async function loadPmOptions() {
     try {
       const data = await apiGet("/netsuite/pending-options?field=projectManager");
-      setPmOptions(data.options || []);
+      // The NetSuite query has no way to distinguish "is actually a PM" from "is any
+      // active employee" (~50 of them) — no PM/role field to filter on found in
+      // NetSuite's schema for this. Filtering client-side to the actual real PM
+      // roster instead, matched case-insensitively against entityid as NetSuite has
+      // it stored. This is a hand-maintained list, not a live query — if a PM ever
+      // gets added/removed, this needs a matching edit here.
+      const options = (data.options || []).filter((o) =>
+        KNOWN_PM_NAMES.has((o.name || "").trim().toUpperCase())
+      );
+      setPmOptions(options);
     } catch (err) {
       console.error("Failed to load project manager list:", err);
     }
@@ -975,6 +1004,11 @@ export default function PunchBubbles() {
         delete next[recordId];
         return next;
       });
+      // No visible confirmation existed before this — the button just went back to
+      // its disabled resting state, indistinguishable from "nothing happened." A
+      // 2s flash is enough to actually notice without needing a permanent badge.
+      setPendingSavedId(recordId);
+      setTimeout(() => setPendingSavedId((cur) => (cur === recordId ? null : cur)), 2000);
     } catch (err) {
       console.error("Failed to save Inbound Project fields:", err);
       setPendingError(err.message);
@@ -2747,6 +2781,11 @@ export default function PunchBubbles() {
                 ? snoozedTasks.length
                 : t.id === "recurring"
                 ? recurringTasks.length
+                // Saved Searches isn't backed by tasks at all (it's a live NetSuite
+                // worklist, pendingProjects) — the generic tasks.filter below would
+                // always read 0 for it otherwise, regardless of what's actually pending.
+                : t.id === "searches"
+                ? pendingProjects.length
                 : tasks.filter((task) => task.status === "open" && task.list === t.id).length;
             const active = tab === t.id;
             return (
@@ -3380,23 +3419,30 @@ export default function PunchBubbles() {
                       </div>
                     )}
 
-                    <button
-                      onClick={() => savePendingProject(p.id)}
-                      disabled={!hasDraft || pendingSavingId === p.id}
-                      style={{
-                        padding: "6px 14px",
-                        background: hasDraft && pendingSavingId !== p.id ? "#E2871A" : "#3A3733",
-                        color: hasDraft && pendingSavingId !== p.id ? "#1E1C1A" : "#8B8680",
-                        border: "none",
-                        borderRadius: 4,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontWeight: 700,
-                        fontSize: 10.5,
-                        cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default",
-                      }}
-                    >
-                      {pendingSavingId === p.id ? "SAVING..." : "SAVE"}
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <button
+                        onClick={() => savePendingProject(p.id)}
+                        disabled={!hasDraft || pendingSavingId === p.id}
+                        style={{
+                          padding: "6px 14px",
+                          background: hasDraft && pendingSavingId !== p.id ? "#E2871A" : "#3A3733",
+                          color: hasDraft && pendingSavingId !== p.id ? "#1E1C1A" : "#8B8680",
+                          border: "none",
+                          borderRadius: 4,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 700,
+                          fontSize: 10.5,
+                          cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default",
+                        }}
+                      >
+                        {pendingSavingId === p.id ? "SAVING..." : "SAVE"}
+                      </button>
+                      {pendingSavedId === p.id && (
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, color: "#8FC742" }}>
+                          ✓ SAVED
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })

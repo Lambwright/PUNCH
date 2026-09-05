@@ -530,6 +530,9 @@ const APP_SWITCHER_LINKS = [
   { name: "INTAKE", url: "https://lambwright.github.io/scout-intake/", color: "#8FC742", current: false },
   { name: "TALLY", url: "https://lambwright.github.io/tally/", color: "#E2871A", current: false }
 ];
+const KNOWN_PM_NAMES = /* @__PURE__ */ new Set([
+  "CHRIS HONG", "DEVID MANZKE", "HAL ROWAN", "PETER DYCK", "RUDI DYCK", "SCOT CARTER-NICHOLS"
+]);
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 864e5));
 }
@@ -575,7 +578,7 @@ const tabs = [
   { id: "recurring", label: "RECURRING", view: "recurring" },
   { id: "snoozed", label: "SNOOZED", view: "bubbles" },
   { id: "digest", label: "DIGEST", view: "digest" },
-  { id: "stage_review", label: "STAGE REVIEW", view: "bubbles" }
+  { id: "stage_review", label: "STAGE REVIEW", view: "list" }
 ];
 const WIDTH = 620;
 const HEIGHT = 480;
@@ -774,6 +777,7 @@ function PunchBubbles() {
   const [pendingFetched, setPendingFetched] = useState(false);
   const [pendingEdits, setPendingEdits] = useState({});
   const [pendingSavingId, setPendingSavingId] = useState(null);
+  const [pendingSavedId, setPendingSavedId] = useState(null);
   const [pmOptions, setPmOptions] = useState([]);
   const [customerQuery, setCustomerQuery] = useState({});
   const [customerResults, setCustomerResults] = useState({});
@@ -816,6 +820,8 @@ function PunchBubbles() {
       }
     }
     load();
+    loadPendingProjects();
+    loadPmOptions();
     return () => {
       cancelled = true;
     };
@@ -884,7 +890,8 @@ function PunchBubbles() {
   async function loadPmOptions() {
     try {
       const data = await apiGet("/netsuite/pending-options?field=projectManager");
-      setPmOptions(data.options || []);
+      const options = (data.options || []).filter((o) => KNOWN_PM_NAMES.has((o.name || "").trim().toUpperCase()));
+      setPmOptions(options);
     } catch (err) {
       console.error("Failed to load project manager list:", err);
     }
@@ -927,6 +934,8 @@ function PunchBubbles() {
         delete next[recordId];
         return next;
       });
+      setPendingSavedId(recordId);
+      setTimeout(() => setPendingSavedId((cur) => cur === recordId ? null : cur), 2e3);
     } catch (err) {
       console.error("Failed to save Inbound Project fields:", err);
       setPendingError(err.message);
@@ -2363,7 +2372,7 @@ function PunchBubbles() {
         }
       },
       tabs.map((t) => {
-        const count = t.id === "snoozed" ? snoozedTasks.length : t.id === "recurring" ? recurringTasks.length : tasks.filter((task) => task.status === "open" && task.list === t.id).length;
+        const count = t.id === "snoozed" ? snoozedTasks.length : t.id === "recurring" ? recurringTasks.length : t.id === "searches" ? pendingProjects.length : tasks.filter((task) => task.status === "open" && task.list === t.id).length;
         const active = tab === t.id;
         return /* @__PURE__ */ React.createElement(
           "button",
@@ -2874,7 +2883,7 @@ function PunchBubbles() {
           pendingOptions.approvalStatus.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
         ))),
         p.address.street && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", marginBottom: 10 } }, [p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country].filter(Boolean).join(", ")),
-        /* @__PURE__ */ React.createElement(
+        /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement(
           "button",
           {
             onClick: () => savePendingProject(p.id),
@@ -2892,7 +2901,7 @@ function PunchBubbles() {
             }
           },
           pendingSavingId === p.id ? "SAVING..." : "SAVE"
-        )
+        ), pendingSavedId === p.id && /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, color: "#8FC742" } }, "✓ SAVED"))
       );
     })) : tab === "digest" ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
       "button",
