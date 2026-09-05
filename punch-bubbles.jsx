@@ -346,6 +346,16 @@ function procoreProjectIdFromUrl(url) {
   return m ? m[1] : null;
 }
 
+// Cross-references a NetSuite pending project's linked Procore id against
+// PUNCH's own Portfolio list, so Saved Searches can show whether Procore's own
+// admin-page checklist has actually been filled out before this gets completed
+// in NetSuite — matches on the exact same source_url shape syncPortfolio uses
+// (`${PROCORE_API_BASE}/${id}/project/home`), via procoreProjectIdFromUrl.
+function findPortfolioTaskForProcoreId(tasks, procoreId) {
+  if (!procoreId) return null;
+  return tasks.find((t) => t.list === "portfolio" && procoreProjectIdFromUrl(t.sourceUrl) === String(procoreId)) || null;
+}
+
 function procoreDirectoryLink(projectId) {
   return `https://us02.procore.com/${projectId}/project/directory`;
 }
@@ -3253,6 +3263,14 @@ export default function PunchBubbles() {
               pendingProjects.map((p) => {
                 const missingCount = p.missingFields.length;
                 const color = missingCount > 0 ? "#C1401C" : "#8FC742";
+                const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
+                const portfolioDone = portfolioTask?.checklist ? portfolioTask.checklist.filter((c) => c.done).length : null;
+                const portfolioLabel = !p.procoreId
+                  ? null
+                  : portfolioTask
+                  ? `PORTFOLIO ${portfolioDone}/${portfolioTask.checklist.length}`
+                  : "NOT ON PORTFOLIO";
+                const portfolioColor = !portfolioTask ? "#C1401C" : portfolioDone === portfolioTask.checklist.length ? "#8FC742" : "#B8AF9E";
                 return (
                   <div
                     key={p.id}
@@ -3285,8 +3303,9 @@ export default function PunchBubbles() {
                       >
                         {p.name}
                       </div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680" }}>
-                        {p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"}
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", display: "flex", gap: 6 }}>
+                        <span>{p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"}</span>
+                        {portfolioLabel && <span style={{ color: portfolioColor }}>· {portfolioLabel}</span>}
                       </div>
                     </div>
                     <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, color, flexShrink: 0 }}>
@@ -6074,6 +6093,11 @@ export default function PunchBubbles() {
         });
         const customerDisplay =
           draft.customer !== undefined ? draft.customer?.name || "" : customerQuery[p.id] ?? p.customerName ?? "";
+        const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
+        const portfolioDone = portfolioTask?.checklist ? portfolioTask.checklist.filter((c) => c.done).length : null;
+        const addressLine = [p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country]
+          .filter(Boolean)
+          .join(", ");
 
         return (
           <div
@@ -6113,8 +6137,40 @@ export default function PunchBubbles() {
               <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 15, color: "#2A2419", marginBottom: 2, paddingRight: 24 }}>
                 {p.name}
               </div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 16 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 4 }}>
                 {p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"}
+              </div>
+              {p.procoreId && (
+                <div
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: !portfolioTask ? "#C1401C" : portfolioDone === portfolioTask.checklist.length ? "#5B8C5A" : "#8A8375",
+                    marginBottom: 12,
+                  }}
+                >
+                  {portfolioTask ? `PORTFOLIO CHECKLIST: ${portfolioDone}/${portfolioTask.checklist.length} DONE` : "NOT FOUND ON PORTFOLIO"}
+                </div>
+              )}
+
+              {/* Read-only — this is a signal, not an editable field: an empty address
+                  here usually means nobody's actually opened this project's admin page
+                  in Procore yet, worth knowing before completing it in NetSuite. */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
+                  ADDRESS (READ-ONLY, FROM PROCORE)
+                </div>
+                <div
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 11,
+                    color: addressLine ? "#5C5850" : "#C1401C",
+                    fontWeight: addressLine ? 400 : 700,
+                  }}
+                >
+                  {addressLine || "NOT SET"}
+                </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
@@ -6209,12 +6265,6 @@ export default function PunchBubbles() {
                   </select>
                 </div>
               </div>
-
-              {p.address.street && (
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 14 }}>
-                  {[p.address.street, p.address.city, p.address.state, p.address.zip, p.address.country].filter(Boolean).join(", ")}
-                </div>
-              )}
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
