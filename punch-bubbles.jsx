@@ -1909,12 +1909,12 @@ export default function PunchBubbles() {
   }
 
   const editInputStyle = {
-    padding: "4px 8px",
+    padding: "7px 10px",
     borderRadius: 4,
     border: "1px solid #C9C0AC",
     background: "transparent",
     fontFamily: FONT_MONO,
-    fontSize: SIZE_XS,
+    fontSize: SIZE_SM,
     color: "#5C5850",
     width: "100%",
     boxSizing: "border-box",
@@ -4160,7 +4160,8 @@ export default function PunchBubbles() {
             {activeTasks.map((t) => {
               const color = priorityColor[effectivePriority(t)];
               const age = daysOpen(t.createdAt);
-              const hasNote = (t.history || []).some((h) => h.type === "note");
+              const notes = (t.history || []).filter((h) => h.type === "note");
+              const latestNote = notes.length ? notes[notes.length - 1] : null;
               const checklistDone = t.checklist ? t.checklist.filter((c) => c.done).length : null;
               return (
                 <div
@@ -4169,21 +4170,21 @@ export default function PunchBubbles() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
+                    gap: 12,
                     background: "#2A2724",
                     border: `1px solid ${color}55`,
                     borderLeft: `4px solid ${color}`,
                     borderRadius: 4,
-                    padding: "10px 12px",
-                    marginBottom: 8,
+                    padding: "14px 16px",
+                    marginBottom: 10,
                     cursor: "pointer",
                     animation: newlyAddedIds.has(t.id) ? "rowIn 0.4s ease-out both" : undefined,
                   }}
                 >
                   <div
                     style={{
-                      width: 14,
-                      height: 14,
+                      width: 16,
+                      height: 16,
                       borderRadius: "50%",
                       border: "1.5px solid #5C5850",
                       flexShrink: 0,
@@ -4193,9 +4194,9 @@ export default function PunchBubbles() {
                     <div
                       style={{
                         fontFamily: "'Inter', sans-serif",
-                        fontSize: 13.5,
+                        fontSize: 14.5,
                         color: "#F1ECE1",
-                        marginBottom: 2,
+                        marginBottom: 3,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -4206,11 +4207,11 @@ export default function PunchBubbles() {
                     <div
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: 10,
+                        fontSize: 10.5,
                         color: "#8B8680",
                         display: "flex",
                         alignItems: "center",
-                        gap: 6,
+                        gap: 8,
                       }}
                     >
                       <span>
@@ -4221,17 +4222,29 @@ export default function PunchBubbles() {
                           {checklistDone}/{t.checklist.length}
                         </span>
                       )}
-                      {hasNote && (
-                        <span title="Has a note" style={{ color: "#B8AF9E" }}>
-                          ✎
-                        </span>
-                      )}
                     </div>
+                    {latestNote && (
+                      <div
+                        title={latestNote.text}
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 11.5,
+                          fontStyle: "italic",
+                          color: "#B8AF9E",
+                          marginTop: 4,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        ✎ {latestNote.text}
+                      </div>
+                    )}
                   </div>
                   <div
                     style={{
                       fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 10.5,
+                      fontSize: 11,
                       fontWeight: 700,
                       color,
                       flexShrink: 0,
@@ -4284,10 +4297,10 @@ export default function PunchBubbles() {
           <div
             style={{
               background: "#F1ECE1",
-              width: 380,
+              width: 460,
               maxWidth: "90vw",
               borderRadius: 6,
-              padding: 24,
+              padding: 28,
               position: "relative",
               boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
             }}
@@ -5155,7 +5168,7 @@ export default function PunchBubbles() {
                           display: "flex",
                           alignItems: "center",
                           gap: 8,
-                          padding: "5px 0",
+                          padding: "7px 0",
                           cursor: isWriteback ? "default" : "pointer",
                         }}
                       >
@@ -5195,14 +5208,14 @@ export default function PunchBubbles() {
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: 3,
-                              padding: "2px 6px",
+                              gap: 4,
+                              padding: "4px 8px",
                               background: "transparent",
                               border: "1px solid #C9C0AC",
                               borderRadius: 3,
                               fontFamily: FONT_MONO,
                               fontWeight: 700,
-                              fontSize: SIZE_XS,
+                              fontSize: SIZE_SM,
                               color: "#8A8375",
                               cursor: "pointer",
                               flexShrink: 0,
@@ -5370,14 +5383,14 @@ export default function PunchBubbles() {
                                   !editDraft.name)
                               }
                               style={{
-                                padding: "4px 10px",
+                                padding: "7px 14px",
                                 borderRadius: 4,
                                 border: "1px solid #5B8C5A",
                                 background: "#5B8C5A",
                                 color: "#F1ECE1",
                                 fontFamily: FONT_MONO,
                                 fontWeight: 700,
-                                fontSize: SIZE_XS,
+                                fontSize: SIZE_SM,
                                 cursor: "pointer",
                                 opacity: savingChecklistField ? 0.6 : 1,
                               }}
@@ -5387,14 +5400,14 @@ export default function PunchBubbles() {
                             <button
                               onClick={cancelEditChecklistField}
                               style={{
-                                padding: "4px 10px",
+                                padding: "7px 14px",
                                 borderRadius: 4,
                                 border: "1px solid #C9C0AC",
                                 background: "transparent",
                                 color: "#8A8375",
                                 fontFamily: FONT_MONO,
                                 fontWeight: 700,
-                                fontSize: SIZE_XS,
+                                fontSize: SIZE_SM,
                                 cursor: "pointer",
                               }}
                             >
@@ -6115,7 +6128,7 @@ export default function PunchBubbles() {
             <div
               style={{
                 background: "#F1ECE1",
-                width: 380,
+                width: 460,
                 maxWidth: "90vw",
                 maxHeight: "85vh",
                 overflowY: "auto",

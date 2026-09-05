@@ -535,7 +535,12 @@ const APP_SWITCHER_LINKS = [
   { name: "TALLY", url: "https://lambwright.github.io/tally/", color: "#E2871A", current: false }
 ];
 const KNOWN_PM_NAMES = /* @__PURE__ */ new Set([
-  "CHRIS HONG", "DEVID MANZKE", "HAL ROWAN", "PETER DYCK", "RUDI DYCK", "SCOT CARTER-NICHOLS"
+  "CHRIS HONG",
+  "DEVID MANZKE",
+  "HAL ROWAN",
+  "PETER DYCK",
+  "RUDI DYCK",
+  "SCOT CARTER-NICHOLS"
 ]);
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 864e5));
@@ -582,6 +587,17 @@ const tabs = [
   { id: "recurring", label: "RECURRING", view: "recurring" },
   { id: "snoozed", label: "SNOOZED", view: "bubbles" },
   { id: "digest", label: "DIGEST", view: "digest" },
+  // Stage Enforcer-flagged tasks (punch-worker sets list: "stage_review"). Reuses the
+  // bubbles view as-is rather than a new bespoke layout — category already carries the
+  // origin stage bucket (On Hold / Completed and Invoiced / Pre-Construction) and shows
+  // on hover + in the detail modal, and each accumulated record already gets its own
+  // linked History entry via the same mechanism email replies use.
+  // "list" (not "bubbles") deliberately — this is the same compact-row layout
+  // Portfolio uses, and since that row rendering is written generically (no
+  // tab === "portfolio" checks baked in), Stage Review tasks get the identical
+  // look/feel for free: priority-colored left border, single summary line,
+  // #ticket · category metadata line, age badge, click to open the shared detail
+  // modal (which already shows the linked History entries).
   { id: "stage_review", label: "STAGE REVIEW", view: "list" }
 ];
 const WIDTH = 620;
@@ -895,7 +911,9 @@ function PunchBubbles() {
   async function loadPmOptions() {
     try {
       const data = await apiGet("/netsuite/pending-options?field=projectManager");
-      const options = (data.options || []).filter((o) => KNOWN_PM_NAMES.has((o.name || "").trim().toUpperCase()));
+      const options = (data.options || []).filter(
+        (o) => KNOWN_PM_NAMES.has((o.name || "").trim().toUpperCase())
+      );
       setPmOptions(options);
     } catch (err) {
       console.error("Failed to load project manager list:", err);
@@ -1620,12 +1638,12 @@ function PunchBubbles() {
     return null;
   }
   const editInputStyle = {
-    padding: "4px 8px",
+    padding: "7px 10px",
     borderRadius: 4,
     border: "1px solid #C9C0AC",
     background: "transparent",
     fontFamily: FONT_MONO,
-    fontSize: SIZE_XS,
+    fontSize: SIZE_SM,
     color: "#5C5850",
     width: "100%",
     boxSizing: "border-box"
@@ -2780,7 +2798,13 @@ function PunchBubbles() {
         }
       },
       pendingLoading ? "LOADING..." : "REFRESH FROM NETSUITE"
-    ), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680" } }, 'NetSuite Inbound Projects sitting at "Pending Completion" \u2014 read and written live, nothing cached here.')), pendingError && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 } }, pendingError), pendingLoading && pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#5C5850", fontSize: 13 } }, "Nothing pending completion right now.") : pendingProjects.map((p) => {
+    ), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680" } }, 'NetSuite Inbound Projects sitting at "Pending Completion" \u2014 read and written live, nothing cached here.')), pendingError && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 } }, pendingError), pendingLoading && pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#5C5850", fontSize: 13 } }, "Nothing pending completion right now.") : (
+      // Compact row, same shape/spirit as Portfolio's list rows (colored left
+      // border, single summary line, small metadata line, right-aligned status)
+      // rather than an always-expanded card — click opens the actual editor
+      // below. Border color stands in for Portfolio's priority color here:
+      // green when nothing's missing, red when something needs attention.
+      pendingProjects.map((p) => {
         const missingCount = p.missingFields.length;
         const color = missingCount > 0 ? "#C1401C" : "#8FC742";
         const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
@@ -2820,11 +2844,11 @@ function PunchBubbles() {
               }
             },
             p.name
-          ), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement("span", null, p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"), portfolioLabel && /* @__PURE__ */ React.createElement("span", { style: { color: portfolioColor } }, "· ", portfolioLabel))),
+          ), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement("span", null, p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"), portfolioLabel && /* @__PURE__ */ React.createElement("span", { style: { color: portfolioColor } }, "\xB7 ", portfolioLabel))),
           /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, color, flexShrink: 0 } }, missingCount > 0 ? `${missingCount} MISSING` : "COMPLETE")
         );
       })
-    ) : tab === "digest" ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
+    )) : tab === "digest" ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: generateDigest,
@@ -3553,7 +3577,8 @@ function PunchBubbles() {
     ))), activeTasks.map((t) => {
       const color = priorityColor[effectivePriority(t)];
       const age = daysOpen(t.createdAt);
-      const hasNote = (t.history || []).some((h) => h.type === "note");
+      const notes = (t.history || []).filter((h) => h.type === "note");
+      const latestNote = notes.length ? notes[notes.length - 1] : null;
       const checklistDone = t.checklist ? t.checklist.filter((c) => c.done).length : null;
       return /* @__PURE__ */ React.createElement(
         "div",
@@ -3563,13 +3588,13 @@ function PunchBubbles() {
           style: {
             display: "flex",
             alignItems: "center",
-            gap: 10,
+            gap: 12,
             background: "#2A2724",
             border: `1px solid ${color}55`,
             borderLeft: `4px solid ${color}`,
             borderRadius: 4,
-            padding: "10px 12px",
-            marginBottom: 8,
+            padding: "14px 16px",
+            marginBottom: 10,
             cursor: "pointer",
             animation: newlyAddedIds.has(t.id) ? "rowIn 0.4s ease-out both" : void 0
           }
@@ -3578,8 +3603,8 @@ function PunchBubbles() {
           "div",
           {
             style: {
-              width: 14,
-              height: 14,
+              width: 16,
+              height: 16,
               borderRadius: "50%",
               border: "1.5px solid #5C5850",
               flexShrink: 0
@@ -3591,9 +3616,9 @@ function PunchBubbles() {
           {
             style: {
               fontFamily: "'Inter', sans-serif",
-              fontSize: 13.5,
+              fontSize: 14.5,
               color: "#F1ECE1",
-              marginBottom: 2,
+              marginBottom: 3,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap"
@@ -3605,23 +3630,39 @@ function PunchBubbles() {
           {
             style: {
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 10,
+              fontSize: 10.5,
               color: "#8B8680",
               display: "flex",
               alignItems: "center",
-              gap: 6
+              gap: 8
             }
           },
           /* @__PURE__ */ React.createElement("span", null, "#", t.ticket, " \xB7 ", t.category.toUpperCase()),
-          checklistDone !== null && /* @__PURE__ */ React.createElement("span", { title: "Checklist items complete", style: { color: "#B8AF9E" } }, checklistDone, "/", t.checklist.length),
-          hasNote && /* @__PURE__ */ React.createElement("span", { title: "Has a note", style: { color: "#B8AF9E" } }, "\u270E")
+          checklistDone !== null && /* @__PURE__ */ React.createElement("span", { title: "Checklist items complete", style: { color: "#B8AF9E" } }, checklistDone, "/", t.checklist.length)
+        ), latestNote && /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            title: latestNote.text,
+            style: {
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11.5,
+              fontStyle: "italic",
+              color: "#B8AF9E",
+              marginTop: 4,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap"
+            }
+          },
+          "\u270E ",
+          latestNote.text
         )),
         /* @__PURE__ */ React.createElement(
           "div",
           {
             style: {
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 10.5,
+              fontSize: 11,
               fontWeight: 700,
               color,
               flexShrink: 0
@@ -3665,10 +3706,10 @@ function PunchBubbles() {
         {
           style: {
             background: "#F1ECE1",
-            width: 380,
+            width: 460,
             maxWidth: "90vw",
             borderRadius: 6,
-            padding: 24,
+            padding: 28,
             position: "relative",
             boxShadow: "0 12px 40px rgba(0,0,0,0.5)"
           },
@@ -3762,7 +3803,7 @@ function PunchBubbles() {
                 rel: "noreferrer",
                 style: { marginLeft: 6, color: "#8FC742", textDecoration: "none" }
               },
-              "↗ view"
+              "\u2197 view"
             )
           ),
           /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#2A2419" } }, ev.text)
@@ -4483,7 +4524,7 @@ function PunchBubbles() {
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  padding: "5px 0",
+                  padding: "7px 0",
                   cursor: isWriteback ? "default" : "pointer"
                 }
               },
@@ -4528,14 +4569,14 @@ function PunchBubbles() {
                   style: {
                     display: "flex",
                     alignItems: "center",
-                    gap: 3,
-                    padding: "2px 6px",
+                    gap: 4,
+                    padding: "4px 8px",
                     background: "transparent",
                     border: "1px solid #C9C0AC",
                     borderRadius: 3,
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
-                    fontSize: SIZE_XS,
+                    fontSize: SIZE_SM,
                     color: "#8A8375",
                     cursor: "pointer",
                     flexShrink: 0
@@ -4673,14 +4714,14 @@ function PunchBubbles() {
                   onClick: saveChecklistField,
                   disabled: savingChecklistField || (LIVE_OPTION_FIELDS.has(item.key) || item.key === "department" || item.key === "currency" || item.key === "timezone") && editDraft.id == null && !editDraft.name,
                   style: {
-                    padding: "4px 10px",
+                    padding: "7px 14px",
                     borderRadius: 4,
                     border: "1px solid #5B8C5A",
                     background: "#5B8C5A",
                     color: "#F1ECE1",
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
-                    fontSize: SIZE_XS,
+                    fontSize: SIZE_SM,
                     cursor: "pointer",
                     opacity: savingChecklistField ? 0.6 : 1
                   }
@@ -4691,14 +4732,14 @@ function PunchBubbles() {
                 {
                   onClick: cancelEditChecklistField,
                   style: {
-                    padding: "4px 10px",
+                    padding: "7px 14px",
                     borderRadius: 4,
                     border: "1px solid #C9C0AC",
                     background: "transparent",
                     color: "#8A8375",
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
-                    fontSize: SIZE_XS,
+                    fontSize: SIZE_SM,
                     cursor: "pointer"
                   }
                 },
@@ -5413,7 +5454,7 @@ function PunchBubbles() {
           {
             style: {
               background: "#F1ECE1",
-              width: 380,
+              width: 460,
               maxWidth: "90vw",
               maxHeight: "85vh",
               overflowY: "auto",
@@ -5482,7 +5523,7 @@ function PunchBubbles() {
               onChange: (e) => updatePendingEdit(p.id, "projectManager", e.target.value),
               style: lightSelectStyle(isMissing("projectManager"))
             },
-            /* @__PURE__ */ React.createElement("option", { value: "" }, "— Select —"),
+            /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
             pmOptions.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
           )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "DEPARTMENT"), /* @__PURE__ */ React.createElement(
             "select",
@@ -5491,7 +5532,7 @@ function PunchBubbles() {
               onChange: (e) => updatePendingEdit(p.id, "department", e.target.value),
               style: lightSelectStyle(isMissing("department"))
             },
-            /* @__PURE__ */ React.createElement("option", { value: "" }, "— Select —"),
+            /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
             pendingOptions.department.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
           )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "CLASS"), /* @__PURE__ */ React.createElement(
             "select",
@@ -5500,7 +5541,7 @@ function PunchBubbles() {
               onChange: (e) => updatePendingEdit(p.id, "class", e.target.value),
               style: lightSelectStyle(isMissing("class"))
             },
-            /* @__PURE__ */ React.createElement("option", { value: "" }, "— Select —"),
+            /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
             pendingOptions.class.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
           )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "LOCATION"), /* @__PURE__ */ React.createElement(
             "select",
@@ -5509,7 +5550,7 @@ function PunchBubbles() {
               onChange: (e) => updatePendingEdit(p.id, "location", e.target.value),
               style: lightSelectStyle(isMissing("location"))
             },
-            /* @__PURE__ */ React.createElement("option", { value: "" }, "— Select —"),
+            /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
             pendingOptions.location.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
           )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "APPROVAL STATUS"), /* @__PURE__ */ React.createElement(
             "select",
@@ -5538,7 +5579,7 @@ function PunchBubbles() {
               }
             },
             pendingSavingId === p.id ? "SAVING..." : "SAVE"
-          ), pendingSavedId === p.id && /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#5B8C5A" } }, "✓ SAVED"))
+          ), pendingSavedId === p.id && /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#5B8C5A" } }, "\u2713 SAVED"))
         )
       );
     })(),
