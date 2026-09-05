@@ -791,7 +791,13 @@ export default function PunchBubbles() {
   const lastChildDragPos = useRef(null);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [portfolioSortMode, setPortfolioSortMode] = useState("age"); // "age" | "number"
+  // Age and project # were really the same sort (project numbers are assigned
+  // sequentially, so "oldest first" and "lowest number first" are identical) —
+  // one direction toggle instead of two separate modes. false = ascending
+  // (oldest/lowest number first), true = descending.
+  const [portfolioSortDesc, setPortfolioSortDesc] = useState(false);
+  const [portfolioDeptFilter, setPortfolioDeptFilter] = useState(""); // "" = all
+  const [savedSearchSortDesc, setSavedSearchSortDesc] = useState(false);
   const [digests, setDigests] = useState([]);
   const [digestLoading, setDigestLoading] = useState(false);
   const [digestGenerating, setDigestGenerating] = useState(false);
@@ -1059,17 +1065,34 @@ export default function PunchBubbles() {
       // never on the top-level board.
       : tasks.filter((t) => t.status === "open" && t.list === tab && !t.parentTaskId);
 
-  // Portfolio defaults to age (insertion order) same as everywhere else, but project
-  // number is often more useful there — extracted from the summary's leading
-  // "YYYY_NNNN" token, newest first.
+  // Extracted from the summary's leading "YYYY_NNNN" token — fixed-width and
+  // zero-padded, so a plain string compare already sorts numerically/chronologically.
   function projectNumberOf(t) {
     const m = (t.summary || "").match(/(\d{4}_\d{4})/);
     return m ? m[1] : "";
   }
+  // Procore's own project.departments field (PM-name groupings like "Chris Hong"),
+  // baked into the checklist item's label as "Department: X" by buildProcoreChecklist
+  // server-side rather than stored as its own machine-readable value — parsed back
+  // out here since it's the only place this ever lived.
+  function departmentOf(t) {
+    const item = (t.checklist || []).find((c) => c.key === "department");
+    const m = item?.label.match(/^Department: (.+)$/);
+    return m ? m[1] : null;
+  }
   const activeTasks =
-    tab === "portfolio" && portfolioSortMode === "number"
-      ? [...activeTasksUnsorted].sort((a, b) => projectNumberOf(b).localeCompare(projectNumberOf(a)))
+    tab === "portfolio"
+      ? [...activeTasksUnsorted]
+          .filter((t) => !portfolioDeptFilter || departmentOf(t) === portfolioDeptFilter)
+          .sort((a, b) => (portfolioSortDesc ? -1 : 1) * projectNumberOf(a).localeCompare(projectNumberOf(b)))
       : activeTasksUnsorted;
+  // Distinct department values currently on Portfolio, for the filter dropdown —
+  // computed off the unfiltered set so picking one department doesn't make the
+  // others disappear from the dropdown itself.
+  const portfolioDepartments =
+    tab === "portfolio"
+      ? Array.from(new Set(activeTasksUnsorted.map(departmentOf).filter(Boolean))).sort()
+      : [];
   const inboxOpenCount = tasks.filter((t) => t.status === "open" && t.list === "inbox").length;
 
   // Physics only reruns when the task list itself changes — not on every drag move.
@@ -3278,6 +3301,27 @@ export default function PunchBubbles() {
               </span>
             </div>
 
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>SORT: OLDEST RECORD FIRST</span>
+              <button
+                onClick={() => setSavedSearchSortDesc((v) => !v)}
+                title={savedSearchSortDesc ? "Newest first — click for oldest first" : "Oldest first — click for newest first"}
+                style={{
+                  padding: "3px 8px",
+                  borderRadius: 4,
+                  border: "1px solid #3A3632",
+                  background: "transparent",
+                  color: "#E2871A",
+                  fontFamily: FONT_MONO,
+                  fontWeight: 700,
+                  fontSize: SIZE_SM,
+                  cursor: "pointer",
+                }}
+              >
+                {savedSearchSortDesc ? "↓" : "↑"}
+              </button>
+            </div>
+
             {pendingError && (
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 }}>
                 {pendingError}
@@ -3298,7 +3342,9 @@ export default function PunchBubbles() {
               // rather than an always-expanded card — click opens the actual editor
               // below. Border color stands in for Portfolio's priority color here:
               // green when nothing's missing, red when something needs attention.
-              pendingProjects.map((p) => {
+              [...pendingProjects]
+                .sort((a, b) => (savedSearchSortDesc ? -1 : 1) * (Number(a.id) - Number(b.id)))
+                .map((p) => {
                 const missingCount = p.missingFields.length;
                 const color = missingCount > 0 ? "#C1401C" : "#8FC742";
                 const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
@@ -4168,30 +4214,52 @@ export default function PunchBubbles() {
         ) : (
           <div>
             {tab === "portfolio" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>SORT:</span>
-                {[
-                  { key: "age", label: "AGE" },
-                  { key: "number", label: "PROJECT #" },
-                ].map((opt) => (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>SORT: PROJECT #</span>
                   <button
-                    key={opt.key}
-                    onClick={() => setPortfolioSortMode(opt.key)}
+                    onClick={() => setPortfolioSortDesc((v) => !v)}
+                    title={portfolioSortDesc ? "Newest first — click for oldest first" : "Oldest first — click for newest first"}
                     style={{
                       padding: "3px 8px",
                       borderRadius: 4,
-                      border: `1px solid ${portfolioSortMode === opt.key ? "#E2871A" : "#3A3632"}`,
-                      background: portfolioSortMode === opt.key ? "#E2871A22" : "transparent",
-                      color: portfolioSortMode === opt.key ? "#E2871A" : "#8A8375",
+                      border: "1px solid #3A3632",
+                      background: "transparent",
+                      color: "#E2871A",
+                      fontFamily: FONT_MONO,
+                      fontWeight: 700,
+                      fontSize: SIZE_SM,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {portfolioSortDesc ? "↓" : "↑"}
+                  </button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>DEPARTMENT:</span>
+                  <select
+                    value={portfolioDeptFilter}
+                    onChange={(e) => setPortfolioDeptFilter(e.target.value)}
+                    style={{
+                      padding: "3px 8px",
+                      borderRadius: 4,
+                      border: "1px solid #3A3632",
+                      background: "transparent",
+                      color: portfolioDeptFilter ? "#E2871A" : "#8A8375",
                       fontFamily: FONT_MONO,
                       fontWeight: 700,
                       fontSize: SIZE_XS,
                       cursor: "pointer",
                     }}
                   >
-                    {opt.label}
-                  </button>
-                ))}
+                    <option value="">ALL</option>
+                    {portfolioDepartments.map((d) => (
+                      <option key={d} value={d}>
+                        {d.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
             {activeTasks.map((t) => {

@@ -784,7 +784,9 @@ function PunchBubbles() {
   const dragMoved = useRef(false);
   const lastChildDragPos = useRef(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [portfolioSortMode, setPortfolioSortMode] = useState("age");
+  const [portfolioSortDesc, setPortfolioSortDesc] = useState(false);
+  const [portfolioDeptFilter, setPortfolioDeptFilter] = useState("");
+  const [savedSearchSortDesc, setSavedSearchSortDesc] = useState(false);
   const [digests, setDigests] = useState([]);
   const [digestLoading, setDigestLoading] = useState(false);
   const [digestGenerating, setDigestGenerating] = useState(false);
@@ -986,7 +988,13 @@ function PunchBubbles() {
     const m = (t.summary || "").match(/(\d{4}_\d{4})/);
     return m ? m[1] : "";
   }
-  const activeTasks = tab === "portfolio" && portfolioSortMode === "number" ? [...activeTasksUnsorted].sort((a, b) => projectNumberOf(b).localeCompare(projectNumberOf(a))) : activeTasksUnsorted;
+  function departmentOf(t) {
+    const item = (t.checklist || []).find((c) => c.key === "department");
+    const m = item?.label.match(/^Department: (.+)$/);
+    return m ? m[1] : null;
+  }
+  const activeTasks = tab === "portfolio" ? [...activeTasksUnsorted].filter((t) => !portfolioDeptFilter || departmentOf(t) === portfolioDeptFilter).sort((a, b) => (portfolioSortDesc ? -1 : 1) * projectNumberOf(a).localeCompare(projectNumberOf(b))) : activeTasksUnsorted;
+  const portfolioDepartments = tab === "portfolio" ? Array.from(new Set(activeTasksUnsorted.map(departmentOf).filter(Boolean))).sort() : [];
   const inboxOpenCount = tasks.filter((t) => t.status === "open" && t.list === "inbox").length;
   const POSITIONS_KEY = "punch_bubble_positions";
   const [positions, setPositions] = useState(() => {
@@ -2819,13 +2827,31 @@ function PunchBubbles() {
         }
       },
       pendingLoading ? "LOADING..." : "REFRESH FROM NETSUITE"
-    ), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680" } }, 'NetSuite Inbound Projects sitting at "Pending Completion" \u2014 read and written live, nothing cached here.')), pendingError && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 } }, pendingError), pendingLoading && pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#5C5850", fontSize: 13 } }, "Nothing pending completion right now.") : (
+    ), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680" } }, 'NetSuite Inbound Projects sitting at "Pending Completion" \u2014 read and written live, nothing cached here.')), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "SORT: OLDEST RECORD FIRST"), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => setSavedSearchSortDesc((v) => !v),
+        title: savedSearchSortDesc ? "Newest first \u2014 click for oldest first" : "Oldest first \u2014 click for newest first",
+        style: {
+          padding: "3px 8px",
+          borderRadius: 4,
+          border: "1px solid #3A3632",
+          background: "transparent",
+          color: "#E2871A",
+          fontFamily: FONT_MONO,
+          fontWeight: 700,
+          fontSize: SIZE_SM,
+          cursor: "pointer"
+        }
+      },
+      savedSearchSortDesc ? "\u2193" : "\u2191"
+    )), pendingError && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 } }, pendingError), pendingLoading && pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#5C5850", fontSize: 13 } }, "Nothing pending completion right now.") : (
       // Compact row, same shape/spirit as Portfolio's list rows (colored left
       // border, single summary line, small metadata line, right-aligned status)
       // rather than an always-expanded card — click opens the actual editor
       // below. Border color stands in for Portfolio's priority color here:
       // green when nothing's missing, red when something needs attention.
-      pendingProjects.map((p) => {
+      [...pendingProjects].sort((a, b) => (savedSearchSortDesc ? -1 : 1) * (Number(a.id) - Number(b.id))).map((p) => {
         const missingCount = p.missingFields.length;
         const color = missingCount > 0 ? "#C1401C" : "#8FC742";
         const portfolioTask = findPortfolioTaskForProcoreId(tasks, p.procoreId);
@@ -3575,27 +3601,43 @@ function PunchBubbles() {
           dueLabel
         )
       );
-    })) : /* @__PURE__ */ React.createElement("div", null, tab === "portfolio" && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "SORT:"), [
-      { key: "age", label: "AGE" },
-      { key: "number", label: "PROJECT #" }
-    ].map((opt) => /* @__PURE__ */ React.createElement(
+    })) : /* @__PURE__ */ React.createElement("div", null, tab === "portfolio" && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "SORT: PROJECT #"), /* @__PURE__ */ React.createElement(
       "button",
       {
-        key: opt.key,
-        onClick: () => setPortfolioSortMode(opt.key),
+        onClick: () => setPortfolioSortDesc((v) => !v),
+        title: portfolioSortDesc ? "Newest first \u2014 click for oldest first" : "Oldest first \u2014 click for newest first",
         style: {
           padding: "3px 8px",
           borderRadius: 4,
-          border: `1px solid ${portfolioSortMode === opt.key ? "#E2871A" : "#3A3632"}`,
-          background: portfolioSortMode === opt.key ? "#E2871A22" : "transparent",
-          color: portfolioSortMode === opt.key ? "#E2871A" : "#8A8375",
+          border: "1px solid #3A3632",
+          background: "transparent",
+          color: "#E2871A",
+          fontFamily: FONT_MONO,
+          fontWeight: 700,
+          fontSize: SIZE_SM,
+          cursor: "pointer"
+        }
+      },
+      portfolioSortDesc ? "\u2193" : "\u2191"
+    )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "DEPARTMENT:"), /* @__PURE__ */ React.createElement(
+      "select",
+      {
+        value: portfolioDeptFilter,
+        onChange: (e) => setPortfolioDeptFilter(e.target.value),
+        style: {
+          padding: "3px 8px",
+          borderRadius: 4,
+          border: "1px solid #3A3632",
+          background: "transparent",
+          color: portfolioDeptFilter ? "#E2871A" : "#8A8375",
           fontFamily: FONT_MONO,
           fontWeight: 700,
           fontSize: SIZE_XS,
           cursor: "pointer"
         }
       },
-      opt.label
+      /* @__PURE__ */ React.createElement("option", { value: "" }, "ALL"),
+      portfolioDepartments.map((d) => /* @__PURE__ */ React.createElement("option", { key: d, value: d }, d.toUpperCase()))
     ))), activeTasks.map((t) => {
       const color = priorityColor[effectivePriority(t)];
       const age = daysOpen(t.createdAt);
