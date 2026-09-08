@@ -35,6 +35,15 @@ const RefreshIcon = (props) => React.createElement(IconBase, props, React.create
 const API_BASE = "https://punch-worker.ben-a90.workers.dev";
 const AUTH_URL = "https://auth.ben-a90.workers.dev";
 const PUNCH_TOKEN_KEY = "einbau_id_token";
+const SAVED_SEARCH_DRAFT_KEY = "punch_saved_search_draft";
+function loadSavedSearchDraft() {
+  try {
+    const raw = localStorage.getItem(SAVED_SEARCH_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
 let punchAuthToken = null;
 let onUnauthorizedCallback = null;
 async function handleUnauthorized(res) {
@@ -801,13 +810,24 @@ function PunchBubbles() {
   const [pendingLoading, setPendingLoading] = useState(false);
   const [pendingError, setPendingError] = useState(null);
   const [pendingFetched, setPendingFetched] = useState(false);
-  const [pendingEdits, setPendingEdits] = useState({});
+  const [pendingEdits, setPendingEdits] = useState(() => loadSavedSearchDraft()?.pendingEdits || {});
   const [pendingSavingId, setPendingSavingId] = useState(null);
   const [pendingSavedId, setPendingSavedId] = useState(null);
-  const [openedPendingId, setOpenedPendingId] = useState(null);
+  const [openedPendingId, setOpenedPendingId] = useState(() => loadSavedSearchDraft()?.openedPendingId || null);
   const [pmOptions, setPmOptions] = useState([]);
-  const [customerQuery, setCustomerQuery] = useState({});
+  const [customerQuery, setCustomerQuery] = useState(() => loadSavedSearchDraft()?.customerQuery || {});
   const [customerResults, setCustomerResults] = useState({});
+  useEffect(() => {
+    try {
+      const nothingInProgress = openedPendingId == null && Object.keys(pendingEdits).length === 0;
+      if (nothingInProgress) {
+        localStorage.removeItem(SAVED_SEARCH_DRAFT_KEY);
+      } else {
+        localStorage.setItem(SAVED_SEARCH_DRAFT_KEY, JSON.stringify({ openedPendingId, pendingEdits, customerQuery }));
+      }
+    } catch (e) {
+    }
+  }, [openedPendingId, pendingEdits, customerQuery]);
   async function fetchAndMergeTasks(replaceAll) {
     const [openRows, snoozedRows, recurRows] = await Promise.all([
       apiGet("/tasks?status=open"),

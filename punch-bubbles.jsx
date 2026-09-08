@@ -6,6 +6,22 @@ const API_BASE = "https://punch-worker.ben-a90.workers.dev";
 const AUTH_URL = "https://auth.ben-a90.workers.dev";
 const PUNCH_TOKEN_KEY = "einbau_id_token"; // shared with SCOUT/INTAKE - same origin, one login carries across all three
 
+// Saved Searches has no autosave — it's a live NetSuite record, not a PUNCH task,
+// so a typed-but-unsaved edit only ever lived in React state. That meant any reload
+// while a card was open (a token expiring mid-session falls back to a hard reload,
+// same as an actual browser tab getting discarded in the background) silently threw
+// away everything typed. Mirrored into localStorage on every change and restored on
+// load specifically so a reload can't destroy it, regardless of what caused the reload.
+const SAVED_SEARCH_DRAFT_KEY = "punch_saved_search_draft";
+function loadSavedSearchDraft() {
+  try {
+    const raw = localStorage.getItem(SAVED_SEARCH_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // Set by the login screen after a successful login/verify — read by every api*
 // call below. A plain module-level variable (not React state) because these
 // are standalone functions outside the component, same pattern SCOUT/INTAKE
@@ -817,20 +833,35 @@ export default function PunchBubbles() {
 
   // Saved Searches (NetSuite Inbound Projects) — a live proxy view, not a local
   // tasks list like every other tab. "Done" here just means "NetSuite already has
-  // the value," so there's nothing to persist locally; pendingEdits holds only the
-  // in-progress draft for whichever record(s) are currently being edited.
+  // the value," so the *saved* value is never cached locally — but pendingEdits/
+  // customerQuery/openedPendingId (the in-progress draft) are mirrored to
+  // localStorage below specifically so a reload can't destroy unsaved typing.
   const [pendingProjects, setPendingProjects] = useState([]);
   const [pendingOptions, setPendingOptions] = useState({ department: [], class: [], location: [], approvalStatus: [] });
   const [pendingLoading, setPendingLoading] = useState(false);
   const [pendingError, setPendingError] = useState(null);
   const [pendingFetched, setPendingFetched] = useState(false);
-  const [pendingEdits, setPendingEdits] = useState({}); // { [recordId]: { customer?, projectManager?, department?, class?, location?, approvalStatus? } }
+  const [pendingEdits, setPendingEdits] = useState(() => loadSavedSearchDraft()?.pendingEdits || {}); // { [recordId]: { customer?, projectManager?, department?, class?, location?, approvalStatus? } }
   const [pendingSavingId, setPendingSavingId] = useState(null);
   const [pendingSavedId, setPendingSavedId] = useState(null); // brief post-save confirmation flash
-  const [openedPendingId, setOpenedPendingId] = useState(null); // which pendingProjects row's detail panel is open
+  const [openedPendingId, setOpenedPendingId] = useState(() => loadSavedSearchDraft()?.openedPendingId || null); // which pendingProjects row's detail panel is open
   const [pmOptions, setPmOptions] = useState([]); // full employee list (~50), fetched once
-  const [customerQuery, setCustomerQuery] = useState({}); // { [recordId]: text typed so far }
+  const [customerQuery, setCustomerQuery] = useState(() => loadSavedSearchDraft()?.customerQuery || {}); // { [recordId]: text typed so far }
   const [customerResults, setCustomerResults] = useState({}); // { [recordId]: [{id,name}] }
+
+  useEffect(() => {
+    try {
+      const nothingInProgress = openedPendingId == null && Object.keys(pendingEdits).length === 0;
+      if (nothingInProgress) {
+        localStorage.removeItem(SAVED_SEARCH_DRAFT_KEY);
+      } else {
+        localStorage.setItem(SAVED_SEARCH_DRAFT_KEY, JSON.stringify({ openedPendingId, pendingEdits, customerQuery }));
+      }
+    } catch (e) {
+      // ignore storage errors (private browsing, quota, etc.) — worst case the
+      // draft just doesn't survive a reload, same as before this existed
+    }
+  }, [openedPendingId, pendingEdits, customerQuery]);
 
   async function fetchAndMergeTasks(replaceAll) {
     const [openRows, snoozedRows, recurRows] = await Promise.all([
