@@ -298,6 +298,73 @@ const SIZE_SM = 11;
 const SIZE_MD = 13;
 const SIZE_LG = 16;
 const PROCORE_COMPANY_ID = "562949953508586";
+function Autocomplete({ options, filterOptions = true, value, onSelect, onQueryChange, placeholder, style, autoFocus }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value || "");
+  const wrapRef = useRef(null);
+  useEffect(() => {
+    function onDocMouseDown(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, []);
+  const shown = filterOptions ? options.filter((o) => o.name.toLowerCase().includes(query.trim().toLowerCase())) : options;
+  return /* @__PURE__ */ React.createElement("div", { ref: wrapRef, style: { position: "relative" } }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      autoFocus,
+      autoComplete: "off",
+      value: query,
+      placeholder,
+      onChange: (e) => {
+        setQuery(e.target.value);
+        setOpen(true);
+        if (onQueryChange) onQueryChange(e.target.value);
+      },
+      onFocus: () => setOpen(true),
+      style
+    }
+  ), open && query.trim().length > 0 && shown.length > 0 && /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        top: "calc(100% + 2px)",
+        left: 0,
+        right: 0,
+        zIndex: 20,
+        background: "#FBF9F4",
+        border: "1px solid #C9C0AC",
+        borderRadius: 4,
+        maxHeight: 220,
+        overflowY: "auto",
+        boxShadow: "0 6px 16px rgba(0,0,0,0.18)"
+      }
+    },
+    shown.map((o) => /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        key: o.id,
+        onMouseDown: (e) => {
+          e.preventDefault();
+          onSelect(o);
+          setQuery(o.name);
+          setOpen(false);
+        },
+        style: {
+          padding: "8px 12px",
+          cursor: "pointer",
+          fontFamily: FONT_MONO,
+          fontSize: SIZE_MD,
+          color: "#2A2419",
+          borderBottom: "1px solid #E9E2D2"
+        }
+      },
+      o.name
+    ))
+  ));
+}
 function procoreProjectIdFromUrl(url) {
   if (!url) return null;
   const m = url.match(/procore\.com\/(\d+)\//);
@@ -1704,20 +1771,17 @@ function PunchBubbles() {
       const options = procoreOptions.customer;
       if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "Loading options\u2026");
       const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name));
-      return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
-        "input",
+      return /* @__PURE__ */ React.createElement(
+        Autocomplete,
         {
-          list: "portfolio-customer-datalist",
+          options: sorted,
           autoFocus: true,
-          defaultValue: editDraft.name || "",
+          value: editDraft.name || "",
           placeholder: "Type to search...",
-          onChange: (e) => {
-            const match = sorted.find((o) => o.name === e.target.value);
-            setEditDraft(match ? { ...match } : {});
-          },
+          onSelect: (opt) => setEditDraft({ ...opt }),
           style: editInputStyle
         }
-      ), /* @__PURE__ */ React.createElement("datalist", { id: "portfolio-customer-datalist" }, sorted.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.name }))));
+      );
     }
     if (LIVE_OPTION_FIELDS.has(key) || key === "department" || key === "currency") {
       const options = procoreOptions[key];
@@ -5584,21 +5648,20 @@ function PunchBubbles() {
             addressLine || "NOT SET"
           )),
           /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "CUSTOMER"), /* @__PURE__ */ React.createElement(
-            "input",
+            Autocomplete,
             {
-              list: `customer-list-${p.id}`,
+              options: customerResults[p.id] || [],
+              filterOptions: false,
               value: customerDisplay,
               placeholder: "Type to search...",
-              onChange: (e) => {
-                const text = e.target.value;
+              onQueryChange: (text) => {
                 searchCustomers(p.id, text);
-                const match = (customerResults[p.id] || []).find((o) => o.name === text);
-                if (match) updatePendingEdit(p.id, "customer", match);
-                else setPendingEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], customer: void 0 } }));
+                setPendingEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], customer: void 0 } }));
               },
+              onSelect: (opt) => updatePendingEdit(p.id, "customer", opt),
               style: lightSelectStyle(isMissing("customer"))
             }
-          ), /* @__PURE__ */ React.createElement("datalist", { id: `customer-list-${p.id}` }, (customerResults[p.id] || []).map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.name })))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "PROJECT MANAGER"), /* @__PURE__ */ React.createElement(
+          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "PROJECT MANAGER"), /* @__PURE__ */ React.createElement(
             "select",
             {
               value: fieldValue("projectManager", "projectManagerId"),

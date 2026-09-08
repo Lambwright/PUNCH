@@ -356,6 +356,93 @@ const SIZE_LG = 16;
 
 const PROCORE_COMPANY_ID = "562949953508586";
 
+// Real, styled dropdown to replace <input list><datalist> — the native datalist
+// UI is rendered by the browser itself (autofill-style chrome, unstylable), which
+// is exactly why it looked like Chrome's own address-suggestion popup instead of
+// part of the app. Two modes: filterOptions=true (default) filters the given
+// options list locally on every keystroke — for a list already fully in memory
+// (Portfolio's ~500 Procore vendors). filterOptions=false trusts whatever options
+// it's given as-is and just calls onQueryChange per keystroke instead — for a
+// live server search too large to fetch in full (Saved Searches' ~1,500 NetSuite
+// customers).
+function Autocomplete({ options, filterOptions = true, value, onSelect, onQueryChange, placeholder, style, autoFocus }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value || "");
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    function onDocMouseDown(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, []);
+
+  const shown = filterOptions
+    ? options.filter((o) => o.name.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <input
+        autoFocus={autoFocus}
+        autoComplete="off"
+        value={query}
+        placeholder={placeholder}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+          if (onQueryChange) onQueryChange(e.target.value);
+        }}
+        onFocus={() => setOpen(true)}
+        style={style}
+      />
+      {open && query.trim().length > 0 && shown.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 2px)",
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            background: "#FBF9F4",
+            border: "1px solid #C9C0AC",
+            borderRadius: 4,
+            maxHeight: 220,
+            overflowY: "auto",
+            boxShadow: "0 6px 16px rgba(0,0,0,0.18)",
+          }}
+        >
+          {shown.map((o) => (
+            <div
+              key={o.id}
+              // mousedown (not click) + preventDefault so the option registers
+              // before the input's own blur/close-on-outside-click logic can
+              // fire first and swallow the selection.
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelect(o);
+                setQuery(o.name);
+                setOpen(false);
+              }}
+              style={{
+                padding: "8px 12px",
+                cursor: "pointer",
+                fontFamily: FONT_MONO,
+                fontSize: SIZE_MD,
+                color: "#2A2419",
+                borderBottom: "1px solid #E9E2D2",
+              }}
+            >
+              {o.name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function procoreProjectIdFromUrl(url) {
   if (!url) return null;
   const m = url.match(/procore\.com\/(\d+)\//);
@@ -2027,24 +2114,14 @@ export default function PunchBubbles() {
       if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>Loading options…</div>;
       const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name));
       return (
-        <>
-          <input
-            list="portfolio-customer-datalist"
-            autoFocus
-            defaultValue={editDraft.name || ""}
-            placeholder="Type to search..."
-            onChange={(e) => {
-              const match = sorted.find((o) => o.name === e.target.value);
-              setEditDraft(match ? { ...match } : {});
-            }}
-            style={editInputStyle}
-          />
-          <datalist id="portfolio-customer-datalist">
-            {sorted.map((o) => (
-              <option key={o.id} value={o.name} />
-            ))}
-          </datalist>
-        </>
+        <Autocomplete
+          options={sorted}
+          autoFocus
+          value={editDraft.name || ""}
+          placeholder="Type to search..."
+          onSelect={(opt) => setEditDraft({ ...opt })}
+          style={editInputStyle}
+        />
       );
     }
 
@@ -6341,24 +6418,18 @@ export default function PunchBubbles() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                 <div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>CUSTOMER</div>
-                  <input
-                    list={`customer-list-${p.id}`}
+                  <Autocomplete
+                    options={customerResults[p.id] || []}
+                    filterOptions={false}
                     value={customerDisplay}
                     placeholder="Type to search..."
-                    onChange={(e) => {
-                      const text = e.target.value;
+                    onQueryChange={(text) => {
                       searchCustomers(p.id, text);
-                      const match = (customerResults[p.id] || []).find((o) => o.name === text);
-                      if (match) updatePendingEdit(p.id, "customer", match);
-                      else setPendingEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], customer: undefined } }));
+                      setPendingEdits((prev) => ({ ...prev, [p.id]: { ...prev[p.id], customer: undefined } }));
                     }}
+                    onSelect={(opt) => updatePendingEdit(p.id, "customer", opt)}
                     style={lightSelectStyle(isMissing("customer"))}
                   />
-                  <datalist id={`customer-list-${p.id}`}>
-                    {(customerResults[p.id] || []).map((o) => (
-                      <option key={o.id} value={o.name} />
-                    ))}
-                  </datalist>
                 </div>
 
                 <div>
