@@ -4514,8 +4514,174 @@ export default function PunchBubbles() {
       </div>
       )}
 
+      {/* Stage Review detail panel — deliberately NOT the generic task modal.
+          Ben's read: reusing the same modal for everything "almost matched too
+          well" and made a structural fact (this project's stage changed, here's
+          what triggered it) hard to read as prose crammed into a title. Read-only
+          title, a real from→to stage display, a table of the actual triggering
+          records instead of a sentence, and none of the fields that don't apply
+          here (urgency, due date, copilot, delete). */}
+      {selected && selected.list === "stage_review" && (() => {
+        const stageChange = (selected.history || []).find((h) => h.type === "stage_change");
+        const recordRows = (selected.history || []).filter((h) => h.type === "record_found");
+        return (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(10,9,8,0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 10,
+            }}
+            onClick={() => setSelected(null)}
+          >
+            <div
+              style={{
+                background: "#F1ECE1",
+                width: 560,
+                maxWidth: "90vw",
+                borderRadius: 6,
+                padding: 28,
+                position: "relative",
+                boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setSelected(null)}
+                style={{ position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#8A8375" }}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 4 }}>
+                #{selected.ticket} · STAGE REVIEW
+              </div>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 17, color: "#2A2419", marginBottom: 16, paddingRight: 24 }}>
+                {selected.summary}
+              </div>
+
+              {stageChange && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+                  <div style={{ padding: "6px 12px", borderRadius: 4, background: "#EDE6D6", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#5C5850" }}>
+                    {stageChange.fromStage || "(unknown)"}
+                  </div>
+                  <span style={{ color: "#8A8375", fontSize: 14 }}>→</span>
+                  <div style={{ padding: "6px 12px", borderRadius: 4, background: "#C1401C22", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#C1401C" }}>
+                    {stageChange.toStage}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 6 }}>
+                RECORDS THAT TRIGGERED THIS ({recordRows.length})
+              </div>
+              <div style={{ border: "1px solid #C9C0AC", borderRadius: 4, marginBottom: 18, maxHeight: 260, overflowY: "auto" }}>
+                {recordRows.length === 0 ? (
+                  <div style={{ padding: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#8A8375" }}>
+                    Nothing itemized.
+                  </div>
+                ) : (
+                  recordRows.map((r, i) => (
+                    <a
+                      key={i}
+                      href={r.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "8px 12px",
+                        borderTop: i === 0 ? "none" : "1px solid #E9E2D2",
+                        textDecoration: "none",
+                        color: "inherit",
+                      }}
+                    >
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, color: "#8A8375", flexShrink: 0, width: 74 }}>
+                        {(r.recordType || "").toUpperCase()}
+                      </div>
+                      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "#2A2419", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {r.text}
+                      </div>
+                      {r.source_url && <LinkIcon size={12} color="#8A8375" style={{ flexShrink: 0 }} />}
+                    </a>
+                  ))
+                )}
+              </div>
+
+              {selected.source_url && (
+                <a
+                  href={selected.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: "block",
+                    textAlign: "center",
+                    padding: "10px 0",
+                    marginBottom: 18,
+                    background: "#EDE6D6",
+                    borderRadius: 4,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontWeight: 700,
+                    fontSize: 11,
+                    color: "#5C5850",
+                    textDecoration: "none",
+                  }}
+                >
+                  ↗ OPEN PROJECT IN PROCORE
+                </a>
+              )}
+
+              <label style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#5C5850", display: "block", marginBottom: 6 }}>
+                NOTE
+              </label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="e.g. Confirmed with Warren, moving to Course of Construction."
+                style={{
+                  width: "100%",
+                  minHeight: 60,
+                  padding: 8,
+                  borderRadius: 4,
+                  border: "1px solid #C9C0AC",
+                  background: "#FBF9F4",
+                  fontFamily: "'Inter', sans-serif",
+                  fontSize: 13,
+                  marginBottom: 14,
+                  resize: "vertical",
+                  boxSizing: "border-box",
+                }}
+              />
+
+              <button
+                onClick={resolveTask}
+                style={{
+                  width: "100%",
+                  padding: "10px 0",
+                  background: "#5B8C5A",
+                  color: "#F1ECE1",
+                  border: "none",
+                  borderRadius: 4,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                ✓ MARK RESOLVED
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Detail panel */}
-      {selected && (
+      {selected && selected.list !== "stage_review" && (
         <div
           style={{
             position: "fixed",

@@ -3840,7 +3840,138 @@ function PunchBubbles() {
       },
       Object.entries(priorityColor).map(([k, c]) => /* @__PURE__ */ React.createElement("div", { key: k, style: { display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement("span", { style: { width: 8, height: 8, borderRadius: "50%", background: c } }), k.toUpperCase()))
     ))),
-    selected && /* @__PURE__ */ React.createElement(
+    selected && selected.list === "stage_review" && (() => {
+      const stageChange = (selected.history || []).find((h) => h.type === "stage_change");
+      const recordRows = (selected.history || []).filter((h) => h.type === "record_found");
+      return /* @__PURE__ */ React.createElement(
+        "div",
+        {
+          style: {
+            position: "fixed",
+            inset: 0,
+            background: "rgba(10,9,8,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10
+          },
+          onClick: () => setSelected(null)
+        },
+        /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            style: {
+              background: "#F1ECE1",
+              width: 560,
+              maxWidth: "90vw",
+              borderRadius: 6,
+              padding: 28,
+              position: "relative",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.5)"
+            },
+            onClick: (e) => e.stopPropagation()
+          },
+          /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              onClick: () => setSelected(null),
+              style: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#8A8375" },
+              "aria-label": "Close"
+            },
+            /* @__PURE__ */ React.createElement(X, { size: 18 })
+          ),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 4 } }, "#", selected.ticket, " \xB7 STAGE REVIEW"),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 17, color: "#2A2419", marginBottom: 16, paddingRight: 24 } }, selected.summary),
+          stageChange && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 12px", borderRadius: 4, background: "#EDE6D6", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#5C5850" } }, stageChange.fromStage || "(unknown)"), /* @__PURE__ */ React.createElement("span", { style: { color: "#8A8375", fontSize: 14 } }, "\u2192"), /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 12px", borderRadius: 4, background: "#C1401C22", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#C1401C" } }, stageChange.toStage)),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 6 } }, "RECORDS THAT TRIGGERED THIS (", recordRows.length, ")"),
+          /* @__PURE__ */ React.createElement("div", { style: { border: "1px solid #C9C0AC", borderRadius: 4, marginBottom: 18, maxHeight: 260, overflowY: "auto" } }, recordRows.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { padding: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#8A8375" } }, "Nothing itemized.") : recordRows.map((r, i) => /* @__PURE__ */ React.createElement(
+            "a",
+            {
+              key: i,
+              href: r.source_url,
+              target: "_blank",
+              rel: "noreferrer",
+              style: {
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 12px",
+                borderTop: i === 0 ? "none" : "1px solid #E9E2D2",
+                textDecoration: "none",
+                color: "inherit"
+              }
+            },
+            /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, color: "#8A8375", flexShrink: 0, width: 74 } }, (r.recordType || "").toUpperCase()),
+            /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "#2A2419", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, r.text),
+            r.source_url && /* @__PURE__ */ React.createElement(LinkIcon, { size: 12, color: "#8A8375", style: { flexShrink: 0 } })
+          ))),
+          selected.source_url && /* @__PURE__ */ React.createElement(
+            "a",
+            {
+              href: selected.source_url,
+              target: "_blank",
+              rel: "noreferrer",
+              style: {
+                display: "block",
+                textAlign: "center",
+                padding: "10px 0",
+                marginBottom: 18,
+                background: "#EDE6D6",
+                borderRadius: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700,
+                fontSize: 11,
+                color: "#5C5850",
+                textDecoration: "none"
+              }
+            },
+            "\u2197 OPEN PROJECT IN PROCORE"
+          ),
+          /* @__PURE__ */ React.createElement("label", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#5C5850", display: "block", marginBottom: 6 } }, "NOTE"),
+          /* @__PURE__ */ React.createElement(
+            "textarea",
+            {
+              value: note,
+              onChange: (e) => setNote(e.target.value),
+              placeholder: "e.g. Confirmed with Warren, moving to Course of Construction.",
+              style: {
+                width: "100%",
+                minHeight: 60,
+                padding: 8,
+                borderRadius: 4,
+                border: "1px solid #C9C0AC",
+                background: "#FBF9F4",
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 13,
+                marginBottom: 14,
+                resize: "vertical",
+                boxSizing: "border-box"
+              }
+            }
+          ),
+          /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              onClick: resolveTask,
+              style: {
+                width: "100%",
+                padding: "10px 0",
+                background: "#5B8C5A",
+                color: "#F1ECE1",
+                border: "none",
+                borderRadius: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: "pointer"
+              }
+            },
+            "\u2713 MARK RESOLVED"
+          )
+        )
+      );
+    })(),
+    selected && selected.list !== "stage_review" && /* @__PURE__ */ React.createElement(
       "div",
       {
         style: {
