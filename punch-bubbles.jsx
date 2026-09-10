@@ -642,6 +642,13 @@ function radiusFor(task, childCount) {
   return base + priorityWeight[effectivePriority(task)] * 0.6 + age;
 }
 
+// Focus Mode ranking — "the 5 oldest, most urgent." Priority is scaled far above
+// age so it always dominates (nothing urgent still loses to an urgent item),
+// with days-open breaking ties within a priority band.
+function focusScore(task) {
+  return priorityWeight[effectivePriority(task)] * 100000 + daysOpen(task.createdAt);
+}
+
 // Wraps text into up to maxLines, sized to fit a bubble of the given radius.
 function wrapText(text, r) {
   const fontSize = Math.max(7, r * 0.14);
@@ -871,6 +878,19 @@ export default function PunchBubbles() {
   const [newlyAddedIds, setNewlyAddedIds] = useState(() => new Set());
   const [resolveBurst, setResolveBurst] = useState(null);
   const [copilotLoading, setCopilotLoading] = useState(false);
+
+  // --- Focus Mode ---
+  // focusIds: the <=5 inbox task ids currently legible/selectable. focusSkipped:
+  // ids pushed out of the round this session (real task untouched, just not
+  // eligible to re-enter). focusCompleted: how many actually resolved this round
+  // (0..5). focusFinale: the fireworks + "again / done" panel.
+  const FOCUS_BATCH = 5;
+  const [focusMode, setFocusMode] = useState(false);
+  const [focusIds, setFocusIds] = useState([]);
+  const [focusSkipped, setFocusSkipped] = useState(() => new Set());
+  const [focusCompleted, setFocusCompleted] = useState(0);
+  const [focusSelectedId, setFocusSelectedId] = useState(null);
+  const [focusFinale, setFocusFinale] = useState(false);
 
   // Project bubbles: which project (if any) is currently expanded in place,
   // the drag-to-nest highlight target, the Inbox add-panel's task/project
@@ -1243,6 +1263,89 @@ export default function PunchBubbles() {
       ? Array.from(new Set(activeTasksUnsorted.map(departmentOf).filter(Boolean))).sort()
       : [];
   const inboxOpenCount = tasks.filter((t) => t.status === "open" && t.list === "inbox").length;
+
+  // Focus Mode candidate pool: open inbox tasks (no projects, no nested children),
+  // ranked most-urgent-then-oldest. Recomputed only when the task set changes.
+  const focusPool = useMemo(
+    () =>
+      tasks
+        .filter((t) => t.status === "open" && t.list === "inbox" && !t.parentTaskId && !t.isProject)
+        .sort((a, b) => focusScore(b) - focusScore(a)),
+    [tasks]
+  );
+  function pickFocusBatch(excludeIds, skipped) {
+    const taken = new Set(excludeIds);
+    const out = [];
+    for (const t of focusPool) {
+      if (out.length >= FOCUS_BATCH) break;
+      if (taken.has(t.id) || skipped.has(t.id)) continue;
+      out.push(t.id);
+    }
+    return out;
+  }
+  function enterFocusMode() {
+    const skipped = new Set();
+    setFocusSkipped(skipped);
+    setFocusCompleted(0);
+    setFocusFinale(false);
+    setFocusSelectedId(null);
+    setFocusIds(pickFocusBatch([], skipped));
+    setFocusMode(true);
+  }
+  function exitFocusMode() {
+    setFocusMode(false);
+    setFocusFinale(false);
+    setFocusSelectedId(null);
+    setFocusIds([]);
+  }
+  function focusSkip(id) {
+    setFocusSelectedId(null);
+    const nextSkipped = new Set(focusSkipped);
+    nextSkipped.add(id);
+    const remaining = focusIds.filter((x) => x !== id);
+    const refill = pickFocusBatch(remaining, nextSkipped).filter((x) => !remaining.includes(x));
+    const next = [...remaining, ...refill].slice(0, FOCUS_BATCH);
+    setFocusSkipped(nextSkipped);
+    setFocusIds(next);
+    if (next.length === 0) setFocusFinale(true);
+  }
+  function focusComplete(id) {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    setFocusSelectedId(null);
+    celebrateResolve();
+    const event = historyEvent("resolved", "Completed in Focus Mode");
+    const newHistory = [...(task.history || []), event];
+    persist(
+      apiPatch(`/tasks/${id}`, {
+        status: "done",
+        resolution_note: "Completed in Focus Mode",
+        completed_at: new Date().toISOString(),
+        history: newHistory,
+      })
+    );
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    const nextIds = focusIds.filter((x) => x !== id);
+    const nextCompleted = focusCompleted + 1;
+    setFocusIds(nextIds);
+    setFocusCompleted(nextCompleted);
+    if (nextCompleted >= FOCUS_BATCH || nextIds.length === 0) setFocusFinale(true);
+  }
+  function focusLoadMore() {
+    let skipped = focusSkipped;
+    let batch = pickFocusBatch([], skipped);
+    // Everything left in the pool is something skipped this session — wipe the
+    // skip set so "load 5 more" actually has something to show.
+    if (batch.length === 0 && focusPool.length > 0) {
+      skipped = new Set();
+      batch = pickFocusBatch([], skipped);
+    }
+    setFocusSkipped(skipped);
+    setFocusCompleted(0);
+    setFocusSelectedId(null);
+    setFocusIds(batch);
+    setFocusFinale(batch.length === 0);
+  }
 
   // Physics only reruns when the task list itself changes — not on every drag move.
   const POSITIONS_KEY = "punch_bubble_positions";
@@ -1723,6 +1826,11 @@ export default function PunchBubbles() {
         onClick={() => {
           if (dragMoved.current) {
             dragMoved.current = false;
+            return;
+          }
+          if (focusMode && !openedProjectId) {
+            // Only the focused few are actionable; everything else is inert backdrop.
+            if (focusIds.includes(n.id)) setFocusSelectedId(n.id);
             return;
           }
           if (n.isProject) {
@@ -2829,6 +2937,7 @@ export default function PunchBubbles() {
         @keyframes overduePulse { 0%,100% { filter: drop-shadow(0 0 0px rgba(193,64,28,0)); } 50% { filter: drop-shadow(0 0 7px rgba(193,64,28,0.85)); } }
         @keyframes unseenFlash { 0%,100% { opacity: 0.35; filter: drop-shadow(0 0 2px rgba(57,255,20,0.7)); } 50% { opacity: 1; filter: drop-shadow(0 0 10px rgba(57,255,20,1)); } }
         @keyframes burstOut { 0% { transform: translate(-50%,-50%) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.25); opacity: 0; } }
+        @keyframes fireworkBurst { 0% { transform: translate(0,0) scale(1); opacity: 0; } 10% { opacity: 1; } 70% { opacity: 0.85; } 100% { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; } }
         .punch-hover-edit { transition: border-color .12s ease, background-color .12s ease; }
         .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: #4A473F !important; background-color: #1E1C1A !important; }
         .punch-color-hover { position: relative; }
@@ -3005,6 +3114,7 @@ export default function PunchBubbles() {
                 onClick={() => {
                   setTab(t.id);
                   setAddPanelOpen(false);
+                  if (t.id !== "inbox") exitFocusMode();
                 }}
                 style={{
                   padding: "6px 14px",
@@ -3041,6 +3151,26 @@ export default function PunchBubbles() {
               }}
             >
               +
+            </button>
+          )}
+          {tab === "inbox" && !openedProjectId && (focusMode || focusPool.length > 0) && (
+            <button
+              onClick={() => (focusMode ? exitFocusMode() : enterFocusMode())}
+              style={{
+                marginLeft: "auto",
+                padding: "6px 14px",
+                background: focusMode ? "#39FF14" : "transparent",
+                color: focusMode ? "#12140F" : "#8B8680",
+                border: `1px solid ${focusMode ? "#39FF14" : "#3A3733"}`,
+                borderRadius: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700,
+                fontSize: 11,
+                letterSpacing: "0.06em",
+                cursor: "pointer",
+              }}
+            >
+              {focusMode ? "✕ EXIT FOCUS" : "◎ FOCUS MODE"}
             </button>
           )}
         </div>
@@ -4162,6 +4292,16 @@ export default function PunchBubbles() {
                   ) : (
                     childNodes.map((n, i) => renderBubble(n, i))
                   )}
+                </>
+              ) : focusMode ? (
+                // Focus Mode: everything blurred + inert except the focused few,
+                // which stay crisp and clickable on top. Same layering trick as the
+                // opened-project view above.
+                <>
+                  <g style={{ filter: "url(#punchBlur)", opacity: 0.2, pointerEvents: "none" }}>
+                    {nodes.filter((n) => !focusIds.includes(n.id)).map((n, i) => renderBubble(n, i))}
+                  </g>
+                  {nodes.filter((n) => focusIds.includes(n.id)).map((n, i) => renderBubble(n, i))}
                 </>
               ) : (
                 nodes.map((n, i) => renderBubble(n, i))
@@ -6441,6 +6581,113 @@ export default function PunchBubbles() {
           }}
         />
       </div>
+
+      {/* Focus Mode: the tap-a-bubble action card. Skip = out of this round only
+          (real task untouched); Complete = resolve for real. */}
+      {focusMode && focusSelectedId && !focusFinale && (() => {
+        const t = tasks.find((x) => x.id === focusSelectedId);
+        if (!t) return null;
+        return (
+          <div
+            onClick={() => setFocusSelectedId(null)}
+            style={{
+              position: "fixed", inset: 0, zIndex: 820,
+              background: "rgba(12,11,10,0.5)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: 430, maxWidth: "90vw", background: "#F1ECE1", borderRadius: 10,
+                padding: 24, boxShadow: "0 24px 70px rgba(0,0,0,0.55)",
+              }}
+            >
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#B23A1C", marginBottom: 10 }}>
+                FOCUS · #{t.ticket} · {String(effectivePriority(t)).toUpperCase()} · {daysOpen(t.createdAt)}d OLD
+              </div>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 17, fontWeight: 600, color: "#1E1C1A", lineHeight: 1.35, marginBottom: 20 }}>
+                {t.summary}
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => focusSkip(t.id)}
+                  style={{ flex: 1, padding: "12px 0", background: "transparent", color: "#5C5850", border: "1px solid #C4BCA8", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 12, letterSpacing: "0.05em", cursor: "pointer" }}
+                >
+                  SKIP FOR NOW
+                </button>
+                <button
+                  onClick={() => focusComplete(t.id)}
+                  style={{ flex: 1, padding: "12px 0", background: "#2E7D32", color: "#fff", border: "1px solid #2E7D32", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 12, letterSpacing: "0.05em", cursor: "pointer" }}
+                >
+                  COMPLETE ✓
+                </button>
+              </div>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#8A8375", marginTop: 12, textAlign: "center" }}>
+                Skip just drops it out of this focus round. Complete resolves it for real.
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Focus Mode finale — fireworks + "go again / done" after 5 completions
+          (or when the round runs dry). */}
+      {focusMode && focusFinale && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(12,11,10,0.8)" }}>
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+            {Array.from({ length: 7 }).flatMap((_, b) => {
+              const ox = 12 + ((b * 37) % 76);
+              const oy = 14 + ((b * 53) % 52);
+              const delay = b * 0.3;
+              const hue = ["#E2871A", "#39FF14", "#F1ECE1", "#C9A227", "#4FC3F7"][b % 5];
+              return Array.from({ length: 24 }).map((__, i) => {
+                const angle = (i / 24) * 360;
+                const dist = 130 + ((i * 17) % 120);
+                const dx = Math.cos((angle * Math.PI) / 180) * dist;
+                const dy = Math.sin((angle * Math.PI) / 180) * dist;
+                return (
+                  <span
+                    key={`${b}-${i}`}
+                    style={{
+                      position: "absolute", left: `${ox}%`, top: `${oy}%`,
+                      width: 8, height: 8, borderRadius: "50%", background: hue,
+                      "--dx": `${dx}px`, "--dy": `${dy}px`,
+                      animation: `fireworkBurst 1.6s cubic-bezier(0.15,0.7,0.25,1) ${delay}s infinite`,
+                    }}
+                  />
+                );
+              });
+            })}
+          </div>
+          <div style={{ position: "relative", textAlign: "center", background: "#26221D", border: "1px solid #3A352C", borderRadius: 12, padding: "34px 42px", boxShadow: "0 28px 80px rgba(0,0,0,0.65)" }}>
+            <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: 30, fontWeight: 700, letterSpacing: "0.04em", color: "#39FF14", marginBottom: 6 }}>
+              {focusCompleted >= FOCUS_BATCH ? "FIVE DOWN." : `${focusCompleted} CLEARED.`}
+            </div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#B8AF9E", marginBottom: 22 }}>
+              {focusCompleted >= FOCUS_BATCH
+                ? "Full focus round done. Nice grind."
+                : "Nothing left in the focus queue."}
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button
+                onClick={exitFocusMode}
+                style={{ padding: "11px 18px", background: "transparent", color: "#B8AF9E", border: "1px solid #4A473F", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: "pointer" }}
+              >
+                TURN OFF FOCUS MODE
+              </button>
+              <button
+                onClick={focusLoadMore}
+                disabled={focusPool.length === 0}
+                style={{ padding: "11px 18px", background: focusPool.length === 0 ? "#2A2724" : "#E2871A", color: focusPool.length === 0 ? "#5C5850" : "#1E1C1A", border: "none", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: focusPool.length === 0 ? "default" : "pointer" }}
+              >
+                LOAD 5 MORE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {resolveBurst && (
         // The "win" moment for MARK RESOLVED — fixed to the viewport (not the modal)
         // so it stays visible through the modal closing, rather than getting
