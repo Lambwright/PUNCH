@@ -673,6 +673,7 @@ function wrapText(text, r) {
 }
 const tabs = [
   { id: "inbox", label: "INBOX", view: "bubbles" },
+  { id: "projects", label: "PROJECTS", view: "bubbles" },
   { id: "portfolio", label: "PORTFOLIO", view: "list" },
   { id: "searches", label: "SAVED SEARCHES", view: "list" },
   { id: "recurring", label: "RECURRING", view: "recurring" },
@@ -853,7 +854,6 @@ function PunchBubbles() {
   const [focusFinale, setFocusFinale] = useState(false);
   const [openedProjectId, setOpenedProjectId] = useState(null);
   const [dragOverProjectId, setDragOverProjectId] = useState(null);
-  const [addMode, setAddMode] = useState("task");
   const [projectTitle, setProjectTitle] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [projectColor, setProjectColor] = useState(DEFAULT_PROJECT_COLOR);
@@ -1096,7 +1096,7 @@ function PunchBubbles() {
   }, [tab, digestsFetched]);
   const currentTab = tabs.find((t) => t.id === tab);
   const snoozedTasks = tasks.filter((t) => t.status === "snoozed");
-  const activeTasksUnsorted = tab === "snoozed" ? snoozedTasks : tab === "recurring" ? [...recurringTasks].sort((a, b) => daysUntilDue(a) - daysUntilDue(b)) : tasks.filter((t) => t.status === "open" && t.list === tab && !t.parentTaskId);
+  const activeTasksUnsorted = tab === "snoozed" ? snoozedTasks : tab === "recurring" ? [...recurringTasks].sort((a, b) => daysUntilDue(a) - daysUntilDue(b)) : tab === "projects" ? tasks.filter((t) => t.status === "open" && t.list === "inbox" && t.isProject && !t.parentTaskId) : tab === "inbox" ? tasks.filter((t) => t.status === "open" && t.list === "inbox" && !t.isProject && !t.parentTaskId) : tasks.filter((t) => t.status === "open" && t.list === tab && !t.parentTaskId);
   function projectNumberOf(t) {
     const m = (t.summary || "").match(/(\d{4}_\d{4})/);
     return m ? m[1] : "";
@@ -2614,7 +2614,7 @@ function PunchBubbles() {
         }
       },
       tabs.map((t) => {
-        const count = t.id === "snoozed" ? snoozedTasks.length : t.id === "recurring" ? recurringTasks.length : t.id === "searches" ? pendingProjects.length : tasks.filter((task) => task.status === "open" && task.list === t.id).length;
+        const count = t.id === "snoozed" ? snoozedTasks.length : t.id === "recurring" ? recurringTasks.length : t.id === "searches" ? pendingProjects.length : t.id === "projects" ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && task.isProject && !task.parentTaskId).length : t.id === "inbox" ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && !task.isProject && !task.parentTaskId).length : tasks.filter((task) => task.status === "open" && task.list === t.id).length;
         const active = tab === t.id;
         return /* @__PURE__ */ React.createElement(
           "button",
@@ -2623,6 +2623,7 @@ function PunchBubbles() {
             onClick: () => {
               setTab(t.id);
               setAddPanelOpen(false);
+              closeProject();
               if (t.id !== "inbox") exitFocusMode();
             },
             style: {
@@ -2695,25 +2696,7 @@ function PunchBubbles() {
           marginBottom: 20
         }
       },
-      currentTab.view === "bubbles" ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 2 } }, ["task", "project"].map((mode) => /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          key: mode,
-          onClick: () => setAddMode(mode),
-          style: {
-            padding: "5px 12px",
-            background: addMode === mode ? "#E2871A" : "transparent",
-            color: addMode === mode ? "#1E1C1A" : "#8B8680",
-            border: `1px solid ${addMode === mode ? "#E2871A" : "#3A3733"}`,
-            borderRadius: 4,
-            fontFamily: "'JetBrains Mono', monospace",
-            fontWeight: 700,
-            fontSize: 10,
-            cursor: "pointer"
-          }
-        },
-        mode.toUpperCase()
-      ))), addMode === "project" ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+      currentTab.view === "bubbles" ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10, color: "#8B8680", marginBottom: 2 } }, tab === "projects" ? "NEW PROJECT" : "NEW TASK"), tab === "projects" ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
         "input",
         {
           value: projectTitle,
@@ -3219,7 +3202,7 @@ function PunchBubbles() {
           textAlign: "center"
         }
       },
-      tab === "snoozed" ? "Nothing deferred right now." : tab === "recurring" ? "No recurring tasks set up yet." : "LIST CLEAR \u2014 nothing punched in."
+      tab === "snoozed" ? "Nothing deferred right now." : tab === "recurring" ? "No recurring tasks set up yet." : tab === "projects" ? "No projects yet \u2014 hit + to start one." : "LIST CLEAR \u2014 nothing punched in."
     ) : currentTab.view === "bubbles" ? /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, openedProject && /* @__PURE__ */ React.createElement(
       "div",
       {

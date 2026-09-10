@@ -681,6 +681,7 @@ function wrapText(text, r) {
 
 const tabs = [
   { id: "inbox", label: "INBOX", view: "bubbles" },
+  { id: "projects", label: "PROJECTS", view: "bubbles" },
   { id: "portfolio", label: "PORTFOLIO", view: "list" },
   { id: "searches", label: "SAVED SEARCHES", view: "list" },
   { id: "recurring", label: "RECURRING", view: "recurring" },
@@ -897,7 +898,6 @@ export default function PunchBubbles() {
   // toggle + project draft fields, and the opened-project header's edit state.
   const [openedProjectId, setOpenedProjectId] = useState(null);
   const [dragOverProjectId, setDragOverProjectId] = useState(null);
-  const [addMode, setAddMode] = useState("task"); // "task" | "project" — Inbox add panel only
   const [projectTitle, setProjectTitle] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [projectColor, setProjectColor] = useState(DEFAULT_PROJECT_COLOR);
@@ -1230,6 +1230,12 @@ export default function PunchBubbles() {
       ? snoozedTasks
       : tab === "recurring"
       ? [...recurringTasks].sort((a, b) => daysUntilDue(a) - daysUntilDue(b))
+      // Projects and standalone inbox tasks share list: "inbox" but now live on
+      // separate tabs — split by is_project so each canvas only shows its own kind.
+      : tab === "projects"
+      ? tasks.filter((t) => t.status === "open" && t.list === "inbox" && t.isProject && !t.parentTaskId)
+      : tab === "inbox"
+      ? tasks.filter((t) => t.status === "open" && t.list === "inbox" && !t.isProject && !t.parentTaskId)
       // Nested project children live only inside their project's opened view,
       // never on the top-level board.
       : tasks.filter((t) => t.status === "open" && t.list === tab && !t.parentTaskId);
@@ -3106,6 +3112,10 @@ export default function PunchBubbles() {
                 // always read 0 for it otherwise, regardless of what's actually pending.
                 : t.id === "searches"
                 ? pendingProjects.length
+                : t.id === "projects"
+                ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && task.isProject && !task.parentTaskId).length
+                : t.id === "inbox"
+                ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && !task.isProject && !task.parentTaskId).length
                 : tasks.filter((task) => task.status === "open" && task.list === t.id).length;
             const active = tab === t.id;
             return (
@@ -3114,6 +3124,7 @@ export default function PunchBubbles() {
                 onClick={() => {
                   setTab(t.id);
                   setAddPanelOpen(false);
+                  closeProject();
                   if (t.id !== "inbox") exitFocusMode();
                 }}
                 style={{
@@ -3187,28 +3198,10 @@ export default function PunchBubbles() {
           >
             {currentTab.view === "bubbles" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", gap: 4, marginBottom: 2 }}>
-                  {["task", "project"].map((mode) => (
-                    <button
-                      key={mode}
-                      onClick={() => setAddMode(mode)}
-                      style={{
-                        padding: "5px 12px",
-                        background: addMode === mode ? "#E2871A" : "transparent",
-                        color: addMode === mode ? "#1E1C1A" : "#8B8680",
-                        border: `1px solid ${addMode === mode ? "#E2871A" : "#3A3733"}`,
-                        borderRadius: 4,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontWeight: 700,
-                        fontSize: 10,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {mode.toUpperCase()}
-                    </button>
-                  ))}
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 10, color: "#8B8680", marginBottom: 2 }}>
+                  {tab === "projects" ? "NEW PROJECT" : "NEW TASK"}
                 </div>
-                {addMode === "project" ? (
+                {tab === "projects" ? (
                   <>
                     <input
                       value={projectTitle}
@@ -3809,6 +3802,8 @@ export default function PunchBubbles() {
               ? "Nothing deferred right now."
               : tab === "recurring"
               ? "No recurring tasks set up yet."
+              : tab === "projects"
+              ? "No projects yet — hit + to start one."
               : "LIST CLEAR — nothing punched in."}
           </div>
         ) : currentTab.view === "bubbles" ? (
