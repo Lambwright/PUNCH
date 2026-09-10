@@ -605,9 +605,23 @@ const APP_SWITCHER_LINKS = [
 // NetSuite's employee list has no field distinguishing these ~6 from the other
 // ~44 active employees, so this is filtered client-side against a maintained
 // list rather than a query. See loadPmOptions.
-const KNOWN_PM_NAMES = new Set([
-  "CHRIS HONG", "DEVID MANZKE", "HAL ROWAN", "PETER DYCK", "RUDI DYCK", "SCOT CARTER-NICHOLS",
-]);
+//
+// NetSuite stores employee entityid in an unpredictable format ("Last, First",
+// "First Last", sometimes with a middle initial or a trailing id), so matching is
+// done by name TOKENS — order-independent, punctuation-stripped — not exact string
+// equality, which silently filtered the entire list to empty the moment NetSuite's
+// format didn't match "FIRST LAST".
+const KNOWN_PM_NAMES = [
+  "Chris Hong", "Devid Manzke", "Hal Rowan", "Peter Dyck", "Rudi Dyck", "Scot Carter-Nichols",
+];
+function pmNameTokens(s) {
+  return (s || "").toUpperCase().split(/[^A-Z]+/).filter(Boolean);
+}
+const KNOWN_PM_TOKEN_SETS = KNOWN_PM_NAMES.map(pmNameTokens);
+function isKnownPm(name) {
+  const toks = new Set(pmNameTokens(name));
+  return KNOWN_PM_TOKEN_SETS.some((known) => known.length > 0 && known.every((t) => toks.has(t)));
+}
 
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 86400000));
@@ -1088,13 +1102,19 @@ export default function PunchBubbles() {
       // The NetSuite query has no way to distinguish "is actually a PM" from "is any
       // active employee" (~50 of them) — no PM/role field to filter on found in
       // NetSuite's schema for this. Filtering client-side to the actual real PM
-      // roster instead, matched case-insensitively against entityid as NetSuite has
-      // it stored. This is a hand-maintained list, not a live query — if a PM ever
-      // gets added/removed, this needs a matching edit here.
-      const options = (data.options || []).filter((o) =>
-        KNOWN_PM_NAMES.has((o.name || "").trim().toUpperCase())
-      );
-      setPmOptions(options);
+      // roster instead (isKnownPm, token-based). Hand-maintained list, not a live
+      // query — if a PM is added/removed, edit KNOWN_PM_NAMES above.
+      const all = data.options || [];
+      const options = all.filter((o) => isKnownPm(o.name));
+      // Never leave the field unfillable: if the roster filter somehow matches
+      // nothing (NetSuite name format drifted again, roster out of date), fall back
+      // to the full employee list rather than hard-blocking checklist completion.
+      if (options.length === 0 && all.length > 0) {
+        console.warn("PM roster filter matched 0 of", all.length, "employees — falling back to full list. Check KNOWN_PM_NAMES vs NetSuite entityid format.");
+        setPmOptions(all);
+      } else {
+        setPmOptions(options);
+      }
     } catch (err) {
       console.error("Failed to load project manager list:", err);
     }

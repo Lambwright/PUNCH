@@ -614,14 +614,22 @@ const APP_SWITCHER_LINKS = [
   { name: "INTAKE", url: "https://lambwright.github.io/scout-intake/", color: "#8FC742", current: false },
   { name: "TALLY", url: "https://lambwright.github.io/tally/", color: "#E2871A", current: false }
 ];
-const KNOWN_PM_NAMES = /* @__PURE__ */ new Set([
-  "CHRIS HONG",
-  "DEVID MANZKE",
-  "HAL ROWAN",
-  "PETER DYCK",
-  "RUDI DYCK",
-  "SCOT CARTER-NICHOLS"
-]);
+const KNOWN_PM_NAMES = [
+  "Chris Hong",
+  "Devid Manzke",
+  "Hal Rowan",
+  "Peter Dyck",
+  "Rudi Dyck",
+  "Scot Carter-Nichols"
+];
+function pmNameTokens(s) {
+  return (s || "").toUpperCase().split(/[^A-Z]+/).filter(Boolean);
+}
+const KNOWN_PM_TOKEN_SETS = KNOWN_PM_NAMES.map(pmNameTokens);
+function isKnownPm(name) {
+  const toks = new Set(pmNameTokens(name));
+  return KNOWN_PM_TOKEN_SETS.some((known) => known.length > 0 && known.every((t) => toks.has(t)));
+}
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 864e5));
 }
@@ -1004,10 +1012,14 @@ function PunchBubbles() {
   async function loadPmOptions() {
     try {
       const data = await apiGet("/netsuite/pending-options?field=projectManager");
-      const options = (data.options || []).filter(
-        (o) => KNOWN_PM_NAMES.has((o.name || "").trim().toUpperCase())
-      );
-      setPmOptions(options);
+      const all = data.options || [];
+      const options = all.filter((o) => isKnownPm(o.name));
+      if (options.length === 0 && all.length > 0) {
+        console.warn("PM roster filter matched 0 of", all.length, "employees \u2014 falling back to full list. Check KNOWN_PM_NAMES vs NetSuite entityid format.");
+        setPmOptions(all);
+      } else {
+        setPmOptions(options);
+      }
     } catch (err) {
       console.error("Failed to load project manager list:", err);
     }
@@ -5958,6 +5970,7 @@ function PunchBubbles() {
     )
   );
 }
+
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PunchBubbles));
 </script>
