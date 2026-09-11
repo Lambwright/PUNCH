@@ -848,6 +848,7 @@ function PunchBubbles() {
   const FOCUS_BATCH = 5;
   const [focusMode, setFocusMode] = useState(false);
   const [focusIds, setFocusIds] = useState([]);
+  const [focusDismissed, setFocusDismissed] = useState(() => /* @__PURE__ */ new Set());
   const [focusCompleted, setFocusCompleted] = useState(0);
   const [focusFinale, setFocusFinale] = useState(false);
   const [openedProjectId, setOpenedProjectId] = useState(null);
@@ -1111,20 +1112,22 @@ function PunchBubbles() {
     () => tasks.filter((t) => t.status === "open" && t.list === "inbox" && !t.parentTaskId && !t.isProject).sort((a, b) => focusScore(b) - focusScore(a)),
     [tasks]
   );
-  function pickFocusBatch(excludeIds) {
+  function pickFocusBatch(excludeIds, dismissed) {
     const taken = new Set(excludeIds);
     const out = [];
     for (const t of focusPool) {
       if (out.length >= FOCUS_BATCH) break;
-      if (taken.has(t.id)) continue;
+      if (taken.has(t.id) || dismissed.has(t.id)) continue;
       out.push(t.id);
     }
     return out;
   }
   function enterFocusMode() {
+    const dismissed = /* @__PURE__ */ new Set();
+    setFocusDismissed(dismissed);
     setFocusCompleted(0);
     setFocusFinale(false);
-    setFocusIds(pickFocusBatch([]));
+    setFocusIds(pickFocusBatch([], dismissed));
     setFocusMode(true);
   }
   function exitFocusMode() {
@@ -1132,18 +1135,27 @@ function PunchBubbles() {
     setFocusFinale(false);
     setFocusIds([]);
   }
-  function advanceFocusRound(id, { refill, incrementCompleted }) {
+  function advanceFocusRound(id, { refill, incrementCompleted, dismiss }) {
+    const dismissedSet = dismiss ? new Set(focusDismissed).add(id) : focusDismissed;
+    if (dismiss) setFocusDismissed(dismissedSet);
     const remaining = focusIds.filter((x) => x !== id);
-    const next = refill ? [...remaining, ...pickFocusBatch(remaining).slice(0, focusIds.length - remaining.length)] : remaining;
+    const next = refill ? [...remaining, ...pickFocusBatch(remaining, dismissedSet).slice(0, focusIds.length - remaining.length)] : remaining;
     setFocusIds(next);
     const completed = incrementCompleted ? focusCompleted + 1 : focusCompleted;
     if (incrementCompleted) setFocusCompleted(completed);
     if (incrementCompleted && completed >= FOCUS_BATCH || next.length === 0) setFocusFinale(true);
   }
   function focusLoadMore() {
+    let dismissed = focusDismissed;
+    let batch = pickFocusBatch([], dismissed);
+    if (batch.length === 0 && focusPool.length > 0) {
+      dismissed = /* @__PURE__ */ new Set();
+      batch = pickFocusBatch([], dismissed);
+    }
+    setFocusDismissed(dismissed);
     setFocusCompleted(0);
     setFocusFinale(false);
-    setFocusIds(pickFocusBatch([]));
+    setFocusIds(batch);
   }
   const POSITIONS_KEY = "punch_bubble_positions";
   const [positions, setPositions] = useState(() => {
@@ -2244,24 +2256,21 @@ function PunchBubbles() {
     if (wasFocused) advanceFocusRound(id, { refill: false, incrementCompleted: true });
   }
   function deferTask(days) {
-    const focusExempt = focusMode && focusIds.includes(selected.id);
-    if (!focusExempt && !note.trim()) return;
-    const reason = note.trim();
+    if (!note.trim()) return;
     const newDue = new Date(now.getTime() + days * 864e5).toISOString();
-    pushHistory(
-      selected.id,
-      "deferred",
-      reason ? `Deferred to ${new Date(newDue).toLocaleDateString()} \u2014 ${reason}` : `Deferred to ${new Date(newDue).toLocaleDateString()}`
-    );
-    persist(apiPatch(`/tasks/${selected.id}`, { status: "snoozed", due_date: newDue, defer_reason: reason || null }));
-    const id = selected.id;
+    pushHistory(selected.id, "deferred", `Deferred to ${new Date(newDue).toLocaleDateString()} \u2014 ${note}`);
+    persist(apiPatch(`/tasks/${selected.id}`, { status: "snoozed", due_date: newDue, defer_reason: note }));
     setTasks(
       (prev) => prev.map(
-        (t) => t.id === id ? { ...t, status: "snoozed", dueDate: newDue, deferReason: reason } : t
+        (t) => t.id === selected.id ? { ...t, status: "snoozed", dueDate: newDue, deferReason: note } : t
       )
     );
     setSelected(null);
-    if (focusExempt) advanceFocusRound(id, { refill: true, incrementCompleted: false });
+  }
+  function dismissFromFocus() {
+    const id = selected.id;
+    setSelected(null);
+    advanceFocusRound(id, { refill: true, incrementCompleted: false, dismiss: true });
   }
   function reactivateTask() {
     const event = historyEvent("reactivated", "Brought back from snoozed");
@@ -5387,11 +5396,16 @@ function PunchBubbles() {
             " MARK RESOLVED"
           );
         })(), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, selected.list !== "portfolio" && (() => {
-          const snoozeReady = note.trim() || focusMode && focusIds.includes(selected.id);
+          const focusExempt = focusMode && focusIds.includes(selected.id);
+          const snoozeReady = note.trim() || focusExempt;
           return /* @__PURE__ */ React.createElement(
             "button",
             {
               onClick: () => {
+                if (focusExempt) {
+                  dismissFromFocus();
+                  return;
+                }
                 setSnoozeMenuOpen((v) => !v);
                 setDeletingConfirm(false);
               },
@@ -5485,7 +5499,7 @@ function PunchBubbles() {
           /* @__PURE__ */ React.createElement(Bot, { size: 11 }),
           " ",
           copilotLoading ? "..." : "COPILOT"
-        )), selected.parentTaskId && /* @__PURE__ */ React.createElement(
+        )), focusMode && focusIds.includes(selected.id) && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#8A8375", textAlign: "center", marginTop: -2, marginBottom: 10 } }, "Focus Mode: RESOLVE completes it for real. SNOOZE just clears it from this round \u2014 the task itself is untouched."), selected.parentTaskId && /* @__PURE__ */ React.createElement(
           "button",
           {
             onClick: () => removeChildFromProject(selected.id),

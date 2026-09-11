@@ -883,14 +883,16 @@ export default function PunchBubbles() {
   // --- Focus Mode ---
   // focusIds: the <=5 inbox task ids currently legible/selectable — tapping one
   // opens the real, full detail modal (same one used everywhere else). RESOLVE and
-  // SNOOZE there are hooked (see advanceFocusRound) to also drive the round:
-  // resolving shrinks the visible count (no backfill, counts toward focusCompleted);
-  // snoozing is a real defer, so the task naturally leaves focusPool below and gets
-  // replaced by exactly the next one. focusFinale is the fireworks + "again / done"
-  // panel, shown at 5 resolves or once the queue runs dry.
+  // SNOOZE there are hooked (see advanceFocusRound) to drive the round: resolving
+  // actually completes the task and shrinks the visible count (no backfill, counts
+  // toward focusCompleted); snoozing does NOT touch the real task at all — it only
+  // drops the bubble out of this round (focusDismissed) and pulls in exactly the
+  // next candidate, so the count stays put. focusFinale is the fireworks + "again /
+  // done" panel, shown at 5 resolves or once the queue runs dry.
   const FOCUS_BATCH = 5;
   const [focusMode, setFocusMode] = useState(false);
   const [focusIds, setFocusIds] = useState([]);
+  const [focusDismissed, setFocusDismissed] = useState(() => new Set());
   const [focusCompleted, setFocusCompleted] = useState(0);
   const [focusFinale, setFocusFinale] = useState(false);
 
@@ -1280,20 +1282,22 @@ export default function PunchBubbles() {
         .sort((a, b) => focusScore(b) - focusScore(a)),
     [tasks]
   );
-  function pickFocusBatch(excludeIds) {
+  function pickFocusBatch(excludeIds, dismissed) {
     const taken = new Set(excludeIds);
     const out = [];
     for (const t of focusPool) {
       if (out.length >= FOCUS_BATCH) break;
-      if (taken.has(t.id)) continue;
+      if (taken.has(t.id) || dismissed.has(t.id)) continue;
       out.push(t.id);
     }
     return out;
   }
   function enterFocusMode() {
+    const dismissed = new Set();
+    setFocusDismissed(dismissed);
     setFocusCompleted(0);
     setFocusFinale(false);
-    setFocusIds(pickFocusBatch([]));
+    setFocusIds(pickFocusBatch([], dismissed));
     setFocusMode(true);
   }
   function exitFocusMode() {
@@ -1301,28 +1305,45 @@ export default function PunchBubbles() {
     setFocusFinale(false);
     setFocusIds([]);
   }
-  // Called from the real RESOLVE/SNOOZE/DELETE actions (below) when they fire on a
-  // task that's currently one of the focused few — this is what actually drives the
-  // round, rather than any bespoke focus-only UI.
+  // Called from the real RESOLVE/DELETE actions (below), and from dismissFromFocus
+  // (the SNOOZE button's focus-only behavior), when they fire on a task that's
+  // currently one of the focused few — this is what actually drives the round,
+  // rather than any bespoke focus-only UI.
   //   refill: true replaces the departing task with exactly the next candidate
-  //     (net count unchanged) — used for snooze, since a real status change already
-  //     removes it from focusPool on its own.
+  //     (net count unchanged) — used for snooze/dismiss, since the task is still
+  //     open and would otherwise just sit there one slot short.
   //   refill: false just drops it, shrinking the visible count — used for resolve
-  //     and delete.
+  //     and delete, which remove the task from the board for real.
   //   incrementCompleted: true counts it toward the 5-for-the-finale tally — only
-  //     resolve does this; snoozing or deleting isn't "done."
-  function advanceFocusRound(id, { refill, incrementCompleted }) {
+  //     resolve does this; dismissing or deleting isn't "done."
+  //   dismiss: true also marks the task as dismissed-this-round so it isn't
+  //     immediately re-picked as its own replacement (it's still "open" — a real
+  //     resolve/delete doesn't need this, since the task leaves focusPool for real).
+  function advanceFocusRound(id, { refill, incrementCompleted, dismiss }) {
+    const dismissedSet = dismiss ? new Set(focusDismissed).add(id) : focusDismissed;
+    if (dismiss) setFocusDismissed(dismissedSet);
     const remaining = focusIds.filter((x) => x !== id);
-    const next = refill ? [...remaining, ...pickFocusBatch(remaining).slice(0, focusIds.length - remaining.length)] : remaining;
+    const next = refill
+      ? [...remaining, ...pickFocusBatch(remaining, dismissedSet).slice(0, focusIds.length - remaining.length)]
+      : remaining;
     setFocusIds(next);
     const completed = incrementCompleted ? focusCompleted + 1 : focusCompleted;
     if (incrementCompleted) setFocusCompleted(completed);
     if ((incrementCompleted && completed >= FOCUS_BATCH) || next.length === 0) setFocusFinale(true);
   }
   function focusLoadMore() {
+    let dismissed = focusDismissed;
+    let batch = pickFocusBatch([], dismissed);
+    // Everything left in the pool is something dismissed this session — clear that
+    // so LOAD 5 MORE actually has something to show instead of doing nothing.
+    if (batch.length === 0 && focusPool.length > 0) {
+      dismissed = new Set();
+      batch = pickFocusBatch([], dismissed);
+    }
+    setFocusDismissed(dismissed);
     setFocusCompleted(0);
     setFocusFinale(false);
-    setFocusIds(pickFocusBatch([]));
+    setFocusIds(batch);
   }
 
   // Physics only reruns when the task list itself changes — not on every drag move.
@@ -2716,32 +2737,29 @@ export default function PunchBubbles() {
   }
 
   function deferTask(days) {
-    // Focus Mode exempts the note requirement — grinding through a stack of stale
-    // bubbles to just push them a few days out shouldn't need a reason typed for
-    // each one. A note is still logged if one's there.
-    const focusExempt = focusMode && focusIds.includes(selected.id);
-    if (!focusExempt && !note.trim()) return; // require a reason outside Focus Mode
-    const reason = note.trim();
+    if (!note.trim()) return; // require a reason so deferrals stay accountable
     const newDue = new Date(now.getTime() + days * 86400000).toISOString();
-    pushHistory(
-      selected.id,
-      "deferred",
-      reason ? `Deferred to ${new Date(newDue).toLocaleDateString()} — ${reason}` : `Deferred to ${new Date(newDue).toLocaleDateString()}`
-    );
-    persist(apiPatch(`/tasks/${selected.id}`, { status: "snoozed", due_date: newDue, defer_reason: reason || null }));
-    const id = selected.id;
+    pushHistory(selected.id, "deferred", `Deferred to ${new Date(newDue).toLocaleDateString()} — ${note}`);
+    persist(apiPatch(`/tasks/${selected.id}`, { status: "snoozed", due_date: newDue, defer_reason: note }));
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === id
-          ? { ...t, status: "snoozed", dueDate: newDue, deferReason: reason }
+        t.id === selected.id
+          ? { ...t, status: "snoozed", dueDate: newDue, deferReason: note }
           : t
       )
     );
     setSelected(null);
-    // A real snooze already takes it out of focusPool on its own (no longer
-    // "open") — just replace it with exactly the next candidate, keeping the
-    // round's size unchanged rather than resetting it to a full 5.
-    if (focusExempt) advanceFocusRound(id, { refill: true, incrementCompleted: false });
+  }
+
+  // Focus Mode's SNOOZE is deliberately NOT a real defer — grinding through a
+  // stack doesn't mean every bubble that isn't resolved right now deserves an
+  // actual due-date push. This just drops it out of the current round; the real
+  // task is left completely untouched (still open, unchanged) and can resurface
+  // in a later round on its own merits.
+  function dismissFromFocus() {
+    const id = selected.id;
+    setSelected(null);
+    advanceFocusRound(id, { refill: true, incrementCompleted: false, dismiss: true });
   }
 
   function reactivateTask() {
@@ -6237,12 +6255,18 @@ export default function PunchBubbles() {
 
                 <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
                   {selected.list !== "portfolio" && (() => {
-                    // Focus Mode waives the usual "type a reason first" gate — see
-                    // deferTask. A note can still be added above, just isn't required.
-                    const snoozeReady = note.trim() || (focusMode && focusIds.includes(selected.id));
+                    // Focus Mode's SNOOZE doesn't open the real day-picker at all —
+                    // it's not a real defer, just "drop this from the round" (see
+                    // dismissFromFocus) — so it also waives the note requirement.
+                    const focusExempt = focusMode && focusIds.includes(selected.id);
+                    const snoozeReady = note.trim() || focusExempt;
                     return (
                       <button
                         onClick={() => {
+                          if (focusExempt) {
+                            dismissFromFocus();
+                            return;
+                          }
                           setSnoozeMenuOpen((v) => !v);
                           setDeletingConfirm(false);
                         }}
@@ -6333,6 +6357,12 @@ export default function PunchBubbles() {
                     <Bot size={11} /> {copilotLoading ? "..." : "COPILOT"}
                   </button>
                 </div>
+
+                {focusMode && focusIds.includes(selected.id) && (
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#8A8375", textAlign: "center", marginTop: -2, marginBottom: 10 }}>
+                    Focus Mode: RESOLVE completes it for real. SNOOZE just clears it from this round — the task itself is untouched.
+                  </div>
+                )}
 
                 {selected.parentTaskId && (
                   <button
