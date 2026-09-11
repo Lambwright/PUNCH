@@ -881,16 +881,17 @@ export default function PunchBubbles() {
   const [copilotLoading, setCopilotLoading] = useState(false);
 
   // --- Focus Mode ---
-  // focusIds: the <=5 inbox task ids currently legible/selectable. focusSkipped:
-  // ids pushed out of the round this session (real task untouched, just not
-  // eligible to re-enter). focusCompleted: how many actually resolved this round
-  // (0..5). focusFinale: the fireworks + "again / done" panel.
+  // focusIds: the <=5 inbox task ids currently legible/selectable — tapping one
+  // opens the real, full detail modal (same one used everywhere else). RESOLVE and
+  // SNOOZE there are hooked (see advanceFocusRound) to also drive the round:
+  // resolving shrinks the visible count (no backfill, counts toward focusCompleted);
+  // snoozing is a real defer, so the task naturally leaves focusPool below and gets
+  // replaced by exactly the next one. focusFinale is the fireworks + "again / done"
+  // panel, shown at 5 resolves or once the queue runs dry.
   const FOCUS_BATCH = 5;
   const [focusMode, setFocusMode] = useState(false);
   const [focusIds, setFocusIds] = useState([]);
-  const [focusSkipped, setFocusSkipped] = useState(() => new Set());
   const [focusCompleted, setFocusCompleted] = useState(0);
-  const [focusSelectedId, setFocusSelectedId] = useState(null);
   const [focusFinale, setFocusFinale] = useState(false);
 
   // Project bubbles: which project (if any) is currently expanded in place,
@@ -1279,78 +1280,49 @@ export default function PunchBubbles() {
         .sort((a, b) => focusScore(b) - focusScore(a)),
     [tasks]
   );
-  function pickFocusBatch(excludeIds, skipped) {
+  function pickFocusBatch(excludeIds) {
     const taken = new Set(excludeIds);
     const out = [];
     for (const t of focusPool) {
       if (out.length >= FOCUS_BATCH) break;
-      if (taken.has(t.id) || skipped.has(t.id)) continue;
+      if (taken.has(t.id)) continue;
       out.push(t.id);
     }
     return out;
   }
   function enterFocusMode() {
-    const skipped = new Set();
-    setFocusSkipped(skipped);
     setFocusCompleted(0);
     setFocusFinale(false);
-    setFocusSelectedId(null);
-    setFocusIds(pickFocusBatch([], skipped));
+    setFocusIds(pickFocusBatch([]));
     setFocusMode(true);
   }
   function exitFocusMode() {
     setFocusMode(false);
     setFocusFinale(false);
-    setFocusSelectedId(null);
     setFocusIds([]);
   }
-  function focusSkip(id) {
-    setFocusSelectedId(null);
-    const nextSkipped = new Set(focusSkipped);
-    nextSkipped.add(id);
+  // Called from the real RESOLVE/SNOOZE/DELETE actions (below) when they fire on a
+  // task that's currently one of the focused few — this is what actually drives the
+  // round, rather than any bespoke focus-only UI.
+  //   refill: true replaces the departing task with exactly the next candidate
+  //     (net count unchanged) — used for snooze, since a real status change already
+  //     removes it from focusPool on its own.
+  //   refill: false just drops it, shrinking the visible count — used for resolve
+  //     and delete.
+  //   incrementCompleted: true counts it toward the 5-for-the-finale tally — only
+  //     resolve does this; snoozing or deleting isn't "done."
+  function advanceFocusRound(id, { refill, incrementCompleted }) {
     const remaining = focusIds.filter((x) => x !== id);
-    const refill = pickFocusBatch(remaining, nextSkipped).filter((x) => !remaining.includes(x));
-    const next = [...remaining, ...refill].slice(0, FOCUS_BATCH);
-    setFocusSkipped(nextSkipped);
+    const next = refill ? [...remaining, ...pickFocusBatch(remaining).slice(0, focusIds.length - remaining.length)] : remaining;
     setFocusIds(next);
-    if (next.length === 0) setFocusFinale(true);
-  }
-  function focusComplete(id) {
-    const task = tasks.find((t) => t.id === id);
-    if (!task) return;
-    setFocusSelectedId(null);
-    celebrateResolve();
-    const event = historyEvent("resolved", "Completed in Focus Mode");
-    const newHistory = [...(task.history || []), event];
-    persist(
-      apiPatch(`/tasks/${id}`, {
-        status: "done",
-        resolution_note: "Completed in Focus Mode",
-        completed_at: new Date().toISOString(),
-        history: newHistory,
-      })
-    );
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    const nextIds = focusIds.filter((x) => x !== id);
-    const nextCompleted = focusCompleted + 1;
-    setFocusIds(nextIds);
-    setFocusCompleted(nextCompleted);
-    if (nextCompleted >= FOCUS_BATCH || nextIds.length === 0) setFocusFinale(true);
+    const completed = incrementCompleted ? focusCompleted + 1 : focusCompleted;
+    if (incrementCompleted) setFocusCompleted(completed);
+    if ((incrementCompleted && completed >= FOCUS_BATCH) || next.length === 0) setFocusFinale(true);
   }
   function focusLoadMore() {
-    let skipped = focusSkipped;
-    let batch = pickFocusBatch([], skipped);
-    // Everything left in the pool is something skipped this session — wipe the
-    // skip set so "load 5 more" actually has something to show.
-    if (batch.length === 0 && focusPool.length > 0) {
-      skipped = new Set();
-      batch = pickFocusBatch([], skipped);
-    }
-    setFocusSkipped(skipped);
     setFocusCompleted(0);
-    setFocusSelectedId(null);
-    setFocusIds(batch);
-    setFocusFinale(batch.length === 0);
+    setFocusFinale(false);
+    setFocusIds(pickFocusBatch([]));
   }
 
   // Physics only reruns when the task list itself changes — not on every drag move.
@@ -1836,7 +1808,9 @@ export default function PunchBubbles() {
           }
           if (focusMode && !openedProjectId) {
             // Only the focused few are actionable; everything else is inert backdrop.
-            if (focusIds.includes(n.id)) setFocusSelectedId(n.id);
+            // Opens the same full detail modal as everywhere else — RESOLVE/SNOOZE
+            // there are what actually advances the round (see advanceFocusRound).
+            if (focusIds.includes(n.id)) openDetail(tasks.find((t) => t.id === n.id) || n);
             return;
           }
           if (n.isProject) {
@@ -2058,6 +2032,7 @@ export default function PunchBubbles() {
   }
 
   function deleteTask(reason) {
+    const wasFocused = focusMode && focusIds.includes(selected.id);
     persist(
       apiPost("/feedback", {
         task_id: selected.id,
@@ -2069,8 +2044,10 @@ export default function PunchBubbles() {
       })
     );
     persist(apiDelete(`/tasks/${selected.id}`));
-    setTasks((prev) => prev.filter((t) => t.id !== selected.id));
+    const id = selected.id;
+    setTasks((prev) => prev.filter((t) => t.id !== id));
     setSelected(null);
+    if (wasFocused) advanceFocusRound(id, { refill: false, incrementCompleted: false });
   }
 
   function savePriority(newPriority) {
@@ -2720,6 +2697,7 @@ export default function PunchBubbles() {
   }
 
   function resolveTask() {
+    const wasFocused = focusMode && focusIds.includes(selected.id);
     celebrateResolve();
     pushHistory(selected.id, "resolved", note.trim() || "Marked resolved");
     persist(
@@ -2729,23 +2707,41 @@ export default function PunchBubbles() {
         completed_at: new Date().toISOString(),
       })
     );
-    setTasks((prev) => prev.filter((t) => t.id !== selected.id));
+    const id = selected.id;
+    setTasks((prev) => prev.filter((t) => t.id !== id));
     setSelected(null);
+    // Resolving one of the focused few shrinks the round (5→4→…) rather than
+    // backfilling — it's real progress, tallied toward the finale.
+    if (wasFocused) advanceFocusRound(id, { refill: false, incrementCompleted: true });
   }
 
   function deferTask(days) {
-    if (!note.trim()) return; // require a reason so deferrals stay accountable
+    // Focus Mode exempts the note requirement — grinding through a stack of stale
+    // bubbles to just push them a few days out shouldn't need a reason typed for
+    // each one. A note is still logged if one's there.
+    const focusExempt = focusMode && focusIds.includes(selected.id);
+    if (!focusExempt && !note.trim()) return; // require a reason outside Focus Mode
+    const reason = note.trim();
     const newDue = new Date(now.getTime() + days * 86400000).toISOString();
-    pushHistory(selected.id, "deferred", `Deferred to ${new Date(newDue).toLocaleDateString()} — ${note}`);
-    persist(apiPatch(`/tasks/${selected.id}`, { status: "snoozed", due_date: newDue, defer_reason: note }));
+    pushHistory(
+      selected.id,
+      "deferred",
+      reason ? `Deferred to ${new Date(newDue).toLocaleDateString()} — ${reason}` : `Deferred to ${new Date(newDue).toLocaleDateString()}`
+    );
+    persist(apiPatch(`/tasks/${selected.id}`, { status: "snoozed", due_date: newDue, defer_reason: reason || null }));
+    const id = selected.id;
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === selected.id
-          ? { ...t, status: "snoozed", dueDate: newDue, deferReason: note }
+        t.id === id
+          ? { ...t, status: "snoozed", dueDate: newDue, deferReason: reason }
           : t
       )
     );
     setSelected(null);
+    // A real snooze already takes it out of focusPool on its own (no longer
+    // "open") — just replace it with exactly the next candidate, keeping the
+    // round's size unchanged rather than resetting it to a full 5.
+    if (focusExempt) advanceFocusRound(id, { refill: true, incrementCompleted: false });
   }
 
   function reactivateTask() {
@@ -6240,34 +6236,39 @@ export default function PunchBubbles() {
                 })()}
 
                 <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                  {selected.list !== "portfolio" && (
-                    <button
-                      onClick={() => {
-                        setSnoozeMenuOpen((v) => !v);
-                        setDeletingConfirm(false);
-                      }}
-                      disabled={!note.trim()}
-                      title={!note.trim() ? "Add a note above first" : undefined}
-                      style={{
-                        flex: 1,
-                        padding: "8px 4px",
-                        background: snoozeMenuOpen ? "#6B7A8C" : note.trim() ? "#E9E2D2" : "#F1ECE1",
-                        color: snoozeMenuOpen ? "#F1ECE1" : note.trim() ? "#2A2419" : "#B8AF9E",
-                        border: "1px solid #C9C0AC",
-                        borderRadius: 4,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontWeight: 700,
-                        fontSize: 10,
-                        cursor: note.trim() ? "pointer" : "not-allowed",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 3,
-                      }}
-                    >
-                      <Clock size={11} /> SNOOZE
-                    </button>
-                  )}
+                  {selected.list !== "portfolio" && (() => {
+                    // Focus Mode waives the usual "type a reason first" gate — see
+                    // deferTask. A note can still be added above, just isn't required.
+                    const snoozeReady = note.trim() || (focusMode && focusIds.includes(selected.id));
+                    return (
+                      <button
+                        onClick={() => {
+                          setSnoozeMenuOpen((v) => !v);
+                          setDeletingConfirm(false);
+                        }}
+                        disabled={!snoozeReady}
+                        title={!snoozeReady ? "Add a note above first" : undefined}
+                        style={{
+                          flex: 1,
+                          padding: "8px 4px",
+                          background: snoozeMenuOpen ? "#6B7A8C" : snoozeReady ? "#E9E2D2" : "#F1ECE1",
+                          color: snoozeMenuOpen ? "#F1ECE1" : snoozeReady ? "#2A2419" : "#B8AF9E",
+                          border: "1px solid #C9C0AC",
+                          borderRadius: 4,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 700,
+                          fontSize: 10,
+                          cursor: snoozeReady ? "pointer" : "not-allowed",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 3,
+                        }}
+                      >
+                        <Clock size={11} /> SNOOZE
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={addNoteOnly}
                     disabled={!note.trim()}
@@ -6576,55 +6577,6 @@ export default function PunchBubbles() {
           }}
         />
       </div>
-
-      {/* Focus Mode: the tap-a-bubble action card. Skip = out of this round only
-          (real task untouched); Complete = resolve for real. */}
-      {focusMode && focusSelectedId && !focusFinale && (() => {
-        const t = tasks.find((x) => x.id === focusSelectedId);
-        if (!t) return null;
-        return (
-          <div
-            onClick={() => setFocusSelectedId(null)}
-            style={{
-              position: "fixed", inset: 0, zIndex: 820,
-              background: "rgba(12,11,10,0.5)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: 430, maxWidth: "90vw", background: "#F1ECE1", borderRadius: 10,
-                padding: 24, boxShadow: "0 24px 70px rgba(0,0,0,0.55)",
-              }}
-            >
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#B23A1C", marginBottom: 10 }}>
-                FOCUS · #{t.ticket} · {String(effectivePriority(t)).toUpperCase()} · {daysOpen(t.createdAt)}d OLD
-              </div>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 17, fontWeight: 600, color: "#1E1C1A", lineHeight: 1.35, marginBottom: 20 }}>
-                {t.summary}
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  onClick={() => focusSkip(t.id)}
-                  style={{ flex: 1, padding: "12px 0", background: "transparent", color: "#5C5850", border: "1px solid #C4BCA8", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 12, letterSpacing: "0.05em", cursor: "pointer" }}
-                >
-                  SKIP FOR NOW
-                </button>
-                <button
-                  onClick={() => focusComplete(t.id)}
-                  style={{ flex: 1, padding: "12px 0", background: "#2E7D32", color: "#fff", border: "1px solid #2E7D32", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 12, letterSpacing: "0.05em", cursor: "pointer" }}
-                >
-                  COMPLETE ✓
-                </button>
-              </div>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#8A8375", marginTop: 12, textAlign: "center" }}>
-                Skip just drops it out of this focus round. Complete resolves it for real.
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Focus Mode finale — fireworks + "go again / done" after 5 completions
           (or when the round runs dry). */}

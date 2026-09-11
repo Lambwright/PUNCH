@@ -848,9 +848,7 @@ function PunchBubbles() {
   const FOCUS_BATCH = 5;
   const [focusMode, setFocusMode] = useState(false);
   const [focusIds, setFocusIds] = useState([]);
-  const [focusSkipped, setFocusSkipped] = useState(() => /* @__PURE__ */ new Set());
   const [focusCompleted, setFocusCompleted] = useState(0);
-  const [focusSelectedId, setFocusSelectedId] = useState(null);
   const [focusFinale, setFocusFinale] = useState(false);
   const [openedProjectId, setOpenedProjectId] = useState(null);
   const [dragOverProjectId, setDragOverProjectId] = useState(null);
@@ -1113,76 +1111,39 @@ function PunchBubbles() {
     () => tasks.filter((t) => t.status === "open" && t.list === "inbox" && !t.parentTaskId && !t.isProject).sort((a, b) => focusScore(b) - focusScore(a)),
     [tasks]
   );
-  function pickFocusBatch(excludeIds, skipped) {
+  function pickFocusBatch(excludeIds) {
     const taken = new Set(excludeIds);
     const out = [];
     for (const t of focusPool) {
       if (out.length >= FOCUS_BATCH) break;
-      if (taken.has(t.id) || skipped.has(t.id)) continue;
+      if (taken.has(t.id)) continue;
       out.push(t.id);
     }
     return out;
   }
   function enterFocusMode() {
-    const skipped = /* @__PURE__ */ new Set();
-    setFocusSkipped(skipped);
     setFocusCompleted(0);
     setFocusFinale(false);
-    setFocusSelectedId(null);
-    setFocusIds(pickFocusBatch([], skipped));
+    setFocusIds(pickFocusBatch([]));
     setFocusMode(true);
   }
   function exitFocusMode() {
     setFocusMode(false);
     setFocusFinale(false);
-    setFocusSelectedId(null);
     setFocusIds([]);
   }
-  function focusSkip(id) {
-    setFocusSelectedId(null);
-    const nextSkipped = new Set(focusSkipped);
-    nextSkipped.add(id);
+  function advanceFocusRound(id, { refill, incrementCompleted }) {
     const remaining = focusIds.filter((x) => x !== id);
-    const refill = pickFocusBatch(remaining, nextSkipped).filter((x) => !remaining.includes(x));
-    const next = [...remaining, ...refill].slice(0, FOCUS_BATCH);
-    setFocusSkipped(nextSkipped);
+    const next = refill ? [...remaining, ...pickFocusBatch(remaining).slice(0, focusIds.length - remaining.length)] : remaining;
     setFocusIds(next);
-    if (next.length === 0) setFocusFinale(true);
-  }
-  function focusComplete(id) {
-    const task = tasks.find((t) => t.id === id);
-    if (!task) return;
-    setFocusSelectedId(null);
-    celebrateResolve();
-    const event = historyEvent("resolved", "Completed in Focus Mode");
-    const newHistory = [...task.history || [], event];
-    persist(
-      apiPatch(`/tasks/${id}`, {
-        status: "done",
-        resolution_note: "Completed in Focus Mode",
-        completed_at: (/* @__PURE__ */ new Date()).toISOString(),
-        history: newHistory
-      })
-    );
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    const nextIds = focusIds.filter((x) => x !== id);
-    const nextCompleted = focusCompleted + 1;
-    setFocusIds(nextIds);
-    setFocusCompleted(nextCompleted);
-    if (nextCompleted >= FOCUS_BATCH || nextIds.length === 0) setFocusFinale(true);
+    const completed = incrementCompleted ? focusCompleted + 1 : focusCompleted;
+    if (incrementCompleted) setFocusCompleted(completed);
+    if (incrementCompleted && completed >= FOCUS_BATCH || next.length === 0) setFocusFinale(true);
   }
   function focusLoadMore() {
-    let skipped = focusSkipped;
-    let batch = pickFocusBatch([], skipped);
-    if (batch.length === 0 && focusPool.length > 0) {
-      skipped = /* @__PURE__ */ new Set();
-      batch = pickFocusBatch([], skipped);
-    }
-    setFocusSkipped(skipped);
     setFocusCompleted(0);
-    setFocusSelectedId(null);
-    setFocusIds(batch);
-    setFocusFinale(batch.length === 0);
+    setFocusFinale(false);
+    setFocusIds(pickFocusBatch([]));
   }
   const POSITIONS_KEY = "punch_bubble_positions";
   const [positions, setPositions] = useState(() => {
@@ -1568,7 +1529,7 @@ function PunchBubbles() {
             return;
           }
           if (focusMode && !openedProjectId) {
-            if (focusIds.includes(n.id)) setFocusSelectedId(n.id);
+            if (focusIds.includes(n.id)) openDetail(tasks.find((t) => t.id === n.id) || n);
             return;
           }
           if (n.isProject) {
@@ -1748,6 +1709,7 @@ function PunchBubbles() {
     setAddingCategory(false);
   }
   function deleteTask(reason) {
+    const wasFocused = focusMode && focusIds.includes(selected.id);
     persist(
       apiPost("/feedback", {
         task_id: selected.id,
@@ -1759,8 +1721,10 @@ function PunchBubbles() {
       })
     );
     persist(apiDelete(`/tasks/${selected.id}`));
-    setTasks((prev) => prev.filter((t) => t.id !== selected.id));
+    const id = selected.id;
+    setTasks((prev) => prev.filter((t) => t.id !== id));
     setSelected(null);
+    if (wasFocused) advanceFocusRound(id, { refill: false, incrementCompleted: false });
   }
   function savePriority(newPriority) {
     if (newPriority === selected.priority) return;
@@ -2264,6 +2228,7 @@ function PunchBubbles() {
     setTimeout(() => setResolveBurst((prev) => prev === id ? null : prev), 900);
   }
   function resolveTask() {
+    const wasFocused = focusMode && focusIds.includes(selected.id);
     celebrateResolve();
     pushHistory(selected.id, "resolved", note.trim() || "Marked resolved");
     persist(
@@ -2273,20 +2238,30 @@ function PunchBubbles() {
         completed_at: (/* @__PURE__ */ new Date()).toISOString()
       })
     );
-    setTasks((prev) => prev.filter((t) => t.id !== selected.id));
+    const id = selected.id;
+    setTasks((prev) => prev.filter((t) => t.id !== id));
     setSelected(null);
+    if (wasFocused) advanceFocusRound(id, { refill: false, incrementCompleted: true });
   }
   function deferTask(days) {
-    if (!note.trim()) return;
+    const focusExempt = focusMode && focusIds.includes(selected.id);
+    if (!focusExempt && !note.trim()) return;
+    const reason = note.trim();
     const newDue = new Date(now.getTime() + days * 864e5).toISOString();
-    pushHistory(selected.id, "deferred", `Deferred to ${new Date(newDue).toLocaleDateString()} \u2014 ${note}`);
-    persist(apiPatch(`/tasks/${selected.id}`, { status: "snoozed", due_date: newDue, defer_reason: note }));
+    pushHistory(
+      selected.id,
+      "deferred",
+      reason ? `Deferred to ${new Date(newDue).toLocaleDateString()} \u2014 ${reason}` : `Deferred to ${new Date(newDue).toLocaleDateString()}`
+    );
+    persist(apiPatch(`/tasks/${selected.id}`, { status: "snoozed", due_date: newDue, defer_reason: reason || null }));
+    const id = selected.id;
     setTasks(
       (prev) => prev.map(
-        (t) => t.id === selected.id ? { ...t, status: "snoozed", dueDate: newDue, deferReason: note } : t
+        (t) => t.id === id ? { ...t, status: "snoozed", dueDate: newDue, deferReason: reason } : t
       )
     );
     setSelected(null);
+    if (focusExempt) advanceFocusRound(id, { refill: true, incrementCompleted: false });
   }
   function reactivateTask() {
     const event = historyEvent("reactivated", "Brought back from snoozed");
@@ -5411,35 +5386,38 @@ function PunchBubbles() {
             /* @__PURE__ */ React.createElement(Check, { size: 14, strokeWidth: 3 }),
             " MARK RESOLVED"
           );
-        })(), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, selected.list !== "portfolio" && /* @__PURE__ */ React.createElement(
-          "button",
-          {
-            onClick: () => {
-              setSnoozeMenuOpen((v) => !v);
-              setDeletingConfirm(false);
+        })(), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, selected.list !== "portfolio" && (() => {
+          const snoozeReady = note.trim() || focusMode && focusIds.includes(selected.id);
+          return /* @__PURE__ */ React.createElement(
+            "button",
+            {
+              onClick: () => {
+                setSnoozeMenuOpen((v) => !v);
+                setDeletingConfirm(false);
+              },
+              disabled: !snoozeReady,
+              title: !snoozeReady ? "Add a note above first" : void 0,
+              style: {
+                flex: 1,
+                padding: "8px 4px",
+                background: snoozeMenuOpen ? "#6B7A8C" : snoozeReady ? "#E9E2D2" : "#F1ECE1",
+                color: snoozeMenuOpen ? "#F1ECE1" : snoozeReady ? "#2A2419" : "#B8AF9E",
+                border: "1px solid #C9C0AC",
+                borderRadius: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700,
+                fontSize: 10,
+                cursor: snoozeReady ? "pointer" : "not-allowed",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 3
+              }
             },
-            disabled: !note.trim(),
-            title: !note.trim() ? "Add a note above first" : void 0,
-            style: {
-              flex: 1,
-              padding: "8px 4px",
-              background: snoozeMenuOpen ? "#6B7A8C" : note.trim() ? "#E9E2D2" : "#F1ECE1",
-              color: snoozeMenuOpen ? "#F1ECE1" : note.trim() ? "#2A2419" : "#B8AF9E",
-              border: "1px solid #C9C0AC",
-              borderRadius: 4,
-              fontFamily: "'JetBrains Mono', monospace",
-              fontWeight: 700,
-              fontSize: 10,
-              cursor: note.trim() ? "pointer" : "not-allowed",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 3
-            }
-          },
-          /* @__PURE__ */ React.createElement(Clock, { size: 11 }),
-          " SNOOZE"
-        ), /* @__PURE__ */ React.createElement(
+            /* @__PURE__ */ React.createElement(Clock, { size: 11 }),
+            " SNOOZE"
+          );
+        })(), /* @__PURE__ */ React.createElement(
           "button",
           {
             onClick: addNoteOnly,
@@ -5737,57 +5715,6 @@ function PunchBubbles() {
         }
       }
     )),
-    focusMode && focusSelectedId && !focusFinale && (() => {
-      const t = tasks.find((x) => x.id === focusSelectedId);
-      if (!t) return null;
-      return /* @__PURE__ */ React.createElement(
-        "div",
-        {
-          onClick: () => setFocusSelectedId(null),
-          style: {
-            position: "fixed",
-            inset: 0,
-            zIndex: 820,
-            background: "rgba(12,11,10,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center"
-          }
-        },
-        /* @__PURE__ */ React.createElement(
-          "div",
-          {
-            onClick: (e) => e.stopPropagation(),
-            style: {
-              width: 430,
-              maxWidth: "90vw",
-              background: "#F1ECE1",
-              borderRadius: 10,
-              padding: 24,
-              boxShadow: "0 24px 70px rgba(0,0,0,0.55)"
-            }
-          },
-          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "#B23A1C", marginBottom: 10 } }, "FOCUS \xB7 #", t.ticket, " \xB7 ", String(effectivePriority(t)).toUpperCase(), " \xB7 ", daysOpen(t.createdAt), "d OLD"),
-          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 17, fontWeight: 600, color: "#1E1C1A", lineHeight: 1.35, marginBottom: 20 } }, t.summary),
-          /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10 } }, /* @__PURE__ */ React.createElement(
-            "button",
-            {
-              onClick: () => focusSkip(t.id),
-              style: { flex: 1, padding: "12px 0", background: "transparent", color: "#5C5850", border: "1px solid #C4BCA8", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 12, letterSpacing: "0.05em", cursor: "pointer" }
-            },
-            "SKIP FOR NOW"
-          ), /* @__PURE__ */ React.createElement(
-            "button",
-            {
-              onClick: () => focusComplete(t.id),
-              style: { flex: 1, padding: "12px 0", background: "#2E7D32", color: "#fff", border: "1px solid #2E7D32", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 12, letterSpacing: "0.05em", cursor: "pointer" }
-            },
-            "COMPLETE \u2713"
-          )),
-          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#8A8375", marginTop: 12, textAlign: "center" } }, "Skip just drops it out of this focus round. Complete resolves it for real.")
-        )
-      );
-    })(),
     focusMode && focusFinale && /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 9e3, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(12,11,10,0.8)" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" } }, Array.from({ length: 7 }).flatMap((_, b) => {
       const ox = 12 + b * 37 % 76;
       const oy = 14 + b * 53 % 52;
