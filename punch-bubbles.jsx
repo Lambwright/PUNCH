@@ -969,6 +969,11 @@ export default function PunchBubbles() {
   const [pendingSavingId, setPendingSavingId] = useState(null);
   const [pendingSavedId, setPendingSavedId] = useState(null); // brief post-save confirmation flash
   const [openedPendingId, setOpenedPendingId] = useState(() => loadSavedSearchDraft()?.openedPendingId || null); // which pendingProjects row's detail panel is open
+  // Procore's PM-name Department, read-only reference so Ben knows who to assign as
+  // Project Manager over in Procore. Fetched on-demand per record (not in the list
+  // load) — it's a live per-project Procore lookup, not something NetSuite's
+  // Inbound Project record stores. { [recordId]: string | null | "loading" }
+  const [procoreDepartments, setProcoreDepartments] = useState({});
   const [pmOptions, setPmOptions] = useState([]); // full employee list (~50), fetched once
   const [customerQuery, setCustomerQuery] = useState(() => loadSavedSearchDraft()?.customerQuery || {}); // { [recordId]: text typed so far }
   const [customerResults, setCustomerResults] = useState({}); // { [recordId]: [{id,name}] }
@@ -1115,6 +1120,21 @@ export default function PunchBubbles() {
       setPendingLoading(false);
       setPendingFetched(true);
     }
+  }
+
+  // Opens a Saved Search record's detail panel and, alongside it, fetches Procore's
+  // real PM-name Department as a read-only reference — only on-demand for the one
+  // record being looked at, since it's a live Procore lookup, not list-load data.
+  function openPendingDetail(p) {
+    setOpenedPendingId(p.id);
+    if (!p.procoreId || procoreDepartments[p.id] !== undefined) return;
+    setProcoreDepartments((prev) => ({ ...prev, [p.id]: "loading" }));
+    apiGet(`/netsuite/pending-project-procore-department?project_number=${encodeURIComponent(p.procoreId)}`)
+      .then((data) => setProcoreDepartments((prev) => ({ ...prev, [p.id]: data.department || null })))
+      .catch((err) => {
+        console.error("Procore department lookup failed:", err);
+        setProcoreDepartments((prev) => ({ ...prev, [p.id]: null }));
+      });
   }
 
   // Project Manager (~50 active employees) is small enough to fetch in full once,
@@ -3660,7 +3680,7 @@ export default function PunchBubbles() {
                 return (
                   <div
                     key={p.id}
-                    onClick={() => setOpenedPendingId(p.id)}
+                    onClick={() => openPendingDetail(p)}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -6841,6 +6861,31 @@ export default function PunchBubbles() {
                   {addressLine || "NOT SET"}
                 </div>
               </div>
+
+              {/* Read-only reference, not written anywhere from here — just so Ben
+                  knows who to actually assign as Project Manager over in Procore
+                  while completing this record. */}
+              {p.procoreId && (() => {
+                const dept = procoreDepartments[p.id];
+                return (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
+                      PROCORE DEPARTMENT / PM (READ-ONLY)
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 11,
+                        color: dept === "loading" ? "#8A8375" : dept ? "#5C5850" : "#C1401C",
+                        fontWeight: dept && dept !== "loading" ? 400 : 700,
+                        fontStyle: dept === "loading" ? "italic" : "normal",
+                      }}
+                    >
+                      {dept === "loading" ? "loading…" : dept || "NOT SET"}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                 <div>

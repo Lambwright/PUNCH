@@ -899,6 +899,7 @@ function PunchBubbles() {
   const [pendingSavingId, setPendingSavingId] = useState(null);
   const [pendingSavedId, setPendingSavedId] = useState(null);
   const [openedPendingId, setOpenedPendingId] = useState(() => loadSavedSearchDraft()?.openedPendingId || null);
+  const [procoreDepartments, setProcoreDepartments] = useState({});
   const [pmOptions, setPmOptions] = useState([]);
   const [customerQuery, setCustomerQuery] = useState(() => loadSavedSearchDraft()?.customerQuery || {});
   const [customerResults, setCustomerResults] = useState({});
@@ -1018,6 +1019,15 @@ function PunchBubbles() {
       setPendingLoading(false);
       setPendingFetched(true);
     }
+  }
+  function openPendingDetail(p) {
+    setOpenedPendingId(p.id);
+    if (!p.procoreId || procoreDepartments[p.id] !== void 0) return;
+    setProcoreDepartments((prev) => ({ ...prev, [p.id]: "loading" }));
+    apiGet(`/netsuite/pending-project-procore-department?project_number=${encodeURIComponent(p.procoreId)}`).then((data) => setProcoreDepartments((prev) => ({ ...prev, [p.id]: data.department || null }))).catch((err) => {
+      console.error("Procore department lookup failed:", err);
+      setProcoreDepartments((prev) => ({ ...prev, [p.id]: null }));
+    });
   }
   async function loadPmOptions() {
     try {
@@ -3051,7 +3061,7 @@ function PunchBubbles() {
           "div",
           {
             key: p.id,
-            onClick: () => setOpenedPendingId(p.id),
+            onClick: () => openPendingDetail(p),
             style: {
               display: "flex",
               alignItems: "center",
@@ -5935,6 +5945,22 @@ function PunchBubbles() {
             },
             addressLine || "NOT SET"
           )),
+          p.procoreId && (() => {
+            const dept = procoreDepartments[p.id];
+            return /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "PROCORE DEPARTMENT / PM (READ-ONLY)"), /* @__PURE__ */ React.createElement(
+              "div",
+              {
+                style: {
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 11,
+                  color: dept === "loading" ? "#8A8375" : dept ? "#5C5850" : "#C1401C",
+                  fontWeight: dept && dept !== "loading" ? 400 : 700,
+                  fontStyle: dept === "loading" ? "italic" : "normal"
+                }
+              },
+              dept === "loading" ? "loading\u2026" : dept || "NOT SET"
+            ));
+          })(),
           /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "CUSTOMER"), /* @__PURE__ */ React.createElement(
             Autocomplete,
             {
