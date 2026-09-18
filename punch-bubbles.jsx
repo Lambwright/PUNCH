@@ -1226,6 +1226,23 @@ export default function PunchBubbles() {
     }
   }, [tab, digestsFetched]);
 
+  // A restricted (non-admin) Einbau ID account only gets the shared/operational
+  // tabs — Ben's personal Inbox/Projects/Snoozed/Digest/Recurring stay hidden.
+  // This is just the UI half of the restriction — punch-worker enforces the same
+  // boundary for real (see isRestrictedRouteAllowed there), so even a direct API
+  // call from a restricted account can't reach the hidden data.
+  const RESTRICTED_TAB_IDS = new Set(["portfolio", "searches", "stage_review"]);
+  const isOwner = !authUser || authUser.role === "admin";
+  const visibleTabs = isOwner ? tabs : tabs.filter((t) => RESTRICTED_TAB_IDS.has(t.id));
+
+  // Default tab is "inbox", which a restricted account never sees — bounce to the
+  // first tab it's actually allowed to see instead of showing nothing.
+  useEffect(() => {
+    if (authUser && !isOwner && !RESTRICTED_TAB_IDS.has(tab)) {
+      setTab(visibleTabs[0]?.id || "portfolio");
+    }
+  }, [authUser, isOwner, tab]);
+
   const currentTab = tabs.find((t) => t.id === tab);
   const snoozedTasks = tasks.filter((t) => t.status === "snoozed");
   const activeTasksUnsorted =
@@ -3115,7 +3132,7 @@ export default function PunchBubbles() {
             alignItems: "center",
           }}
         >
-          {tabs.map((t) => {
+          {visibleTabs.map((t) => {
             const count =
               t.id === "snoozed"
                 ? snoozedTasks.length

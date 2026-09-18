@@ -1093,6 +1093,14 @@ function PunchBubbles() {
       loadDigests();
     }
   }, [tab, digestsFetched]);
+  const RESTRICTED_TAB_IDS = /* @__PURE__ */ new Set(["portfolio", "searches", "stage_review"]);
+  const isOwner = !authUser || authUser.role === "admin";
+  const visibleTabs = isOwner ? tabs : tabs.filter((t) => RESTRICTED_TAB_IDS.has(t.id));
+  useEffect(() => {
+    if (authUser && !isOwner && !RESTRICTED_TAB_IDS.has(tab)) {
+      setTab(visibleTabs[0]?.id || "portfolio");
+    }
+  }, [authUser, isOwner, tab]);
   const currentTab = tabs.find((t) => t.id === tab);
   const snoozedTasks = tasks.filter((t) => t.status === "snoozed");
   const activeTasksUnsorted = tab === "snoozed" ? snoozedTasks : tab === "recurring" ? [...recurringTasks].sort((a, b) => daysUntilDue(a) - daysUntilDue(b)) : tab === "projects" ? tasks.filter((t) => t.status === "open" && t.list === "inbox" && t.isProject && !t.parentTaskId) : tab === "inbox" ? tasks.filter((t) => t.status === "open" && t.list === "inbox" && !t.isProject && !t.parentTaskId) : tasks.filter((t) => t.status === "open" && t.list === tab && !t.parentTaskId);
@@ -2597,7 +2605,7 @@ function PunchBubbles() {
           alignItems: "center"
         }
       },
-      tabs.map((t) => {
+      visibleTabs.map((t) => {
         const count = t.id === "snoozed" ? snoozedTasks.length : t.id === "recurring" ? recurringTasks.length : t.id === "searches" ? pendingProjects.length : t.id === "projects" ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && task.isProject && !task.parentTaskId).length : t.id === "inbox" ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && !task.isProject && !task.parentTaskId).length : tasks.filter((task) => task.status === "open" && task.list === t.id).length;
         const active = tab === t.id;
         return /* @__PURE__ */ React.createElement(
