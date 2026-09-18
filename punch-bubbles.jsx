@@ -612,7 +612,7 @@ const APP_SWITCHER_LINKS = [
 // equality, which silently filtered the entire list to empty the moment NetSuite's
 // format didn't match "FIRST LAST".
 const KNOWN_PM_NAMES = [
-  "Chris Hong", "Devid Manzke", "Hal Rowan", "Peter Dyck", "Rudi Dyck", "Scot Carter-Nichols",
+  "Chris Hong", "Devid Manzke", "Peter Dyck", "Rudi Dyck", "Scot Carter-Nichols", // Hal Rowan no longer with the company
 ];
 function pmNameTokens(s) {
   return (s || "").toUpperCase().split(/[^A-Z]+/).filter(Boolean);
