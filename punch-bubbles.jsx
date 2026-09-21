@@ -606,11 +606,12 @@ const APP_SWITCHER_LINKS = [
 // The real Project Manager roster, as read off Procore's own live PM dropdown —
 // Einbau ID accounts a task can be assigned to/from — hand-maintained, same
 // tradeoff as KNOWN_PM_NAMES below (no small-roster directory endpoint exists to
-// query this live). username must be the real Einbau ID login name, not an email —
-// PLACEHOLDER for Josh pending confirmation, edit once known.
+// query this live). username must be the real Einbau ID login name — confirmed
+// live against auth-worker's own user list that these accounts use their email as
+// the login name (Ben's "ben" is the one legacy exception).
 const ASSIGNABLE_USERS = [
   { username: "ben", displayName: "Ben" },
-  { username: "josh", displayName: "Josh" }, // TODO: confirm Josh's real username
+  { username: "josh@einbau.ca", displayName: "Josh" },
 ];
 
 // NetSuite's employee list has no field distinguishing these ~6 from the other
