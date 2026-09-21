@@ -168,7 +168,9 @@ function normalizeTask(row) {
     parentTaskId: row.parent_task_id || null,
     isProject: row.is_project || false,
     description: row.description || "",
-    color: row.color || null
+    color: row.color || null,
+    ownerUsername: row.owner_username || null,
+    assignedByUsername: row.assigned_by_username || null
   };
 }
 function normalizeRecurring(row) {
@@ -614,6 +616,11 @@ const APP_SWITCHER_LINKS = [
   { name: "INTAKE", url: "https://lambwright.github.io/scout-intake/", color: "#8FC742", current: false },
   { name: "TALLY", url: "https://lambwright.github.io/tally/", color: "#E2871A", current: false }
 ];
+const ASSIGNABLE_USERS = [
+  { username: "ben", displayName: "Ben" },
+  { username: "josh", displayName: "Josh" }
+  // TODO: confirm Josh's real username
+];
 const KNOWN_PM_NAMES = [
   "Ben Wright",
   "Chris Hong",
@@ -691,7 +698,11 @@ const tabs = [
   // look/feel for free: priority-colored left border, single summary line,
   // #ticket · category metadata line, age badge, click to open the shared detail
   // modal (which already shows the linked History entries).
-  { id: "stage_review", label: "STAGE REVIEW", view: "list" }
+  { id: "stage_review", label: "STAGE REVIEW", view: "list" },
+  // Tasks handed to someone else that aren't done yet — not list-scoped like
+  // everything else here (it's cross-cutting: whatever the viewer has delegated,
+  // regardless of which list it lives on). See activeTasksUnsorted/loadOutbox.
+  { id: "outbox", label: "OUTBOX", view: "list" }
 ];
 const WIDTH = 620;
 const HEIGHT = 480;
@@ -822,6 +833,7 @@ function PunchBubbles() {
   const [manualPriority, setManualPriority] = useState("normal");
   const [manualLink, setManualLink] = useState("");
   const [manualPerson, setManualPerson] = useState("");
+  const [manualAssignTo, setManualAssignTo] = useState("");
   const [modalTab, setModalTab] = useState("details");
   const [categories, setCategories] = useState(initialCategories);
   const [feedbackLog, setFeedbackLog] = useState([]);
@@ -890,6 +902,21 @@ function PunchBubbles() {
   const [digestGenerating, setDigestGenerating] = useState(false);
   const [digestError, setDigestError] = useState(null);
   const [digestsFetched, setDigestsFetched] = useState(false);
+  const [outboxTasks, setOutboxTasks] = useState([]);
+  const [outboxLoading, setOutboxLoading] = useState(false);
+  const [outboxFetched, setOutboxFetched] = useState(false);
+  async function loadOutbox() {
+    setOutboxLoading(true);
+    try {
+      const data = await apiGet("/tasks?view=outbox");
+      setOutboxTasks((data || []).map(normalizeTask));
+    } catch (err) {
+      console.error("Outbox load failed:", err);
+    } finally {
+      setOutboxLoading(false);
+      setOutboxFetched(true);
+    }
+  }
   const [pendingProjects, setPendingProjects] = useState([]);
   const [pendingOptions, setPendingOptions] = useState({ department: [], class: [], location: [], approvalStatus: [] });
   const [pendingLoading, setPendingLoading] = useState(false);
@@ -1104,7 +1131,12 @@ function PunchBubbles() {
       loadDigests();
     }
   }, [tab, digestsFetched]);
-  const RESTRICTED_TAB_IDS = /* @__PURE__ */ new Set(["portfolio", "searches", "stage_review"]);
+  useEffect(() => {
+    if (tab === "outbox" && !outboxFetched) {
+      loadOutbox();
+    }
+  }, [tab, outboxFetched]);
+  const RESTRICTED_TAB_IDS = /* @__PURE__ */ new Set(["inbox", "projects", "portfolio", "searches", "stage_review", "outbox"]);
   const isOwner = !authUser || authUser.role === "admin";
   const visibleTabs = isOwner ? tabs : tabs.filter((t) => RESTRICTED_TAB_IDS.has(t.id));
   useEffect(() => {
@@ -1114,7 +1146,7 @@ function PunchBubbles() {
   }, [authUser, isOwner, tab]);
   const currentTab = tabs.find((t) => t.id === tab);
   const snoozedTasks = tasks.filter((t) => t.status === "snoozed");
-  const activeTasksUnsorted = tab === "snoozed" ? snoozedTasks : tab === "recurring" ? [...recurringTasks].sort((a, b) => daysUntilDue(a) - daysUntilDue(b)) : tab === "projects" ? tasks.filter((t) => t.status === "open" && t.list === "inbox" && t.isProject && !t.parentTaskId) : tab === "inbox" ? tasks.filter((t) => t.status === "open" && t.list === "inbox" && !t.isProject && !t.parentTaskId) : tasks.filter((t) => t.status === "open" && t.list === tab && !t.parentTaskId);
+  const activeTasksUnsorted = tab === "snoozed" ? snoozedTasks : tab === "recurring" ? [...recurringTasks].sort((a, b) => daysUntilDue(a) - daysUntilDue(b)) : tab === "outbox" ? outboxTasks : tab === "projects" ? tasks.filter((t) => t.status === "open" && t.list === "inbox" && t.isProject && !t.parentTaskId) : tab === "inbox" ? tasks.filter((t) => t.status === "open" && t.list === "inbox" && !t.isProject && !t.parentTaskId) : tasks.filter((t) => t.status === "open" && t.list === tab && !t.parentTaskId);
   function projectNumberOf(t) {
     const m = (t.summary || "").match(/(\d{4}_\d{4})/);
     return m ? m[1] : "";
@@ -1395,6 +1427,12 @@ function PunchBubbles() {
   function nestTaskIntoProject(taskId, projectId) {
     setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, parentTaskId: projectId } : t));
     persist(apiPatch(`/tasks/${taskId}`, { parent_task_id: projectId }));
+  }
+  function reassignTask(taskId, to) {
+    if (!to) return;
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    apiPatch(`/tasks/${taskId}/assign`, { to }).catch((err) => console.error("Reassign failed:", err));
+    if (selected && selected.id === taskId) setSelected(null);
   }
   function removeChildFromProject(taskId) {
     setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, parentTaskId: null } : t));
@@ -2317,10 +2355,11 @@ function PunchBubbles() {
   function addManualTask(parentTaskId) {
     const text = manualText.trim();
     if (!text) return;
-    const tempId = `manual-${Date.now()}`;
     const category = manualCategory.trim() || "General";
     const sourceUrl = manualLink.trim() || null;
     const person = manualPerson.trim() || null;
+    const assignedToSomeoneElse = manualAssignTo && manualAssignTo !== authUser?.username;
+    const tempId = `manual-${Date.now()}`;
     const optimistic = {
       id: tempId,
       ticket: nextTicketNumber(),
@@ -2336,13 +2375,16 @@ function PunchBubbles() {
       parentTaskId: parentTaskId || null,
       history: [historyEvent("created", parentTaskId ? "Added directly into project" : "Added manually")]
     };
-    setTasks((prev) => [...prev, optimistic]);
-    flashNewlyAdded(tempId);
+    if (!assignedToSomeoneElse) {
+      setTasks((prev) => [...prev, optimistic]);
+      flashNewlyAdded(tempId);
+    }
     setManualText("");
     setManualCategory("");
     setManualPriority("normal");
     setManualLink("");
     setManualPerson("");
+    setManualAssignTo("");
     setAddPanelOpen(false);
     apiPost("/ingest", {
       source: "manual",
@@ -2354,12 +2396,17 @@ function PunchBubbles() {
       source_url: sourceUrl,
       person,
       list: "inbox",
-      parent_task_id: parentTaskId || null
+      parent_task_id: parentTaskId || null,
+      assignTo: manualAssignTo || void 0
     }).then((row) => {
+      if (assignedToSomeoneElse) return;
       const real = normalizeTask(row);
       real.history = optimistic.history;
       setTasks((prev) => prev.map((t) => t.id === tempId ? real : t));
-    }).catch((err) => console.error("PUNCH sync failed:", err));
+    }).catch((err) => {
+      console.error("PUNCH sync failed:", err);
+      if (!assignedToSomeoneElse) setTasks((prev) => prev.filter((t) => t.id !== tempId));
+    });
   }
   function addFromRecord() {
     if (pickedRecordIdx === "") return;
@@ -2617,7 +2664,7 @@ function PunchBubbles() {
         }
       },
       visibleTabs.map((t) => {
-        const count = t.id === "snoozed" ? snoozedTasks.length : t.id === "recurring" ? recurringTasks.length : t.id === "searches" ? pendingProjects.length : t.id === "projects" ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && task.isProject && !task.parentTaskId).length : t.id === "inbox" ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && !task.isProject && !task.parentTaskId).length : tasks.filter((task) => task.status === "open" && task.list === t.id).length;
+        const count = t.id === "snoozed" ? snoozedTasks.length : t.id === "recurring" ? recurringTasks.length : t.id === "searches" ? pendingProjects.length : t.id === "projects" ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && task.isProject && !task.parentTaskId).length : t.id === "inbox" ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && !task.isProject && !task.parentTaskId).length : t.id === "outbox" ? outboxTasks.length : tasks.filter((task) => task.status === "open" && task.list === t.id).length;
         const active = tab === t.id;
         return /* @__PURE__ */ React.createElement(
           "button",
@@ -2851,7 +2898,25 @@ function PunchBubbles() {
             fontSize: 12.5
           }
         }
-      ), /* @__PURE__ */ React.createElement(
+      )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, ASSIGNABLE_USERS.length > 1 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375" } }, "ASSIGN TO"), /* @__PURE__ */ React.createElement(
+        "select",
+        {
+          value: manualAssignTo,
+          onChange: (e) => setManualAssignTo(e.target.value),
+          style: {
+            flex: 1,
+            padding: 7,
+            borderRadius: 4,
+            border: "1px solid #4A473F",
+            background: "#1E1C1A",
+            color: "#F1ECE1",
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 12
+          }
+        },
+        /* @__PURE__ */ React.createElement("option", { value: "" }, "Myself"),
+        ASSIGNABLE_USERS.filter((u) => u.username !== authUser?.username).map((u) => /* @__PURE__ */ React.createElement("option", { key: u.username, value: u.username }, u.displayName))
+      )), /* @__PURE__ */ React.createElement(
         "button",
         {
           onClick: () => addManualTask(),
@@ -3205,7 +3270,7 @@ function PunchBubbles() {
           textAlign: "center"
         }
       },
-      tab === "snoozed" ? "Nothing deferred right now." : tab === "recurring" ? "No recurring tasks set up yet." : tab === "projects" ? "No projects yet \u2014 hit + to start one." : "LIST CLEAR \u2014 nothing punched in."
+      tab === "snoozed" ? "Nothing deferred right now." : tab === "recurring" ? "No recurring tasks set up yet." : tab === "projects" ? "No projects yet \u2014 hit + to start one." : tab === "outbox" ? "Nothing handed off right now." : "LIST CLEAR \u2014 nothing punched in."
     ) : currentTab.view === "bubbles" ? /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, openedProject && /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -4130,6 +4195,7 @@ function PunchBubbles() {
           },
           /* @__PURE__ */ React.createElement(X, { size: 18 })
         ),
+        selected.assignedByUsername && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: "#8A8375", marginBottom: 6 } }, tab === "outbox" ? `ASSIGNED TO ${(ASSIGNABLE_USERS.find((u) => u.username === selected.ownerUsername)?.displayName || selected.ownerUsername || "?").toUpperCase()}` : `ASSIGNED BY ${(ASSIGNABLE_USERS.find((u) => u.username === selected.assignedByUsername)?.displayName || selected.assignedByUsername).toUpperCase()}`),
         /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 14 } }, /* @__PURE__ */ React.createElement(
           "button",
           {
@@ -5537,7 +5603,25 @@ function PunchBubbles() {
             }
           },
           "REMOVE FROM PROJECT"
-        ), snoozeMenuOpen && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10 } }, deferOptions.map((opt) => /* @__PURE__ */ React.createElement(
+        ), selected.list === "inbox" && tab !== "outbox" && ASSIGNABLE_USERS.length > 1 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", whiteSpace: "nowrap" } }, "REASSIGN TO"), /* @__PURE__ */ React.createElement(
+          "select",
+          {
+            value: "",
+            onChange: (e) => reassignTask(selected.id, e.target.value),
+            style: {
+              flex: 1,
+              padding: 6,
+              borderRadius: 4,
+              border: "1px solid #C9C0AC",
+              background: "#FBF9F4",
+              color: "#2A2419",
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 11
+            }
+          },
+          /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 pick someone \u2014"),
+          ASSIGNABLE_USERS.filter((u) => u.username !== authUser?.username).map((u) => /* @__PURE__ */ React.createElement("option", { key: u.username, value: u.username }, u.displayName))
+        )), snoozeMenuOpen && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10 } }, deferOptions.map((opt) => /* @__PURE__ */ React.createElement(
           "button",
           {
             key: opt.label,

@@ -188,6 +188,8 @@ function normalizeTask(row) {
     isProject: row.is_project || false,
     description: row.description || "",
     color: row.color || null,
+    ownerUsername: row.owner_username || null,
+    assignedByUsername: row.assigned_by_username || null,
   };
 }
 
@@ -602,6 +604,15 @@ const APP_SWITCHER_LINKS = [
 ];
 
 // The real Project Manager roster, as read off Procore's own live PM dropdown —
+// Einbau ID accounts a task can be assigned to/from — hand-maintained, same
+// tradeoff as KNOWN_PM_NAMES below (no small-roster directory endpoint exists to
+// query this live). username must be the real Einbau ID login name, not an email —
+// PLACEHOLDER for Josh pending confirmation, edit once known.
+const ASSIGNABLE_USERS = [
+  { username: "ben", displayName: "Ben" },
+  { username: "josh", displayName: "Josh" }, // TODO: confirm Josh's real username
+];
+
 // NetSuite's employee list has no field distinguishing these ~6 from the other
 // ~44 active employees, so this is filtered client-side against a maintained
 // list rather than a query. See loadPmOptions.
@@ -699,6 +710,10 @@ const tabs = [
   // #ticket · category metadata line, age badge, click to open the shared detail
   // modal (which already shows the linked History entries).
   { id: "stage_review", label: "STAGE REVIEW", view: "list" },
+  // Tasks handed to someone else that aren't done yet — not list-scoped like
+  // everything else here (it's cross-cutting: whatever the viewer has delegated,
+  // regardless of which list it lives on). See activeTasksUnsorted/loadOutbox.
+  { id: "outbox", label: "OUTBOX", view: "list" },
 ];
 
 const WIDTH = 620;
@@ -855,6 +870,7 @@ export default function PunchBubbles() {
   const [manualPriority, setManualPriority] = useState("normal");
   const [manualLink, setManualLink] = useState("");
   const [manualPerson, setManualPerson] = useState("");
+  const [manualAssignTo, setManualAssignTo] = useState(""); // "" = self
   const [modalTab, setModalTab] = useState("details"); // "details" | "history"
   const [categories, setCategories] = useState(initialCategories);
   const [feedbackLog, setFeedbackLog] = useState([]);
@@ -954,6 +970,26 @@ export default function PunchBubbles() {
   const [digestGenerating, setDigestGenerating] = useState(false);
   const [digestError, setDigestError] = useState(null);
   const [digestsFetched, setDigestsFetched] = useState(false);
+
+  // Outbox — what the viewer has handed off that isn't done yet. Cross-cutting
+  // (spans whatever list the task actually lives on), so it's its own fetch
+  // against ?view=outbox rather than a filter over the regular tasks state, which
+  // is itself now owner-scoped server-side and would never contain these rows.
+  const [outboxTasks, setOutboxTasks] = useState([]);
+  const [outboxLoading, setOutboxLoading] = useState(false);
+  const [outboxFetched, setOutboxFetched] = useState(false);
+  async function loadOutbox() {
+    setOutboxLoading(true);
+    try {
+      const data = await apiGet("/tasks?view=outbox");
+      setOutboxTasks((data || []).map(normalizeTask));
+    } catch (err) {
+      console.error("Outbox load failed:", err);
+    } finally {
+      setOutboxLoading(false);
+      setOutboxFetched(true);
+    }
+  }
 
   // Saved Searches (NetSuite Inbound Projects) — a live proxy view, not a local
   // tasks list like every other tab. "Done" here just means "NetSuite already has
@@ -1246,12 +1282,21 @@ export default function PunchBubbles() {
     }
   }, [tab, digestsFetched]);
 
-  // A restricted (non-admin) Einbau ID account only gets the shared/operational
-  // tabs — Ben's personal Inbox/Projects/Snoozed/Digest/Recurring stay hidden.
-  // This is just the UI half of the restriction — punch-worker enforces the same
-  // boundary for real (see isRestrictedRouteAllowed there), so even a direct API
-  // call from a restricted account can't reach the hidden data.
-  const RESTRICTED_TAB_IDS = new Set(["portfolio", "searches", "stage_review"]);
+  useEffect(() => {
+    if (tab === "outbox" && !outboxFetched) {
+      loadOutbox();
+    }
+  }, [tab, outboxFetched]);
+
+  // A restricted (non-admin) Einbau ID account gets its OWN private Inbox/Projects
+  // (own bubbles, own manual-only tasks — never Ben's, never another restricted
+  // account's) plus the shared/operational tabs and Outbox. Snoozed/Digest/
+  // Recurring stay hidden — not asked for, easy to add later (just add to this
+  // set) since the backend's ownership scoping already covers them regardless.
+  // This is just the UI half — punch-worker enforces real ownership at the query
+  // level (owner_username), so even a direct API call from a restricted account
+  // can't reach anyone else's personal tasks.
+  const RESTRICTED_TAB_IDS = new Set(["inbox", "projects", "portfolio", "searches", "stage_review", "outbox"]);
   const isOwner = !authUser || authUser.role === "admin";
   const visibleTabs = isOwner ? tabs : tabs.filter((t) => RESTRICTED_TAB_IDS.has(t.id));
 
@@ -1270,6 +1315,10 @@ export default function PunchBubbles() {
       ? snoozedTasks
       : tab === "recurring"
       ? [...recurringTasks].sort((a, b) => daysUntilDue(a) - daysUntilDue(b))
+      // Outbox isn't list-scoped at all — its own fetch (?view=outbox), separate
+      // state, separate load-on-open effect above.
+      : tab === "outbox"
+      ? outboxTasks
       // Projects and standalone inbox tasks share list: "inbox" but now live on
       // separate tabs — split by is_project so each canvas only shows its own kind.
       : tab === "projects"
@@ -1670,6 +1719,16 @@ export default function PunchBubbles() {
   function nestTaskIntoProject(taskId, projectId) {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, parentTaskId: projectId } : t)));
     persist(apiPatch(`/tasks/${taskId}`, { parent_task_id: projectId }));
+  }
+
+  // Only the current owner can give a task away (matches the backend's own check),
+  // so this only ever makes sense from your own Inbox/Projects, not from Outbox
+  // (those are owned by whoever they were handed to, not you anymore).
+  function reassignTask(taskId, to) {
+    if (!to) return;
+    setTasks((prev) => prev.filter((t) => t.id !== taskId)); // leaves my board immediately
+    apiPatch(`/tasks/${taskId}/assign`, { to }).catch((err) => console.error("Reassign failed:", err));
+    if (selected && selected.id === taskId) setSelected(null);
   }
 
   function removeChildFromProject(taskId) {
@@ -2828,10 +2887,13 @@ export default function PunchBubbles() {
   function addManualTask(parentTaskId) {
     const text = manualText.trim();
     if (!text) return;
-    const tempId = `manual-${Date.now()}`;
     const category = manualCategory.trim() || "General";
     const sourceUrl = manualLink.trim() || null;
     const person = manualPerson.trim() || null;
+    // Assigning to someone else means it's never on MY board at all — no
+    // optimistic bubble locally, since the server will own it under them, not me.
+    const assignedToSomeoneElse = manualAssignTo && manualAssignTo !== authUser?.username;
+    const tempId = `manual-${Date.now()}`;
     const optimistic = {
       id: tempId,
       ticket: nextTicketNumber(),
@@ -2847,13 +2909,16 @@ export default function PunchBubbles() {
       parentTaskId: parentTaskId || null,
       history: [historyEvent("created", parentTaskId ? "Added directly into project" : "Added manually")],
     };
-    setTasks((prev) => [...prev, optimistic]);
-    flashNewlyAdded(tempId);
+    if (!assignedToSomeoneElse) {
+      setTasks((prev) => [...prev, optimistic]);
+      flashNewlyAdded(tempId);
+    }
     setManualText("");
     setManualCategory("");
     setManualPriority("normal");
     setManualLink("");
     setManualPerson("");
+    setManualAssignTo("");
     setAddPanelOpen(false);
 
     apiPost("/ingest", {
@@ -2867,13 +2932,18 @@ export default function PunchBubbles() {
       person,
       list: "inbox",
       parent_task_id: parentTaskId || null,
+      assignTo: manualAssignTo || undefined,
     })
       .then((row) => {
+        if (assignedToSomeoneElse) return; // not ours to track locally
         const real = normalizeTask(row);
         real.history = optimistic.history;
         setTasks((prev) => prev.map((t) => (t.id === tempId ? real : t)));
       })
-      .catch((err) => console.error("PUNCH sync failed:", err));
+      .catch((err) => {
+        console.error("PUNCH sync failed:", err);
+        if (!assignedToSomeoneElse) setTasks((prev) => prev.filter((t) => t.id !== tempId));
+      });
   }
 
   function addFromRecord() {
@@ -3167,6 +3237,8 @@ export default function PunchBubbles() {
                 ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && task.isProject && !task.parentTaskId).length
                 : t.id === "inbox"
                 ? tasks.filter((task) => task.status === "open" && task.list === "inbox" && !task.isProject && !task.parentTaskId).length
+                : t.id === "outbox"
+                ? outboxTasks.length
                 : tasks.filter((task) => task.status === "open" && task.list === t.id).length;
             const active = tab === t.id;
             return (
@@ -3409,6 +3481,36 @@ export default function PunchBubbles() {
                       fontSize: 12.5,
                     }}
                   />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {ASSIGNABLE_USERS.length > 1 && (
+                    <>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375" }}>
+                        ASSIGN TO
+                      </span>
+                      <select
+                        value={manualAssignTo}
+                        onChange={(e) => setManualAssignTo(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: 7,
+                          borderRadius: 4,
+                          border: "1px solid #4A473F",
+                          background: "#1E1C1A",
+                          color: "#F1ECE1",
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: 12,
+                        }}
+                      >
+                        <option value="">Myself</option>
+                        {ASSIGNABLE_USERS.filter((u) => u.username !== authUser?.username).map((u) => (
+                          <option key={u.username} value={u.username}>
+                            {u.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
                   <button
                     onClick={() => addManualTask()}
                     style={{
@@ -3855,6 +3957,8 @@ export default function PunchBubbles() {
               ? "No recurring tasks set up yet."
               : tab === "projects"
               ? "No projects yet — hit + to start one."
+              : tab === "outbox"
+              ? "Nothing handed off right now."
               : "LIST CLEAR — nothing punched in."}
           </div>
         ) : currentTab.view === "bubbles" ? (
@@ -4927,6 +5031,14 @@ export default function PunchBubbles() {
             >
               <X size={18} />
             </button>
+
+            {selected.assignedByUsername && (
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: "#8A8375", marginBottom: 6 }}>
+                {tab === "outbox"
+                  ? `ASSIGNED TO ${(ASSIGNABLE_USERS.find((u) => u.username === selected.ownerUsername)?.displayName || selected.ownerUsername || "?").toUpperCase()}`
+                  : `ASSIGNED BY ${(ASSIGNABLE_USERS.find((u) => u.username === selected.assignedByUsername)?.displayName || selected.assignedByUsername).toUpperCase()}`}
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
               <button
@@ -6420,6 +6532,35 @@ export default function PunchBubbles() {
                   >
                     REMOVE FROM PROJECT
                   </button>
+                )}
+
+                {selected.list === "inbox" && tab !== "outbox" && ASSIGNABLE_USERS.length > 1 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", whiteSpace: "nowrap" }}>
+                      REASSIGN TO
+                    </span>
+                    <select
+                      value=""
+                      onChange={(e) => reassignTask(selected.id, e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: 6,
+                        borderRadius: 4,
+                        border: "1px solid #C9C0AC",
+                        background: "#FBF9F4",
+                        color: "#2A2419",
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: 11,
+                      }}
+                    >
+                      <option value="">— pick someone —</option>
+                      {ASSIGNABLE_USERS.filter((u) => u.username !== authUser?.username).map((u) => (
+                        <option key={u.username} value={u.username}>
+                          {u.displayName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
 
                 {snoozeMenuOpen && (
