@@ -946,7 +946,7 @@ function PunchBubbles() {
     const [openRows, snoozedRows, recurRows] = await Promise.all([
       apiGet("/tasks?status=open"),
       apiGet("/tasks?status=snoozed"),
-      apiGet("/recurring")
+      isOwner ? apiGet("/recurring") : Promise.resolve([])
     ]);
     const normalizedTasks = [...openRows, ...snoozedRows].map(normalizeTask);
     const normalizedRecur = recurRows.map(normalizeRecurring);

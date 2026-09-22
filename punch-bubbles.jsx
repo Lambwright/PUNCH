@@ -1032,10 +1032,13 @@ export default function PunchBubbles() {
   }, [openedPendingId, pendingEdits, customerQuery]);
 
   async function fetchAndMergeTasks(replaceAll) {
+    // /recurring is Ben-only data (the backend hardcodes it to env.CURRENT_USER,
+    // not the caller) and isn't in the restricted-route allowlist — a restricted
+    // account hit a 403 on it every load and every 15-min poll before this guard.
     const [openRows, snoozedRows, recurRows] = await Promise.all([
       apiGet("/tasks?status=open"),
       apiGet("/tasks?status=snoozed"),
-      apiGet("/recurring"),
+      isOwner ? apiGet("/recurring") : Promise.resolve([]),
     ]);
     const normalizedTasks = [...openRows, ...snoozedRows].map(normalizeTask);
     const normalizedRecur = recurRows.map(normalizeRecurring);
