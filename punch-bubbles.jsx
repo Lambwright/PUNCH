@@ -613,6 +613,7 @@ const APP_SWITCHER_LINKS = [
 const ASSIGNABLE_USERS = [
   { username: "ben", displayName: "Ben" },
   { username: "josh@einbau.ca", displayName: "Josh" },
+  { username: "devid@einbau.ca", displayName: "Devid" },
 ];
 
 // NetSuite's employee list has no field distinguishing these ~6 from the other
