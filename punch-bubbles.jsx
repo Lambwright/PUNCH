@@ -6,6 +6,36 @@ const API_BASE = "https://punch-worker.ben-a90.workers.dev";
 const AUTH_URL = "https://auth.ben-a90.workers.dev";
 const PUNCH_TOKEN_KEY = "einbau_id_token"; // shared with SCOUT/INTAKE - same origin, one login carries across all three
 
+// Personal accent overrides (auth-worker/README.md "themeAccent — personal
+// per-app color"), set from HELM's My Account -> Appearance. Table and function
+// kept byte-for-byte identical to every other suite app's own accentPresets.js —
+// there's no shared JS module across these independently-deployed static sites,
+// so this has to be duplicated, not imported.
+const ACCENT_PRESETS = [
+  { id: "tungsten", accent: "#9BA8B5", accentDark: "#7A8794", rgb: "155, 168, 181" },
+  { id: "amber", accent: "#D1A93F", accentDark: "#A6842F", rgb: "209, 169, 63" },
+  { id: "crimson", accent: "#D14343", accentDark: "#A63333", rgb: "209, 67, 67" },
+  { id: "forest", accent: "#6FB35C", accentDark: "#559244", rgb: "111, 179, 92" },
+  { id: "violet", accent: "#9B7ED1", accentDark: "#7C5FA8", rgb: "155, 126, 209" },
+  { id: "teal", accent: "#3F9EA0", accentDark: "#2F7B7D", rgb: "63, 158, 160" },
+  { id: "rose", accent: "#D1618F", accentDark: "#A64A70", rgb: "209, 97, 143" },
+  { id: "indigo", accent: "#6C7BD1", accentDark: "#55639F", rgb: "108, 123, 209" },
+  { id: "copper", accent: "#C97D4F", accentDark: "#A2623C", rgb: "201, 125, 79" },
+];
+function applyAccentPreset(presetId) {
+  const preset = ACCENT_PRESETS.find((p) => p.id === presetId);
+  const root = document.documentElement.style;
+  if (!preset) {
+    root.removeProperty("--accent");
+    root.removeProperty("--accent-dark");
+    root.removeProperty("--accent-rgb");
+    return;
+  }
+  root.setProperty("--accent", preset.accent);
+  root.setProperty("--accent-dark", preset.accentDark);
+  root.setProperty("--accent-rgb", preset.rgb);
+}
+
 // Saved Searches has no autosave — it's a live NetSuite record, not a PUNCH task,
 // so a typed-but-unsaved edit only ever lived in React state. That meant any reload
 // while a card was open (a token expiring mid-session falls back to a hard reload,
@@ -760,6 +790,10 @@ export default function PunchBubbles() {
     punchAuthToken = token;
     setAuthToken(token);
     setAuthUser(user || null);
+    // Covers all three of this function's callers in one place: fresh login,
+    // on-load token verify, and logout (setAuth(null, null) correctly falls
+    // through to applyAccentPreset(null), which clears back to PUNCH's default).
+    applyAccentPreset(user && user.themeAccent && user.themeAccent.PUNCH ? user.themeAccent.PUNCH : null);
   }
 
   useEffect(() => {
@@ -3258,9 +3292,9 @@ export default function PunchBubbles() {
                 }}
                 style={{
                   padding: "6px 14px",
-                  background: active ? "#E2871A" : "transparent",
+                  background: active ? "var(--accent)" : "transparent",
                   color: active ? "#1E1C1A" : "#8B8680",
-                  border: `1px solid ${active ? "#E2871A" : "#3A3733"}`,
+                  border: `1px solid ${active ? "var(--accent)" : "#3A3733"}`,
                   borderRadius: 4,
                   fontFamily: "'JetBrains Mono', monospace",
                   fontWeight: 700,
@@ -3384,7 +3418,7 @@ export default function PunchBubbles() {
                       onClick={createProject}
                       style={{
                         padding: "8px 20px",
-                        background: "#E2871A",
+                        background: "var(--accent)",
                         color: "#1E1C1A",
                         border: "none",
                         borderRadius: 4,
@@ -3521,7 +3555,7 @@ export default function PunchBubbles() {
                     onClick={() => addManualTask()}
                     style={{
                       padding: "8px 20px",
-                      background: "#E2871A",
+                      background: "var(--accent)",
                       color: "#1E1C1A",
                       border: "none",
                       borderRadius: 4,
@@ -3634,7 +3668,7 @@ export default function PunchBubbles() {
                   onClick={addRecurringTask}
                   style={{
                     padding: "8px 20px",
-                    background: "#E2871A",
+                    background: "var(--accent)",
                     color: "#1E1C1A",
                     border: "none",
                     borderRadius: 4,
@@ -3679,7 +3713,7 @@ export default function PunchBubbles() {
                   disabled={pickedRecordIdx === ""}
                   style={{
                     padding: "8px 16px",
-                    background: pickedRecordIdx === "" ? "#4A473F" : "#E2871A",
+                    background: pickedRecordIdx === "" ? "#4A473F" : "var(--accent)",
                     color: pickedRecordIdx === "" ? "#8B8680" : "#1E1C1A",
                     border: "none",
                     borderRadius: 4,
@@ -3705,7 +3739,7 @@ export default function PunchBubbles() {
                 disabled={pendingLoading}
                 style={{
                   padding: "9px 16px",
-                  background: pendingLoading ? "#E9E2D2" : "#E2871A",
+                  background: pendingLoading ? "#E9E2D2" : "var(--accent)",
                   color: "#1E1C1A",
                   border: "none",
                   borderRadius: 4,
@@ -3732,7 +3766,7 @@ export default function PunchBubbles() {
                   borderRadius: 4,
                   border: "1px solid #3A3632",
                   background: "transparent",
-                  color: "#E2871A",
+                  color: "var(--accent)",
                   fontFamily: FONT_MONO,
                   fontWeight: 700,
                   fontSize: SIZE_SM,
@@ -3837,7 +3871,7 @@ export default function PunchBubbles() {
               disabled={digestGenerating}
               style={{
                 padding: "9px 16px",
-                background: digestGenerating ? "#E9E2D2" : "#E2871A",
+                background: digestGenerating ? "#E9E2D2" : "var(--accent)",
                 color: "#1E1C1A",
                 border: "none",
                 borderRadius: 4,
@@ -3918,7 +3952,7 @@ export default function PunchBubbles() {
                           style={{
                             fontFamily: "'JetBrains Mono', monospace",
                             fontSize: 10,
-                            color: "#E2871A",
+                            color: "var(--accent)",
                             marginBottom: 6,
                           }}
                         >
@@ -4160,8 +4194,8 @@ export default function PunchBubbles() {
                     width: "100%",
                     padding: "6px 0",
                     background: addTaskPanelOpen ? "#F1ECE1" : "transparent",
-                    color: addTaskPanelOpen ? "#1E1C1A" : "#E2871A",
-                    border: "1px solid #E2871A",
+                    color: addTaskPanelOpen ? "#1E1C1A" : "var(--accent)",
+                    border: "1px solid var(--accent)",
                     borderRadius: 4,
                     fontFamily: "'JetBrains Mono', monospace",
                     fontWeight: 700,
@@ -4182,9 +4216,9 @@ export default function PunchBubbles() {
                           style={{
                             flex: 1,
                             padding: "4px 0",
-                            background: addTaskMode === mode ? "#E2871A" : "transparent",
+                            background: addTaskMode === mode ? "var(--accent)" : "transparent",
                             color: addTaskMode === mode ? "#1E1C1A" : "#8B8680",
-                            border: `1px solid ${addTaskMode === mode ? "#E2871A" : "#3A3733"}`,
+                            border: `1px solid ${addTaskMode === mode ? "var(--accent)" : "#3A3733"}`,
                             borderRadius: 4,
                             fontFamily: "'JetBrains Mono', monospace",
                             fontWeight: 700,
@@ -4229,7 +4263,7 @@ export default function PunchBubbles() {
                           disabled={!pickedChildIdx}
                           style={{
                             padding: "7px 0",
-                            background: pickedChildIdx ? "#E2871A" : "#4A473F",
+                            background: pickedChildIdx ? "var(--accent)" : "#4A473F",
                             color: "#1E1C1A",
                             border: "none",
                             borderRadius: 4,
@@ -4307,7 +4341,7 @@ export default function PunchBubbles() {
                           }}
                           style={{
                             padding: "7px 0",
-                            background: "#E2871A",
+                            background: "var(--accent)",
                             color: "#1E1C1A",
                             border: "none",
                             borderRadius: 4,
@@ -4670,7 +4704,7 @@ export default function PunchBubbles() {
                       borderRadius: 4,
                       border: "1px solid #3A3632",
                       background: "transparent",
-                      color: "#E2871A",
+                      color: "var(--accent)",
                       fontFamily: FONT_MONO,
                       fontWeight: 700,
                       fontSize: SIZE_SM,
@@ -4690,7 +4724,7 @@ export default function PunchBubbles() {
                       borderRadius: 4,
                       border: "1px solid #3A3632",
                       background: "transparent",
-                      color: portfolioDeptFilter ? "#E2871A" : "#8A8375",
+                      color: portfolioDeptFilter ? "var(--accent)" : "#8A8375",
                       fontFamily: FONT_MONO,
                       fontWeight: 700,
                       fontSize: SIZE_XS,
@@ -5287,7 +5321,7 @@ export default function PunchBubbles() {
                           daysUntilDue(selected) < 0
                             ? "#C1401C"
                             : daysUntilDue(selected) === 0
-                            ? "#E2871A"
+                            ? "var(--accent)"
                             : "#5B7A5B",
                         marginBottom: 16,
                       }}
@@ -6840,7 +6874,7 @@ export default function PunchBubbles() {
               <button
                 onClick={focusLoadMore}
                 disabled={focusPool.length === 0}
-                style={{ padding: "11px 18px", background: focusPool.length === 0 ? "#2A2724" : "#E2871A", color: focusPool.length === 0 ? "#5C5850" : "#1E1C1A", border: "none", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: focusPool.length === 0 ? "default" : "pointer" }}
+                style={{ padding: "11px 18px", background: focusPool.length === 0 ? "#2A2724" : "var(--accent)", color: focusPool.length === 0 ? "#5C5850" : "#1E1C1A", border: "none", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: focusPool.length === 0 ? "default" : "pointer" }}
               >
                 LOAD 5 MORE
               </button>
@@ -7153,7 +7187,7 @@ export default function PunchBubbles() {
               onSubmit={doLogin}
               style={{ background: "#26221D", border: "1px solid #3A352C", borderRadius: 6, padding: 32, width: 300 }}
             >
-              <div style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700, fontSize: 20, letterSpacing: "0.05em", color: "#E2871A", marginBottom: 4 }}>
+              <div style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700, fontSize: 20, letterSpacing: "0.05em", color: "var(--accent)", marginBottom: 4 }}>
                 PUNCH
               </div>
               <div
@@ -7194,7 +7228,7 @@ export default function PunchBubbles() {
                 type="submit"
                 disabled={loginSubmitting}
                 style={{
-                  width: "100%", padding: "10px 0", background: "#E2871A", color: "#1E1C1A",
+                  width: "100%", padding: "10px 0", background: "var(--accent)", color: "#1E1C1A",
                   border: "none", borderRadius: 4, fontFamily: "'JetBrains Mono', monospace",
                   fontWeight: 700, fontSize: 12, letterSpacing: "0.05em",
                   cursor: loginSubmitting ? "default" : "pointer", opacity: loginSubmitting ? 0.6 : 1,
