@@ -798,8 +798,10 @@ export default function PunchBubbles() {
 
   useEffect(() => {
     onUnauthorizedCallback = (reason) => {
-      setAuthToken(null);
-      setAuthUser(null);
+      // Routed through setAuth (not setAuthToken/setAuthUser directly) so a
+      // forced logout — session expired or invalidated mid-use — also resets
+      // the personal accent back to default, same as a normal logout does.
+      setAuth(null, null);
       setTasks([]);
       setRecurringTasks([]);
       setLoginError(reason);
@@ -6346,7 +6348,17 @@ export default function PunchBubbles() {
                 />
 
                 {(() => {
-                  const checklistIncomplete = selected.checklist && !selected.checklist.every((c) => c.done);
+                  // Array.prototype.every() on an empty array is vacuously true, so a
+                  // Portfolio task with no Type selected yet (checklist: [], per
+                  // buildProcoreChecklist) read as "fully done" and let MARK RESOLVED
+                  // through with nothing actually checked off. A checklist that exists
+                  // as an array (even empty) but isn't a real completed list should
+                  // block the same as a partially-done one — "Mark complete anyway"
+                  // (forceCompleteChecklist, above) is the real, deliberate override
+                  // for a task whose checklist doesn't apply.
+                  const hasChecklist = Array.isArray(selected.checklist);
+                  const checklistIncomplete =
+                    hasChecklist && (selected.checklist.length === 0 || !selected.checklist.every((c) => c.done));
                   if (checklistIncomplete) {
                     return (
                       <button

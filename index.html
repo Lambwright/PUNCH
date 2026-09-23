@@ -783,8 +783,7 @@ function PunchBubbles() {
   }
   useEffect(() => {
     onUnauthorizedCallback = (reason) => {
-      setAuthToken(null);
-      setAuthUser(null);
+      setAuth(null, null);
       setTasks([]);
       setRecurringTasks([]);
       setLoginError(reason);
@@ -5429,7 +5428,8 @@ function PunchBubbles() {
             }
           }
         ), (() => {
-          const checklistIncomplete = selected.checklist && !selected.checklist.every((c) => c.done);
+          const hasChecklist = Array.isArray(selected.checklist);
+          const checklistIncomplete = hasChecklist && (selected.checklist.length === 0 || !selected.checklist.every((c) => c.done));
           if (checklistIncomplete) {
             return /* @__PURE__ */ React.createElement(
               "button",
