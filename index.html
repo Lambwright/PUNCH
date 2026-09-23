@@ -290,10 +290,10 @@ function playResolveChime() {
 }
 function dueDateColor(task) {
   const d = daysUntilTaskDue(task);
-  if (d === null) return "#8A8375";
+  if (d === null) return "var(--text-secondary)";
   if (d < 0) return priorityColor.urgent;
   if (d <= 2) return priorityColor.high;
-  return "#8A8375";
+  return "var(--text-secondary)";
 }
 function effectivePriority(task) {
   const since = task.lastPriorityChangeAt || task.createdAt;
@@ -1668,8 +1668,8 @@ function PunchBubbles() {
           "circle",
           {
             r: n.r,
-            fill: "#2A2724",
-            stroke: dragOverProjectId === n.id ? "#F1ECE1" : color,
+            fill: "var(--bg-card)",
+            stroke: dragOverProjectId === n.id ? "var(--text-primary)" : color,
             strokeWidth: n.isProject ? "3.5" : "2.5"
           }
         ),
@@ -1703,7 +1703,7 @@ function PunchBubbles() {
           n.childCount - 10
         )) : (
           // punched hole, like a physical inspection tag
-          /* @__PURE__ */ React.createElement("circle", { cx: 0, cy: -n.r + 9, r: 3.5, fill: "#1E1C1A", stroke: "#5C5850", strokeWidth: "1" })
+          /* @__PURE__ */ React.createElement("circle", { cx: 0, cy: -n.r + 9, r: 3.5, fill: "var(--bg-page)", stroke: "var(--text-tertiary)", strokeWidth: "1" })
         ),
         (() => {
           const { lines, fontSize } = wrapText(n.summary, n.r);
@@ -1719,7 +1719,7 @@ function PunchBubbles() {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: ageFontSize,
                 fontWeight: 700,
-                fill: "#F1ECE1"
+                fill: "var(--text-primary)"
               }
             },
             n.isProject ? `${n.childCount} ITEM${n.childCount === 1 ? "" : "S"}` : tab === "snoozed" ? daysUntilDue2 !== null ? daysUntilDue2 <= 0 ? "DUE" : `${daysUntilDue2}d` : "" : `${age}d`
@@ -1923,7 +1923,7 @@ function PunchBubbles() {
     background: "transparent",
     fontFamily: FONT_MONO,
     fontSize: SIZE_MD,
-    color: "#5C5850",
+    color: "var(--text-tertiary)",
     width: "100%",
     boxSizing: "border-box"
   };
@@ -1947,7 +1947,7 @@ function PunchBubbles() {
   function renderChecklistFieldEditor(key) {
     if (key === "customer") {
       const options = procoreOptions.customer;
-      if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "Loading options\u2026");
+      if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "Loading options\u2026");
       const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name));
       return /* @__PURE__ */ React.createElement(
         Autocomplete,
@@ -1963,7 +1963,7 @@ function PunchBubbles() {
     }
     if (LIVE_OPTION_FIELDS.has(key) || key === "department" || key === "currency") {
       const options = procoreOptions[key];
-      if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "Loading options\u2026");
+      if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "Loading options\u2026");
       if (key === "currency") return editSelect(key, options, "id", (o) => o.label);
       return editSelect(key, options, "id", (o) => o.name);
     }
@@ -1982,7 +1982,7 @@ function PunchBubbles() {
     }
     if (key === "address") {
       if (addressSuggestLoading) {
-        return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "Checking known locations\u2026");
+        return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "Checking known locations\u2026");
       }
       if (!showManualAddress && addressSuggestions && addressSuggestions.length > 0) {
         return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, addressSuggestions.map((loc) => /* @__PURE__ */ React.createElement(
@@ -1997,10 +1997,10 @@ function PunchBubbles() {
               padding: "6px 8px",
               border: "1px solid #C9C0AC",
               borderRadius: 4,
-              background: "#F1ECE1"
+              background: "var(--text-primary)"
             }
           },
-          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_BODY, fontSize: SIZE_XS, color: "#2A2419" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700 } }, loc.name), /* @__PURE__ */ React.createElement("div", { style: { color: "#8A8375" } }, loc.address, loc.city ? `, ${loc.city}` : "", loc.province ? `, ${loc.province}` : ""), /* @__PURE__ */ React.createElement("div", { style: { color: "#B8AF9E", fontFamily: FONT_MONO, fontSize: 9 } }, 'matched on "', loc.matchedOn, '" \u2014 used ', loc.times_used, "\xD7")),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_BODY, fontSize: SIZE_XS, color: "#2A2419" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700 } }, loc.name), /* @__PURE__ */ React.createElement("div", { style: { color: "var(--text-secondary)" } }, loc.address, loc.city ? `, ${loc.city}` : "", loc.province ? `, ${loc.province}` : ""), /* @__PURE__ */ React.createElement("div", { style: { color: "#B8AF9E", fontFamily: FONT_MONO, fontSize: 9 } }, 'matched on "', loc.matchedOn, '" \u2014 used ', loc.times_used, "\xD7")),
           /* @__PURE__ */ React.createElement(
             "button",
             {
@@ -2010,7 +2010,7 @@ function PunchBubbles() {
                 borderRadius: 4,
                 border: "1px solid #5B8C5A",
                 background: "#5B8C5A",
-                color: "#F1ECE1",
+                color: "var(--text-primary)",
                 fontFamily: FONT_MONO,
                 fontWeight: 700,
                 fontSize: SIZE_XS,
@@ -2029,7 +2029,7 @@ function PunchBubbles() {
               border: "1px dashed #C9C0AC",
               background: "transparent",
               borderRadius: 4,
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               fontFamily: FONT_MONO,
               fontSize: SIZE_XS,
               cursor: "pointer",
@@ -2084,7 +2084,7 @@ function PunchBubbles() {
         },
         /* @__PURE__ */ React.createElement("option", { value: "" }, "Country"),
         countryOptions.map((c) => /* @__PURE__ */ React.createElement("option", { key: c.id, value: c.id }, c.name))
-      ) : /* @__PURE__ */ React.createElement("div", { style: { ...editInputStyle, maxWidth: 140, color: "#8A8375" } }, "Loading countries\u2026")));
+      ) : /* @__PURE__ */ React.createElement("div", { style: { ...editInputStyle, maxWidth: 140, color: "var(--text-secondary)" } }, "Loading countries\u2026")));
     }
     if (key === "dates") {
       return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ React.createElement(
@@ -2096,7 +2096,7 @@ function PunchBubbles() {
           onChange: (e) => setEditDraft((d) => ({ ...d, startDate: e.target.value })),
           style: editInputStyle
         }
-      ), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "\u2192"), /* @__PURE__ */ React.createElement(
+      ), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "\u2192"), /* @__PURE__ */ React.createElement(
         "input",
         {
           type: "date",
@@ -2537,7 +2537,7 @@ function PunchBubbles() {
     {
       style: {
         minHeight: "100%",
-        background: "#1E1C1A",
+        background: "var(--bg-page)",
         backgroundImage: "radial-gradient(circle at 20% 15%, rgba(226,135,26,0.05), transparent 45%)",
         padding: "36px 20px",
         fontFamily: "'Inter', sans-serif",
@@ -2555,7 +2555,7 @@ function PunchBubbles() {
         @keyframes burstOut { 0% { transform: translate(-50%,-50%) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.25); opacity: 0; } }
         @keyframes fireworkBurst { 0% { transform: translate(0,0) scale(1); opacity: 0; } 10% { opacity: 1; } 70% { opacity: 0.85; } 100% { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; } }
         .punch-hover-edit { transition: border-color .12s ease, background-color .12s ease; }
-        .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: #4A473F !important; background-color: #1E1C1A !important; }
+        .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: var(--border-input) !important; background-color: var(--bg-page) !important; }
         .punch-color-hover { position: relative; }
         .punch-color-popover { display: none; }
         .punch-color-hover:hover .punch-color-popover { display: flex; }
@@ -2607,13 +2607,13 @@ function PunchBubbles() {
             fontWeight: 700,
             fontSize: 36,
             letterSpacing: "0.04em",
-            color: "#F1ECE1",
+            color: "var(--text-primary)",
             textTransform: "uppercase"
           }
         },
         "Punch"
       ),
-      /* @__PURE__ */ React.createElement("span", { style: { color: "#8A8375", fontSize: 12, transform: appSwitcherOpen ? "rotate(180deg)" : "none" } }, "\u25BE")
+      /* @__PURE__ */ React.createElement("span", { style: { color: "var(--text-secondary)", fontSize: 12, transform: appSwitcherOpen ? "rotate(180deg)" : "none" } }, "\u25BE")
     ), /* @__PURE__ */ React.createElement(
       "span",
       {
@@ -2621,7 +2621,7 @@ function PunchBubbles() {
           fontFamily: "'Inter', sans-serif",
           fontSize: 9,
           fontStyle: "italic",
-          color: "#8A8375",
+          color: "var(--text-secondary)",
           opacity: 0.5,
           display: "block",
           marginTop: 2
@@ -2666,14 +2666,14 @@ function PunchBubbles() {
             fontWeight: 700,
             letterSpacing: "0.05em",
             textDecoration: "none",
-            color: app.current ? app.color : app.comingSoon ? "#5C5850" : "#D9D2C4",
+            color: app.current ? app.color : app.comingSoon ? "var(--text-tertiary)" : "#D9D2C4",
             background: app.current ? "rgba(226,135,26,0.08)" : "transparent",
             cursor: app.comingSoon ? "default" : "pointer",
             borderBottom: "1px solid #2E2A24"
           }
         },
         app.name,
-        app.comingSoon && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: "#5C5850", fontWeight: 400 } }, "COMING SOON")
+        app.comingSoon && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, color: "var(--text-tertiary)", fontWeight: 400 } }, "COMING SOON")
       ))
     ))), /* @__PURE__ */ React.createElement(
       "button",
@@ -2683,7 +2683,7 @@ function PunchBubbles() {
         title: "Check for new tasks now",
         style: {
           background: "transparent",
-          border: "1px solid #3A3733",
+          border: "1px solid var(--border-color)",
           borderRadius: "50%",
           width: 28,
           height: 28,
@@ -2723,8 +2723,8 @@ function PunchBubbles() {
             style: {
               padding: "6px 14px",
               background: active ? "var(--accent)" : "transparent",
-              color: active ? "#1E1C1A" : "#8B8680",
-              border: `1px solid ${active ? "var(--accent)" : "#3A3733"}`,
+              color: active ? "var(--bg-page)" : "#8B8680",
+              border: `1px solid ${active ? "var(--accent)" : "var(--border-color)"}`,
               borderRadius: 4,
               fontFamily: "'JetBrains Mono', monospace",
               fontWeight: 700,
@@ -2748,9 +2748,9 @@ function PunchBubbles() {
             width: 26,
             height: 26,
             borderRadius: "50%",
-            background: addPanelOpen ? "#F1ECE1" : "transparent",
-            color: addPanelOpen ? "#1E1C1A" : "#8B8680",
-            border: "1px solid #3A3733",
+            background: addPanelOpen ? "var(--text-primary)" : "transparent",
+            color: addPanelOpen ? "var(--bg-page)" : "#8B8680",
+            border: "1px solid var(--border-color)",
             cursor: "pointer",
             fontSize: 15,
             fontWeight: 700,
@@ -2768,7 +2768,7 @@ function PunchBubbles() {
             padding: "6px 14px",
             background: focusMode ? "#39FF14" : "transparent",
             color: focusMode ? "#12140F" : "#8B8680",
-            border: `1px solid ${focusMode ? "#39FF14" : "#3A3733"}`,
+            border: `1px solid ${focusMode ? "#39FF14" : "var(--border-color)"}`,
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
@@ -2783,8 +2783,8 @@ function PunchBubbles() {
       "div",
       {
         style: {
-          background: "#2A2724",
-          border: "1px solid #3A3733",
+          background: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: 4,
           padding: 12,
           marginBottom: 20
@@ -2799,9 +2799,9 @@ function PunchBubbles() {
           style: {
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 13
           }
@@ -2816,9 +2816,9 @@ function PunchBubbles() {
           style: {
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 12.5,
             resize: "vertical"
@@ -2835,7 +2835,7 @@ function PunchBubbles() {
             height: 20,
             borderRadius: "50%",
             background: c,
-            border: projectColor === c ? "2px solid #F1ECE1" : "1px solid #3A3733",
+            border: projectColor === c ? "2px solid var(--text-primary)" : "1px solid var(--border-color)",
             cursor: "pointer",
             padding: 0
           }
@@ -2847,7 +2847,7 @@ function PunchBubbles() {
           style: {
             padding: "8px 20px",
             background: "var(--accent)",
-            color: "#1E1C1A",
+            color: "var(--bg-page)",
             border: "none",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
@@ -2867,9 +2867,9 @@ function PunchBubbles() {
           style: {
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 13
           }
@@ -2883,9 +2883,9 @@ function PunchBubbles() {
             flex: 1,
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 12.5
           }
@@ -2900,7 +2900,7 @@ function PunchBubbles() {
             padding: 8,
             borderRadius: 4,
             border: `1px solid ${priorityColor[manualPriority]}`,
-            background: "#1E1C1A",
+            background: "var(--bg-page)",
             color: priorityColor[manualPriority],
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
@@ -2918,9 +2918,9 @@ function PunchBubbles() {
             flex: 1,
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 12.5
           }
@@ -2935,14 +2935,14 @@ function PunchBubbles() {
             width: 130,
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 12.5
           }
         }
-      )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, ASSIGNABLE_USERS.length > 1 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375" } }, "ASSIGN TO"), /* @__PURE__ */ React.createElement(
+      )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, ASSIGNABLE_USERS.length > 1 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)" } }, "ASSIGN TO"), /* @__PURE__ */ React.createElement(
         "select",
         {
           value: manualAssignTo,
@@ -2951,9 +2951,9 @@ function PunchBubbles() {
             flex: 1,
             padding: 7,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 12
           }
@@ -2967,7 +2967,7 @@ function PunchBubbles() {
           style: {
             padding: "8px 20px",
             background: "var(--accent)",
-            color: "#1E1C1A",
+            color: "var(--bg-page)",
             border: "none",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
@@ -2986,9 +2986,9 @@ function PunchBubbles() {
           style: {
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 13
           }
@@ -3002,9 +3002,9 @@ function PunchBubbles() {
           style: {
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 12.5
           }
@@ -3018,9 +3018,9 @@ function PunchBubbles() {
             flex: 1,
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
             fontSize: 11
@@ -3036,9 +3036,9 @@ function PunchBubbles() {
             flex: 1,
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 12.5
           }
@@ -3053,7 +3053,7 @@ function PunchBubbles() {
             padding: 8,
             borderRadius: 4,
             border: `1px solid ${priorityColor[recurPriority]}`,
-            background: "#1E1C1A",
+            background: "var(--bg-page)",
             color: priorityColor[recurPriority],
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
@@ -3068,7 +3068,7 @@ function PunchBubbles() {
           style: {
             padding: "8px 20px",
             background: "var(--accent)",
-            color: "#1E1C1A",
+            color: "var(--bg-page)",
             border: "none",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
@@ -3087,9 +3087,9 @@ function PunchBubbles() {
             flex: 1,
             padding: 8,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 13
           }
@@ -3103,8 +3103,8 @@ function PunchBubbles() {
           disabled: pickedRecordIdx === "",
           style: {
             padding: "8px 16px",
-            background: pickedRecordIdx === "" ? "#4A473F" : "var(--accent)",
-            color: pickedRecordIdx === "" ? "#8B8680" : "#1E1C1A",
+            background: pickedRecordIdx === "" ? "var(--border-input)" : "var(--accent)",
+            color: pickedRecordIdx === "" ? "#8B8680" : "var(--bg-page)",
             border: "none",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
@@ -3123,7 +3123,7 @@ function PunchBubbles() {
         style: {
           padding: "9px 16px",
           background: pendingLoading ? "#E9E2D2" : "var(--accent)",
-          color: "#1E1C1A",
+          color: "var(--bg-page)",
           border: "none",
           borderRadius: 4,
           fontFamily: "'JetBrains Mono', monospace",
@@ -3133,7 +3133,7 @@ function PunchBubbles() {
         }
       },
       pendingLoading ? "LOADING..." : "REFRESH FROM NETSUITE"
-    ), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680" } }, 'NetSuite Inbound Projects sitting at "Pending Completion" \u2014 read and written live, nothing cached here.')), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "SORT: OLDEST RECORD FIRST"), /* @__PURE__ */ React.createElement(
+    ), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680" } }, 'NetSuite Inbound Projects sitting at "Pending Completion" \u2014 read and written live, nothing cached here.')), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "SORT: OLDEST RECORD FIRST"), /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: () => setSavedSearchSortDesc((v) => !v),
@@ -3151,7 +3151,7 @@ function PunchBubbles() {
         }
       },
       savedSearchSortDesc ? "\u2193" : "\u2191"
-    )), pendingError && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 } }, pendingError), pendingLoading && pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#5C5850", fontSize: 13 } }, "Nothing pending completion right now.") : (
+    )), pendingError && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 } }, pendingError), pendingLoading && pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", fontSize: 13 } }, "Nothing pending completion right now.") : (
       // Compact row, same shape/spirit as Portfolio's list rows (colored left
       // border, single summary line, small metadata line, right-aligned status)
       // rather than an always-expanded card — click opens the actual editor
@@ -3164,7 +3164,7 @@ function PunchBubbles() {
         const isCancelled = p.stage === "Cancelled";
         const portfolioComplete = !portfolioTask && !isCancelled;
         const portfolioLabel = !p.procoreId ? null : isCancelled ? "PROJECT CANCELLED" : portfolioComplete ? "PORTFOLIO CHECKLIST COMPLETE" : "PORTFOLIO CHECKLIST INCOMPLETE";
-        const portfolioColor = isCancelled ? "#8A8375" : portfolioComplete ? "#8FC742" : "#B8AF9E";
+        const portfolioColor = isCancelled ? "var(--text-secondary)" : portfolioComplete ? "#8FC742" : "#B8AF9E";
         const portfolioNumber = portfolioTask ? projectNumberOf(portfolioTask) : "";
         return /* @__PURE__ */ React.createElement(
           "div",
@@ -3175,7 +3175,7 @@ function PunchBubbles() {
               display: "flex",
               alignItems: "center",
               gap: 12,
-              background: "#2A2724",
+              background: "var(--bg-card)",
               border: `1px solid ${color}55`,
               borderLeft: `4px solid ${color}`,
               borderRadius: 4,
@@ -3184,14 +3184,14 @@ function PunchBubbles() {
               cursor: "pointer"
             }
           },
-          /* @__PURE__ */ React.createElement("div", { style: { width: 16, height: 16, borderRadius: "50%", border: "1.5px solid #5C5850", flexShrink: 0 } }),
+          /* @__PURE__ */ React.createElement("div", { style: { width: 16, height: 16, borderRadius: "50%", border: "1.5px solid var(--text-tertiary)", flexShrink: 0 } }),
           /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement(
             "div",
             {
               style: {
                 fontFamily: "'Inter', sans-serif",
                 fontSize: 14.5,
-                color: "#F1ECE1",
+                color: "var(--text-primary)",
                 marginBottom: 3,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -3211,7 +3211,7 @@ function PunchBubbles() {
         style: {
           padding: "9px 16px",
           background: digestGenerating ? "#E9E2D2" : "var(--accent)",
-          color: "#1E1C1A",
+          color: "var(--bg-page)",
           border: "none",
           borderRadius: 4,
           fontFamily: "'JetBrains Mono', monospace",
@@ -3233,13 +3233,13 @@ function PunchBubbles() {
         }
       },
       digestError
-    ), digestLoading ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : digests.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#5C5850", fontSize: 13 } }, "No digests generated yet.") : digests.map((d) => /* @__PURE__ */ React.createElement(
+    ), digestLoading ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : digests.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", fontSize: 13 } }, "No digests generated yet.") : digests.map((d) => /* @__PURE__ */ React.createElement(
       "div",
       {
         key: d.id,
         style: {
-          background: "#2A2724",
-          border: "1px solid #3A3733",
+          background: "var(--bg-card)",
+          border: "1px solid var(--border-color)",
           borderRadius: 4,
           padding: "14px 16px",
           marginBottom: 12
@@ -3263,7 +3263,7 @@ function PunchBubbles() {
           style: {
             fontFamily: "'Inter', sans-serif",
             fontSize: 13.5,
-            color: "#F1ECE1",
+            color: "var(--text-primary)",
             lineHeight: 1.5,
             marginBottom: 10
           }
@@ -3308,7 +3308,7 @@ function PunchBubbles() {
       {
         style: {
           fontFamily: "'JetBrains Mono', monospace",
-          color: "#5C5850",
+          color: "var(--text-tertiary)",
           fontSize: 13,
           padding: "60px 0",
           textAlign: "center"
@@ -3324,7 +3324,7 @@ function PunchBubbles() {
           left: 10,
           zIndex: 5,
           width: 250,
-          background: "#2A2724",
+          background: "var(--bg-card)",
           border: `1px solid ${openedProject.color || DEFAULT_PROJECT_COLOR}`,
           borderRadius: 6,
           padding: 10,
@@ -3339,7 +3339,7 @@ function PunchBubbles() {
             height: 14,
             borderRadius: "50%",
             background: openedProject.color || DEFAULT_PROJECT_COLOR,
-            border: "1px solid #F1ECE1",
+            border: "1px solid var(--text-primary)",
             cursor: "pointer"
           },
           title: "Change color"
@@ -3356,8 +3356,8 @@ function PunchBubbles() {
             flexWrap: "wrap",
             gap: 4,
             width: 96,
-            background: "#1E1C1A",
-            border: "1px solid #3A3733",
+            background: "var(--bg-page)",
+            border: "1px solid var(--border-color)",
             borderRadius: 4,
             padding: 6
           }
@@ -3373,7 +3373,7 @@ function PunchBubbles() {
               height: 16,
               borderRadius: "50%",
               background: c,
-              border: (openedProject.color || DEFAULT_PROJECT_COLOR) === c ? "2px solid #F1ECE1" : "1px solid #3A3733",
+              border: (openedProject.color || DEFAULT_PROJECT_COLOR) === c ? "2px solid var(--text-primary)" : "1px solid var(--border-color)",
               cursor: "pointer",
               padding: 0
             }
@@ -3398,7 +3398,7 @@ function PunchBubbles() {
             fontFamily: "'Inter', sans-serif",
             fontWeight: 700,
             fontSize: 13.5,
-            color: "#F1ECE1",
+            color: "var(--text-primary)",
             background: "transparent",
             border: "1px solid transparent",
             borderRadius: 3,
@@ -3508,8 +3508,8 @@ function PunchBubbles() {
           style: {
             width: "100%",
             padding: "6px 0",
-            background: addTaskPanelOpen ? "#F1ECE1" : "transparent",
-            color: addTaskPanelOpen ? "#1E1C1A" : "var(--accent)",
+            background: addTaskPanelOpen ? "var(--text-primary)" : "transparent",
+            color: addTaskPanelOpen ? "var(--bg-page)" : "var(--accent)",
             border: "1px solid var(--accent)",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
@@ -3529,8 +3529,8 @@ function PunchBubbles() {
             flex: 1,
             padding: "4px 0",
             background: addTaskMode === mode ? "var(--accent)" : "transparent",
-            color: addTaskMode === mode ? "#1E1C1A" : "#8B8680",
-            border: `1px solid ${addTaskMode === mode ? "var(--accent)" : "#3A3733"}`,
+            color: addTaskMode === mode ? "var(--bg-page)" : "#8B8680",
+            border: `1px solid ${addTaskMode === mode ? "var(--accent)" : "var(--border-color)"}`,
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
@@ -3547,9 +3547,9 @@ function PunchBubbles() {
           style: {
             padding: 6,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 11.5
           }
@@ -3566,8 +3566,8 @@ function PunchBubbles() {
           disabled: !pickedChildIdx,
           style: {
             padding: "7px 0",
-            background: pickedChildIdx ? "var(--accent)" : "#4A473F",
-            color: "#1E1C1A",
+            background: pickedChildIdx ? "var(--accent)" : "var(--border-input)",
+            color: "var(--bg-page)",
             border: "none",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
@@ -3586,9 +3586,9 @@ function PunchBubbles() {
           style: {
             padding: 6,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 11.5
           }
@@ -3602,9 +3602,9 @@ function PunchBubbles() {
             flex: 1,
             padding: 6,
             borderRadius: 4,
-            border: "1px solid #4A473F",
-            background: "#1E1C1A",
-            color: "#F1ECE1",
+            border: "1px solid var(--border-input)",
+            background: "var(--bg-page)",
+            color: "var(--text-primary)",
             fontFamily: "'Inter', sans-serif",
             fontSize: 11
           }
@@ -3619,7 +3619,7 @@ function PunchBubbles() {
             padding: 6,
             borderRadius: 4,
             border: `1px solid ${priorityColor[manualPriority]}`,
-            background: "#1E1C1A",
+            background: "var(--bg-page)",
             color: priorityColor[manualPriority],
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
@@ -3637,7 +3637,7 @@ function PunchBubbles() {
           style: {
             padding: "7px 0",
             background: "var(--accent)",
-            color: "#1E1C1A",
+            color: "var(--bg-page)",
             border: "none",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
@@ -3655,7 +3655,7 @@ function PunchBubbles() {
           style: {
             padding: "5px 10px",
             background: "#C1401C",
-            color: "#F1ECE1",
+            color: "var(--text-primary)",
             border: "none",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
@@ -3673,7 +3673,7 @@ function PunchBubbles() {
             padding: "5px 10px",
             background: "transparent",
             color: "#8B8680",
-            border: "1px solid #3A3733",
+            border: "1px solid var(--border-color)",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
@@ -3690,7 +3690,7 @@ function PunchBubbles() {
             padding: "4px 8px",
             background: "transparent",
             color: "#8A5A4A",
-            border: "1px solid #3A3733",
+            border: "1px solid var(--border-color)",
             borderRadius: 4,
             fontFamily: "'JetBrains Mono', monospace",
             fontWeight: 700,
@@ -3766,7 +3766,7 @@ function PunchBubbles() {
             "div",
             {
               style: {
-                background: "#F1ECE1",
+                background: "var(--text-primary)",
                 border: `1px solid ${color}`,
                 borderRadius: 4,
                 padding: "8px 10px",
@@ -3817,7 +3817,7 @@ function PunchBubbles() {
                   gap: 6,
                   fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 9,
-                  color: "#8A8375",
+                  color: "var(--text-secondary)",
                   marginBottom: latest ? 6 : 0
                 }
               },
@@ -3832,7 +3832,7 @@ function PunchBubbles() {
               {
                 style: {
                   fontSize: 9.5,
-                  color: "#8A8375",
+                  color: "var(--text-secondary)",
                   lineHeight: 1.3,
                   borderTop: "1px dashed #C9C0AC",
                   paddingTop: 4
@@ -3862,7 +3862,7 @@ function PunchBubbles() {
             display: "flex",
             alignItems: "center",
             gap: 10,
-            background: "#2A2724",
+            background: "var(--bg-card)",
             border: `1px solid ${color}55`,
             borderLeft: `4px solid ${color}`,
             borderRadius: 4,
@@ -3878,7 +3878,7 @@ function PunchBubbles() {
             style: {
               fontFamily: "'Inter', sans-serif",
               fontSize: 13.5,
-              color: "#F1ECE1",
+              color: "var(--text-primary)",
               marginBottom: 2,
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -3913,7 +3913,7 @@ function PunchBubbles() {
           dueLabel
         )
       );
-    })) : /* @__PURE__ */ React.createElement("div", null, tab === "portfolio" && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "SORT: PROJECT #"), /* @__PURE__ */ React.createElement(
+    })) : /* @__PURE__ */ React.createElement("div", null, tab === "portfolio" && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "SORT: PROJECT #"), /* @__PURE__ */ React.createElement(
       "button",
       {
         onClick: () => setPortfolioSortDesc((v) => !v),
@@ -3931,7 +3931,7 @@ function PunchBubbles() {
         }
       },
       portfolioSortDesc ? "\u2193" : "\u2191"
-    )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" } }, "DEPARTMENT:"), /* @__PURE__ */ React.createElement(
+    )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "DEPARTMENT:"), /* @__PURE__ */ React.createElement(
       "select",
       {
         value: portfolioDeptFilter,
@@ -3941,7 +3941,7 @@ function PunchBubbles() {
           borderRadius: 4,
           border: "1px solid #3A3632",
           background: "transparent",
-          color: portfolioDeptFilter ? "var(--accent)" : "#8A8375",
+          color: portfolioDeptFilter ? "var(--accent)" : "var(--text-secondary)",
           fontFamily: FONT_MONO,
           fontWeight: 700,
           fontSize: SIZE_XS,
@@ -3965,7 +3965,7 @@ function PunchBubbles() {
             display: "flex",
             alignItems: "center",
             gap: 12,
-            background: "#2A2724",
+            background: "var(--bg-card)",
             border: `1px solid ${color}55`,
             borderLeft: `4px solid ${color}`,
             borderRadius: 4,
@@ -3982,7 +3982,7 @@ function PunchBubbles() {
               width: 16,
               height: 16,
               borderRadius: "50%",
-              border: "1.5px solid #5C5850",
+              border: "1.5px solid var(--text-tertiary)",
               flexShrink: 0
             }
           }
@@ -3993,7 +3993,7 @@ function PunchBubbles() {
             style: {
               fontFamily: "'Inter', sans-serif",
               fontSize: 14.5,
-              color: "#F1ECE1",
+              color: "var(--text-primary)",
               marginBottom: 3,
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -4084,7 +4084,7 @@ function PunchBubbles() {
           "div",
           {
             style: {
-              background: "#F1ECE1",
+              background: "var(--text-primary)",
               width: 560,
               maxWidth: "90vw",
               borderRadius: 6,
@@ -4098,16 +4098,16 @@ function PunchBubbles() {
             "button",
             {
               onClick: () => setSelected(null),
-              style: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#8A8375" },
+              style: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" },
               "aria-label": "Close"
             },
             /* @__PURE__ */ React.createElement(X, { size: 18 })
           ),
-          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 4 } }, "#", selected.ticket, " \xB7 STAGE REVIEW"),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 } }, "#", selected.ticket, " \xB7 STAGE REVIEW"),
           /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 17, color: "#2A2419", marginBottom: 16, paddingRight: 24 } }, selected.summary),
-          stageChange && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 12px", borderRadius: 4, background: "#EDE6D6", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#5C5850" } }, stageChange.fromStage || "(unknown)"), /* @__PURE__ */ React.createElement("span", { style: { color: "#8A8375", fontSize: 14 } }, "\u2192"), /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 12px", borderRadius: 4, background: "#C1401C22", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#C1401C" } }, stageChange.toStage)),
-          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 6 } }, "RECORDS THAT TRIGGERED THIS (", recordRows.length, ")"),
-          /* @__PURE__ */ React.createElement("div", { style: { border: "1px solid #C9C0AC", borderRadius: 4, marginBottom: 18, maxHeight: 260, overflowY: "auto" } }, recordRows.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { padding: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#8A8375" } }, "Nothing itemized.") : recordRows.map((r, i) => /* @__PURE__ */ React.createElement(
+          stageChange && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 12px", borderRadius: 4, background: "#EDE6D6", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)" } }, stageChange.fromStage || "(unknown)"), /* @__PURE__ */ React.createElement("span", { style: { color: "var(--text-secondary)", fontSize: 14 } }, "\u2192"), /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 12px", borderRadius: 4, background: "#C1401C22", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#C1401C" } }, stageChange.toStage)),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 6 } }, "RECORDS THAT TRIGGERED THIS (", recordRows.length, ")"),
+          /* @__PURE__ */ React.createElement("div", { style: { border: "1px solid #C9C0AC", borderRadius: 4, marginBottom: 18, maxHeight: 260, overflowY: "auto" } }, recordRows.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { padding: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--text-secondary)" } }, "Nothing itemized.") : recordRows.map((r, i) => /* @__PURE__ */ React.createElement(
             "a",
             {
               key: i,
@@ -4124,9 +4124,9 @@ function PunchBubbles() {
                 color: "inherit"
               }
             },
-            /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, color: "#8A8375", flexShrink: 0, width: 74 } }, (r.recordType || "").toUpperCase()),
+            /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, color: "var(--text-secondary)", flexShrink: 0, width: 74 } }, (r.recordType || "").toUpperCase()),
             /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "#2A2419", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, r.text),
-            r.source_url && /* @__PURE__ */ React.createElement(LinkIcon, { size: 12, color: "#8A8375", style: { flexShrink: 0 } })
+            r.source_url && /* @__PURE__ */ React.createElement(LinkIcon, { size: 12, color: "var(--text-secondary)", style: { flexShrink: 0 } })
           ))),
           selected.source_url && /* @__PURE__ */ React.createElement(
             "a",
@@ -4144,13 +4144,13 @@ function PunchBubbles() {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 700,
                 fontSize: 11,
-                color: "#5C5850",
+                color: "var(--text-tertiary)",
                 textDecoration: "none"
               }
             },
             "\u2197 OPEN PROJECT IN PROCORE"
           ),
-          /* @__PURE__ */ React.createElement("label", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#5C5850", display: "block", marginBottom: 6 } }, "NOTE"),
+          /* @__PURE__ */ React.createElement("label", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-tertiary)", display: "block", marginBottom: 6 } }, "NOTE"),
           /* @__PURE__ */ React.createElement(
             "textarea",
             {
@@ -4180,7 +4180,7 @@ function PunchBubbles() {
                 width: "100%",
                 padding: "10px 0",
                 background: "#5B8C5A",
-                color: "#F1ECE1",
+                color: "var(--text-primary)",
                 border: "none",
                 borderRadius: 4,
                 fontFamily: "'JetBrains Mono', monospace",
@@ -4212,7 +4212,7 @@ function PunchBubbles() {
         "div",
         {
           style: {
-            background: "#F1ECE1",
+            background: "var(--text-primary)",
             width: 460,
             maxWidth: "90vw",
             borderRadius: 6,
@@ -4233,13 +4233,13 @@ function PunchBubbles() {
               background: "none",
               border: "none",
               cursor: "pointer",
-              color: "#8A8375"
+              color: "var(--text-secondary)"
             },
             "aria-label": "Close"
           },
           /* @__PURE__ */ React.createElement(X, { size: 18 })
         ),
-        selected.assignedByUsername && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: "#8A8375", marginBottom: 6 } }, tab === "outbox" ? `ASSIGNED TO ${(ASSIGNABLE_USERS.find((u) => u.username === selected.ownerUsername)?.displayName || selected.ownerUsername || "?").toUpperCase()}` : `ASSIGNED BY ${(ASSIGNABLE_USERS.find((u) => u.username === selected.assignedByUsername)?.displayName || selected.assignedByUsername).toUpperCase()}`),
+        selected.assignedByUsername && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-secondary)", marginBottom: 6 } }, tab === "outbox" ? `ASSIGNED TO ${(ASSIGNABLE_USERS.find((u) => u.username === selected.ownerUsername)?.displayName || selected.ownerUsername || "?").toUpperCase()}` : `ASSIGNED BY ${(ASSIGNABLE_USERS.find((u) => u.username === selected.assignedByUsername)?.displayName || selected.assignedByUsername).toUpperCase()}`),
         /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 14 } }, /* @__PURE__ */ React.createElement(
           "button",
           {
@@ -4247,7 +4247,7 @@ function PunchBubbles() {
             style: {
               padding: "3px 10px",
               background: modalTab === "details" ? "#2A2419" : "transparent",
-              color: modalTab === "details" ? "#F1ECE1" : "#8A8375",
+              color: modalTab === "details" ? "var(--text-primary)" : "var(--text-secondary)",
               border: "none",
               borderRadius: 3,
               fontFamily: "'JetBrains Mono', monospace",
@@ -4264,7 +4264,7 @@ function PunchBubbles() {
             style: {
               padding: "3px 10px",
               background: modalTab === "history" ? "#2A2419" : "transparent",
-              color: modalTab === "history" ? "#F1ECE1" : "#8A8375",
+              color: modalTab === "history" ? "var(--text-primary)" : "var(--text-secondary)",
               border: "none",
               borderRadius: 3,
               fontFamily: "'JetBrains Mono', monospace",
@@ -4321,7 +4321,7 @@ function PunchBubbles() {
             style: {
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               marginBottom: 8
             }
           },
@@ -4370,7 +4370,7 @@ function PunchBubbles() {
               width: "100%",
               fontFamily: "'Inter', sans-serif",
               fontSize: 13,
-              color: "#5C5850",
+              color: "var(--text-tertiary)",
               marginBottom: 12,
               lineHeight: 1.4,
               border: "1px solid transparent",
@@ -4389,7 +4389,7 @@ function PunchBubbles() {
             style: {
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               marginBottom: 10,
               lineHeight: 1.4
             }
@@ -4398,7 +4398,7 @@ function PunchBubbles() {
           " \xB7 ",
           getLatestActionableEvent(selected.history).type.replace("_", " ").toUpperCase(),
           ": ",
-          /* @__PURE__ */ React.createElement("span", { style: { color: "#5C5850" } }, getLatestActionableEvent(selected.history).text)
+          /* @__PURE__ */ React.createElement("span", { style: { color: "var(--text-tertiary)" } }, getLatestActionableEvent(selected.history).text)
         ), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement(
           "select",
           {
@@ -4417,7 +4417,7 @@ function PunchBubbles() {
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 11,
               fontWeight: 700,
-              color: "#5C5850"
+              color: "var(--text-tertiary)"
             }
           },
           cadenceOptions.map((c) => /* @__PURE__ */ React.createElement("option", { key: c.label, value: c.days }, c.label.toUpperCase()))
@@ -4433,7 +4433,7 @@ function PunchBubbles() {
               background: "transparent",
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 11,
-              color: "#5C5850"
+              color: "var(--text-tertiary)"
             }
           },
           !categories.includes(selected.category) && /* @__PURE__ */ React.createElement("option", { value: "__custom__" }, selected.category.toUpperCase()),
@@ -4475,7 +4475,7 @@ function PunchBubbles() {
             style: {
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
-              color: "#5C5850",
+              color: "var(--text-tertiary)",
               display: "block",
               marginBottom: 6
             }
@@ -4509,7 +4509,7 @@ function PunchBubbles() {
               width: "100%",
               padding: "10px 0",
               background: "#5B8C5A",
-              color: "#F1ECE1",
+              color: "var(--text-primary)",
               border: "none",
               borderRadius: 4,
               fontFamily: "'JetBrains Mono', monospace",
@@ -4532,7 +4532,7 @@ function PunchBubbles() {
             style: {
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
-              color: "#5C5850",
+              color: "var(--text-tertiary)",
               display: "block",
               marginBottom: 6
             }
@@ -4565,7 +4565,7 @@ function PunchBubbles() {
             style: {
               flex: 1,
               padding: "8px 0",
-              background: note.trim() ? "#E9E2D2" : "#F1ECE1",
+              background: note.trim() ? "#E9E2D2" : "var(--text-primary)",
               color: note.trim() ? "#2A2419" : "#B8AF9E",
               border: "1px solid #C9C0AC",
               borderRadius: 4,
@@ -4576,13 +4576,13 @@ function PunchBubbles() {
             }
           },
           opt.label.toUpperCase()
-        ))), deletingConfirm ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#5C5850", flex: 1 } }, "Stop this recurring task for good?"), /* @__PURE__ */ React.createElement(
+        ))), deletingConfirm ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'Inter', sans-serif", fontSize: 13, color: "var(--text-tertiary)", flex: 1 } }, "Stop this recurring task for good?"), /* @__PURE__ */ React.createElement(
           "button",
           {
             onClick: deleteRecurring,
             style: {
               background: "#C1401C",
-              color: "#F1ECE1",
+              color: "var(--text-primary)",
               border: "none",
               borderRadius: 4,
               padding: "6px 10px",
@@ -4599,7 +4599,7 @@ function PunchBubbles() {
             onClick: () => setDeletingConfirm(false),
             style: {
               background: "transparent",
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               border: "1px solid #C9C0AC",
               borderRadius: 4,
               padding: "6px 8px",
@@ -4641,7 +4641,7 @@ function PunchBubbles() {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 11,
                 fontWeight: 700,
-                color: "#5C5850",
+                color: "var(--text-tertiary)",
                 letterSpacing: "0.05em"
               }
             },
@@ -4683,7 +4683,7 @@ function PunchBubbles() {
               style: {
                 fontFamily: FONT_MONO,
                 fontSize: SIZE_SM,
-                color: "#8A8375"
+                color: "var(--text-secondary)"
               }
             },
             "\xB7 ",
@@ -4758,7 +4758,7 @@ function PunchBubbles() {
             style: {
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               marginBottom: 10,
               lineHeight: 1.4
             }
@@ -4767,7 +4767,7 @@ function PunchBubbles() {
           " \xB7 ",
           getLatestActionableEvent(selected.history).type.replace("_", " ").toUpperCase(),
           ": ",
-          /* @__PURE__ */ React.createElement("span", { style: { color: "#5C5850" } }, getLatestActionableEvent(selected.history).text)
+          /* @__PURE__ */ React.createElement("span", { style: { color: "var(--text-tertiary)" } }, getLatestActionableEvent(selected.history).text)
         ), selected.list !== "portfolio" && /* @__PURE__ */ React.createElement(
           "div",
           {
@@ -4823,7 +4823,7 @@ function PunchBubbles() {
               style: {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 10,
-                color: "#8A8375",
+                color: "var(--text-secondary)",
                 textTransform: "uppercase",
                 background: "transparent",
                 border: "1px solid transparent",
@@ -4877,7 +4877,7 @@ function PunchBubbles() {
             onClick: saveSourceUrl,
             style: {
               background: "#5B8C5A",
-              color: "#F1ECE1",
+              color: "var(--text-primary)",
               border: "none",
               borderRadius: 4,
               padding: "0 12px",
@@ -4894,7 +4894,7 @@ function PunchBubbles() {
             onClick: () => setEditingLink(false),
             style: {
               background: "transparent",
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               border: "1px solid #C9C0AC",
               borderRadius: 4,
               padding: "0 10px",
@@ -4939,7 +4939,7 @@ function PunchBubbles() {
               border: "1px solid #C9C0AC",
               borderRadius: 4,
               padding: "0 10px",
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
               cursor: "pointer"
@@ -4964,7 +4964,7 @@ function PunchBubbles() {
               fontFamily: "'JetBrains Mono', monospace",
               fontWeight: 700,
               fontSize: 11,
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               cursor: "pointer"
             }
           },
@@ -4993,7 +4993,7 @@ function PunchBubbles() {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 700,
                 fontSize: 11,
-                color: "#5C5850"
+                color: "var(--text-tertiary)"
               }
             },
             /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 SELECT TYPE \u2014"),
@@ -5007,7 +5007,7 @@ function PunchBubbles() {
                 gap: 5,
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 10,
-                color: "#5C5850",
+                color: "var(--text-tertiary)",
                 cursor: "pointer"
               }
             },
@@ -5043,7 +5043,7 @@ function PunchBubbles() {
                     width: 16,
                     height: 16,
                     borderRadius: 3,
-                    border: `1.5px solid ${item.done ? "#5B8C5A" : "#8A8375"}`,
+                    border: `1.5px solid ${item.done ? "#5B8C5A" : "var(--text-secondary)"}`,
                     background: item.done ? "#5B8C5A" : "transparent",
                     display: "flex",
                     alignItems: "center",
@@ -5051,7 +5051,7 @@ function PunchBubbles() {
                     flexShrink: 0
                   }
                 },
-                item.done && /* @__PURE__ */ React.createElement(Check, { size: 11, color: "#F1ECE1", strokeWidth: 3 })
+                item.done && /* @__PURE__ */ React.createElement(Check, { size: 11, color: "var(--text-primary)", strokeWidth: 3 })
               ),
               /* @__PURE__ */ React.createElement(
                 "div",
@@ -5060,7 +5060,7 @@ function PunchBubbles() {
                     flex: 1,
                     fontFamily: FONT_BODY,
                     fontSize: SIZE_MD,
-                    color: item.done ? "#8A8375" : "#2A2419",
+                    color: item.done ? "var(--text-secondary)" : "#2A2419",
                     textDecoration: item.done ? "line-through" : "none"
                   }
                 },
@@ -5085,7 +5085,7 @@ function PunchBubbles() {
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
                     fontSize: SIZE_MD,
-                    color: "#8A8375",
+                    color: "var(--text-secondary)",
                     cursor: "pointer",
                     flexShrink: 0
                   }
@@ -5111,7 +5111,7 @@ function PunchBubbles() {
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
                     fontSize: SIZE_XS,
-                    color: "#8A8375",
+                    color: "var(--text-secondary)",
                     cursor: "pointer",
                     flexShrink: 0
                   }
@@ -5139,7 +5139,7 @@ function PunchBubbles() {
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
                     fontSize: SIZE_XS,
-                    color: budgetPopulating ? "#C9C0AC" : "#8A8375",
+                    color: budgetPopulating ? "#C9C0AC" : "var(--text-secondary)",
                     cursor: budgetPopulating ? "default" : "pointer",
                     flexShrink: 0
                   }
@@ -5162,7 +5162,7 @@ function PunchBubbles() {
                     background: "transparent",
                     border: "1px solid #C9C0AC",
                     borderRadius: 3,
-                    color: linkHref ? "#8A8375" : "#C9C0AC",
+                    color: linkHref ? "var(--text-secondary)" : "#C9C0AC",
                     cursor: linkHref ? "pointer" : "default",
                     flexShrink: 0
                   }
@@ -5180,7 +5180,7 @@ function PunchBubbles() {
                   borderRadius: 4,
                   fontFamily: FONT_MONO,
                   fontSize: SIZE_XS,
-                  color: "#5C5850",
+                  color: "var(--text-tertiary)",
                   lineHeight: 1.6
                 }
               },
@@ -5198,7 +5198,7 @@ function PunchBubbles() {
                   borderRadius: 4,
                   fontFamily: FONT_MONO,
                   fontSize: SIZE_XS,
-                  color: "#5C5850",
+                  color: "var(--text-tertiary)",
                   lineHeight: 1.6
                 }
               },
@@ -5226,7 +5226,7 @@ function PunchBubbles() {
                     borderRadius: 4,
                     border: "1px solid #5B8C5A",
                     background: "#5B8C5A",
-                    color: "#F1ECE1",
+                    color: "var(--text-primary)",
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
                     fontSize: SIZE_MD,
@@ -5244,7 +5244,7 @@ function PunchBubbles() {
                     borderRadius: 4,
                     border: "1px solid #C9C0AC",
                     background: "transparent",
-                    color: "#8A8375",
+                    color: "var(--text-secondary)",
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
                     fontSize: SIZE_MD,
@@ -5295,7 +5295,7 @@ function PunchBubbles() {
               disabled: !note.trim(),
               style: {
                 background: note.trim() ? "#5B8C5A" : "#E9E2D2",
-                color: note.trim() ? "#F1ECE1" : "#B8AF9E",
+                color: note.trim() ? "var(--text-primary)" : "#B8AF9E",
                 border: "none",
                 borderRadius: 4,
                 padding: "6px 10px",
@@ -5312,7 +5312,7 @@ function PunchBubbles() {
               onClick: () => setForceCompleteConfirm(false),
               style: {
                 background: "transparent",
-                color: "#8A8375",
+                color: "var(--text-secondary)",
                 border: "1px solid #C9C0AC",
                 borderRadius: 4,
                 padding: "6px 8px",
@@ -5354,7 +5354,7 @@ function PunchBubbles() {
               style: {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 10,
-                color: "#5C5850",
+                color: "var(--text-tertiary)",
                 marginBottom: 4
               }
             },
@@ -5367,7 +5367,7 @@ function PunchBubbles() {
               style: {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 10,
-                color: "#8A8375"
+                color: "var(--text-secondary)"
               }
             },
             "Due back: ",
@@ -5381,7 +5381,7 @@ function PunchBubbles() {
               width: "100%",
               padding: "10px 0",
               background: "#6B7A8C",
-              color: "#F1ECE1",
+              color: "var(--text-primary)",
               border: "none",
               borderRadius: 4,
               fontFamily: "'JetBrains Mono', monospace",
@@ -5398,7 +5398,7 @@ function PunchBubbles() {
             style: {
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
-              color: "#5C5850"
+              color: "var(--text-tertiary)"
             }
           },
           "NOTE"
@@ -5470,7 +5470,7 @@ function PunchBubbles() {
                 flex: 1,
                 padding: "10px 0",
                 background: "#5B8C5A",
-                color: "#F1ECE1",
+                color: "var(--text-primary)",
                 border: "none",
                 borderRadius: 4,
                 fontFamily: "'JetBrains Mono', monospace",
@@ -5488,7 +5488,7 @@ function PunchBubbles() {
                 flex: 1,
                 padding: "10px 0",
                 background: "transparent",
-                color: "#8A8375",
+                color: "var(--text-secondary)",
                 border: "1px solid #C9C0AC",
                 borderRadius: 4,
                 fontFamily: "'JetBrains Mono', monospace",
@@ -5506,7 +5506,7 @@ function PunchBubbles() {
                 width: "100%",
                 padding: "10px 0",
                 background: "#5B8C5A",
-                color: "#F1ECE1",
+                color: "var(--text-primary)",
                 border: "none",
                 borderRadius: 4,
                 fontFamily: "'JetBrains Mono', monospace",
@@ -5543,8 +5543,8 @@ function PunchBubbles() {
               style: {
                 flex: 1,
                 padding: "8px 4px",
-                background: snoozeMenuOpen ? "#6B7A8C" : snoozeReady ? "#E9E2D2" : "#F1ECE1",
-                color: snoozeMenuOpen ? "#F1ECE1" : snoozeReady ? "#2A2419" : "#B8AF9E",
+                background: snoozeMenuOpen ? "#6B7A8C" : snoozeReady ? "#E9E2D2" : "var(--text-primary)",
+                color: snoozeMenuOpen ? "var(--text-primary)" : snoozeReady ? "#2A2419" : "#B8AF9E",
                 border: "1px solid #C9C0AC",
                 borderRadius: 4,
                 fontFamily: "'JetBrains Mono', monospace",
@@ -5569,7 +5569,7 @@ function PunchBubbles() {
             style: {
               flex: 1,
               padding: "8px 4px",
-              background: note.trim() ? "#E9E2D2" : "#F1ECE1",
+              background: note.trim() ? "#E9E2D2" : "var(--text-primary)",
               color: note.trim() ? "#2A2419" : "#B8AF9E",
               border: "1px solid #C9C0AC",
               borderRadius: 4,
@@ -5592,7 +5592,7 @@ function PunchBubbles() {
               flex: 1,
               padding: "8px 4px",
               background: deletingConfirm ? "#C1401C" : "#E9E2D2",
-              color: deletingConfirm ? "#F1ECE1" : "#2A2419",
+              color: deletingConfirm ? "var(--text-primary)" : "#2A2419",
               border: "1px solid #C9C0AC",
               borderRadius: 4,
               fontFamily: "'JetBrains Mono', monospace",
@@ -5611,7 +5611,7 @@ function PunchBubbles() {
             style: {
               flex: 1,
               padding: "8px 4px",
-              background: note.trim() ? "#E9E2D2" : "#F1ECE1",
+              background: note.trim() ? "#E9E2D2" : "var(--text-primary)",
               color: note.trim() ? "#2A2419" : "#B8AF9E",
               border: "1px solid #C9C0AC",
               borderRadius: 4,
@@ -5628,7 +5628,7 @@ function PunchBubbles() {
           /* @__PURE__ */ React.createElement(Bot, { size: 11 }),
           " ",
           copilotLoading ? "..." : "COPILOT"
-        )), focusMode && focusIds.includes(selected.id) && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#8A8375", textAlign: "center", marginTop: -2, marginBottom: 10 } }, "Focus Mode: RESOLVE completes it for real. SNOOZE just clears it from this round \u2014 the task itself is untouched."), selected.parentTaskId && /* @__PURE__ */ React.createElement(
+        )), focusMode && focusIds.includes(selected.id) && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 11, color: "var(--text-secondary)", textAlign: "center", marginTop: -2, marginBottom: 10 } }, "Focus Mode: RESOLVE completes it for real. SNOOZE just clears it from this round \u2014 the task itself is untouched."), selected.parentTaskId && /* @__PURE__ */ React.createElement(
           "button",
           {
             onClick: () => removeChildFromProject(selected.id),
@@ -5647,7 +5647,7 @@ function PunchBubbles() {
             }
           },
           "REMOVE FROM PROJECT"
-        ), selected.list === "inbox" && tab !== "outbox" && ASSIGNABLE_USERS.length > 1 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", whiteSpace: "nowrap" } }, "REASSIGN TO"), /* @__PURE__ */ React.createElement(
+        ), selected.list === "inbox" && tab !== "outbox" && ASSIGNABLE_USERS.length > 1 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", whiteSpace: "nowrap" } }, "REASSIGN TO"), /* @__PURE__ */ React.createElement(
           "select",
           {
             value: "",
@@ -5721,7 +5721,7 @@ function PunchBubbles() {
               onClick: () => deleteTask(deleteReason.trim() || "Not specified"),
               style: {
                 background: "#C1401C",
-                color: "#F1ECE1",
+                color: "var(--text-primary)",
                 border: "none",
                 borderRadius: 4,
                 padding: "6px 10px",
@@ -5739,7 +5739,7 @@ function PunchBubbles() {
               onClick: () => setDeletingConfirm(false),
               style: {
                 background: "transparent",
-                color: "#8A8375",
+                color: "var(--text-secondary)",
                 border: "1px solid #C9C0AC",
                 borderRadius: 4,
                 padding: "6px 8px",
@@ -5788,7 +5788,7 @@ function PunchBubbles() {
               width: "100%",
               padding: "6px 0",
               background: "transparent",
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               border: "1px solid #C9C0AC",
               borderRadius: 4,
               fontFamily: "'JetBrains Mono', monospace",
@@ -5832,7 +5832,7 @@ function PunchBubbles() {
               flex: 1,
               padding: "8px 0",
               background: "#6B7A8C",
-              color: "#F1ECE1",
+              color: "var(--text-primary)",
               border: "none",
               borderRadius: 4,
               fontFamily: "'JetBrains Mono', monospace",
@@ -5850,7 +5850,7 @@ function PunchBubbles() {
               flex: 1,
               padding: "8px 0",
               background: "transparent",
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               border: "1px solid #C9C0AC",
               borderRadius: 4,
               fontFamily: "'JetBrains Mono', monospace",
@@ -5909,7 +5909,7 @@ function PunchBubbles() {
       "button",
       {
         onClick: exitFocusMode,
-        style: { padding: "11px 18px", background: "transparent", color: "#B8AF9E", border: "1px solid #4A473F", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: "pointer" }
+        style: { padding: "11px 18px", background: "transparent", color: "#B8AF9E", border: "1px solid var(--border-input)", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: "pointer" }
       },
       "TURN OFF FOCUS MODE"
     ), /* @__PURE__ */ React.createElement(
@@ -5917,7 +5917,7 @@ function PunchBubbles() {
       {
         onClick: focusLoadMore,
         disabled: focusPool.length === 0,
-        style: { padding: "11px 18px", background: focusPool.length === 0 ? "#2A2724" : "var(--accent)", color: focusPool.length === 0 ? "#5C5850" : "#1E1C1A", border: "none", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: focusPool.length === 0 ? "default" : "pointer" }
+        style: { padding: "11px 18px", background: focusPool.length === 0 ? "var(--bg-card)" : "var(--accent)", color: focusPool.length === 0 ? "var(--text-tertiary)" : "var(--bg-page)", border: "none", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: focusPool.length === 0 ? "default" : "pointer" }
       },
       "LOAD 5 MORE"
     )))),
@@ -5962,7 +5962,7 @@ function PunchBubbles() {
           gap: 8,
           fontFamily: "'JetBrains Mono', monospace",
           fontSize: 10,
-          color: "#8A8375"
+          color: "var(--text-secondary)"
         }
       },
       authUser && /* @__PURE__ */ React.createElement("span", null, (authUser.displayName || authUser.username || "").toUpperCase()),
@@ -5978,7 +5978,7 @@ function PunchBubbles() {
           style: {
             background: "transparent",
             border: "1px solid #3A352C",
-            color: "#8A8375",
+            color: "var(--text-secondary)",
             borderRadius: 4,
             padding: "4px 8px",
             fontFamily: "inherit",
@@ -6027,7 +6027,7 @@ function PunchBubbles() {
           "div",
           {
             style: {
-              background: "#F1ECE1",
+              background: "var(--text-primary)",
               width: 460,
               maxWidth: "90vw",
               borderRadius: 6,
@@ -6041,13 +6041,13 @@ function PunchBubbles() {
             "button",
             {
               onClick: () => setOpenedPendingId(null),
-              style: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#8A8375" },
+              style: { position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" },
               "aria-label": "Close"
             },
             /* @__PURE__ */ React.createElement(X, { size: 18 })
           ),
           /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 15, color: "#2A2419", marginBottom: 2, paddingRight: 24 } }, portfolioNumber ? `${portfolioNumber} \u2014 ${p.name}` : p.name),
-          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 4 } }, p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"),
+          /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 } }, p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"),
           p.procoreId && /* @__PURE__ */ React.createElement(
             "div",
             {
@@ -6055,19 +6055,19 @@ function PunchBubbles() {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 10,
                 fontWeight: 700,
-                color: isCancelled ? "#8A8375" : portfolioComplete ? "#5B8C5A" : "#8A8375",
+                color: isCancelled ? "var(--text-secondary)" : portfolioComplete ? "#5B8C5A" : "var(--text-secondary)",
                 marginBottom: 12
               }
             },
             isCancelled ? "PROJECT CANCELLED" : portfolioComplete ? "PORTFOLIO CHECKLIST COMPLETE" : "PORTFOLIO CHECKLIST INCOMPLETE"
           ),
-          /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "ADDRESS (READ-ONLY, FROM PROCORE)"), /* @__PURE__ */ React.createElement(
+          /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 } }, "ADDRESS (READ-ONLY, FROM PROCORE)"), /* @__PURE__ */ React.createElement(
             "div",
             {
               style: {
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 11,
-                color: addressLine ? "#5C5850" : "#C1401C",
+                color: addressLine ? "var(--text-tertiary)" : "#C1401C",
                 fontWeight: addressLine ? 400 : 700
               }
             },
@@ -6075,13 +6075,13 @@ function PunchBubbles() {
           )),
           p.procoreId && (() => {
             const dept = procoreDepartments[p.id];
-            return /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "PROCORE DEPARTMENT / PM (READ-ONLY)"), /* @__PURE__ */ React.createElement(
+            return /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 } }, "PROCORE DEPARTMENT / PM (READ-ONLY)"), /* @__PURE__ */ React.createElement(
               "div",
               {
                 style: {
                   fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 11,
-                  color: dept === "loading" ? "#8A8375" : dept ? "#5C5850" : "#C1401C",
+                  color: dept === "loading" ? "var(--text-secondary)" : dept ? "var(--text-tertiary)" : "#C1401C",
                   fontWeight: dept && dept !== "loading" ? 400 : 700,
                   fontStyle: dept === "loading" ? "italic" : "normal"
                 }
@@ -6089,7 +6089,7 @@ function PunchBubbles() {
               dept === "loading" ? "loading\u2026" : dept || "NOT SET"
             ));
           })(),
-          /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "CUSTOMER"), /* @__PURE__ */ React.createElement(
+          /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 } }, "CUSTOMER"), /* @__PURE__ */ React.createElement(
             Autocomplete,
             {
               options: customerResults[p.id] || [],
@@ -6103,7 +6103,7 @@ function PunchBubbles() {
               onSelect: (opt) => updatePendingEdit(p.id, "customer", opt),
               style: lightSelectStyle(isMissing("customer"))
             }
-          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "PROJECT MANAGER"), /* @__PURE__ */ React.createElement(
+          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 } }, "PROJECT MANAGER"), /* @__PURE__ */ React.createElement(
             "select",
             {
               value: fieldValue("projectManager", "projectManagerId"),
@@ -6112,7 +6112,7 @@ function PunchBubbles() {
             },
             /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
             pmOptions.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
-          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "CLASS"), /* @__PURE__ */ React.createElement(
+          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 } }, "CLASS"), /* @__PURE__ */ React.createElement(
             "select",
             {
               value: fieldValue("class", "classId"),
@@ -6121,7 +6121,7 @@ function PunchBubbles() {
             },
             /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
             pendingOptions.class.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
-          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "LOCATION"), /* @__PURE__ */ React.createElement(
+          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 } }, "LOCATION"), /* @__PURE__ */ React.createElement(
             "select",
             {
               value: fieldValue("location", "locationId"),
@@ -6130,7 +6130,7 @@ function PunchBubbles() {
             },
             /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Select \u2014"),
             pendingOptions.location.map((o) => /* @__PURE__ */ React.createElement("option", { key: o.id, value: o.id }, o.name))
-          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 } }, "APPROVAL STATUS"), /* @__PURE__ */ React.createElement(
+          )), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 } }, "APPROVAL STATUS"), /* @__PURE__ */ React.createElement(
             "select",
             {
               value: fieldValue("approvalStatus", "approvalStatusId") || "4",
@@ -6147,7 +6147,7 @@ function PunchBubbles() {
               style: {
                 padding: "10px 18px",
                 background: hasDraft && pendingSavingId !== p.id ? "#5B8C5A" : "#D8D0BE",
-                color: hasDraft && pendingSavingId !== p.id ? "#F1ECE1" : "#8A8375",
+                color: hasDraft && pendingSavingId !== p.id ? "var(--text-primary)" : "var(--text-secondary)",
                 border: "none",
                 borderRadius: 4,
                 fontFamily: "'JetBrains Mono', monospace",
@@ -6168,14 +6168,14 @@ function PunchBubbles() {
           position: "fixed",
           inset: 0,
           zIndex: 1e5,
-          background: "#1E1C1A",
+          background: "var(--bg-page)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontFamily: "'Inter', sans-serif"
         }
       },
-      authChecking ? /* @__PURE__ */ React.createElement("div", { style: { color: "#8A8375", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.05em" } }, "CHECKING SESSION\u2026") : /* @__PURE__ */ React.createElement(
+      authChecking ? /* @__PURE__ */ React.createElement("div", { style: { color: "var(--text-secondary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.05em" } }, "CHECKING SESSION\u2026") : /* @__PURE__ */ React.createElement(
         "form",
         {
           onSubmit: doLogin,
@@ -6188,7 +6188,7 @@ function PunchBubbles() {
             style: {
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
-              color: "#8A8375",
+              color: "var(--text-secondary)",
               marginBottom: 20,
               textTransform: "uppercase",
               letterSpacing: "0.08em"
@@ -6210,10 +6210,10 @@ function PunchBubbles() {
               boxSizing: "border-box",
               padding: "10px 12px",
               marginBottom: 10,
-              background: "#1E1C1A",
+              background: "var(--bg-page)",
               border: "1px solid #3A352C",
               borderRadius: 4,
-              color: "#F1ECE1",
+              color: "var(--text-primary)",
               fontFamily: "'Inter', sans-serif",
               fontSize: 13
             }
@@ -6233,10 +6233,10 @@ function PunchBubbles() {
               boxSizing: "border-box",
               padding: "10px 12px",
               marginBottom: 14,
-              background: "#1E1C1A",
+              background: "var(--bg-page)",
               border: "1px solid #3A352C",
               borderRadius: 4,
-              color: "#F1ECE1",
+              color: "var(--text-primary)",
               fontFamily: "'Inter', sans-serif",
               fontSize: 13
             }
@@ -6251,7 +6251,7 @@ function PunchBubbles() {
               width: "100%",
               padding: "10px 0",
               background: "var(--accent)",
-              color: "#1E1C1A",
+              color: "var(--bg-page)",
               border: "none",
               borderRadius: 4,
               fontFamily: "'JetBrains Mono', monospace",

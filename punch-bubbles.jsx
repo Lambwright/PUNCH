@@ -313,10 +313,10 @@ function playResolveChime() {
 
 function dueDateColor(task) {
   const d = daysUntilTaskDue(task);
-  if (d === null) return "#8A8375";
+  if (d === null) return "var(--text-secondary)";
   if (d < 0) return priorityColor.urgent;
   if (d <= 2) return priorityColor.high;
-  return "#8A8375";
+  return "var(--text-secondary)";
 }
 
 function effectivePriority(task) {
@@ -1993,8 +1993,8 @@ export default function PunchBubbles() {
         >
           <circle
             r={n.r}
-            fill="#2A2724"
-            stroke={dragOverProjectId === n.id ? "#F1ECE1" : color}
+            fill="var(--bg-card)"
+            stroke={dragOverProjectId === n.id ? "var(--text-primary)" : color}
             strokeWidth={n.isProject ? "3.5" : "2.5"}
           />
           <circle r={n.r - 5} fill={color} fillOpacity="0.14" />
@@ -2035,7 +2035,7 @@ export default function PunchBubbles() {
             </>
           ) : (
             // punched hole, like a physical inspection tag
-            <circle cx={0} cy={-n.r + 9} r={3.5} fill="#1E1C1A" stroke="#5C5850" strokeWidth="1" />
+            <circle cx={0} cy={-n.r + 9} r={3.5} fill="var(--bg-page)" stroke="var(--text-tertiary)" strokeWidth="1" />
           )}
           {(() => {
             const { lines, fontSize } = wrapText(n.summary, n.r);
@@ -2051,7 +2051,7 @@ export default function PunchBubbles() {
                     fontFamily: "'JetBrains Mono', monospace",
                     fontSize: ageFontSize,
                     fontWeight: 700,
-                    fill: "#F1ECE1",
+                    fill: "var(--text-primary)",
                   }}
                 >
                   {n.isProject
@@ -2342,7 +2342,7 @@ export default function PunchBubbles() {
     background: "transparent",
     fontFamily: FONT_MONO,
     fontSize: SIZE_MD,
-    color: "#5C5850",
+    color: "var(--text-tertiary)",
     width: "100%",
     boxSizing: "border-box",
   };
@@ -2379,7 +2379,7 @@ export default function PunchBubbles() {
     // their option counts are small enough that jump-to-type isn't a real problem.
     if (key === "customer") {
       const options = procoreOptions.customer;
-      if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>Loading options…</div>;
+      if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>Loading options…</div>;
       const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name));
       return (
         <Autocomplete
@@ -2395,7 +2395,7 @@ export default function PunchBubbles() {
 
     if (LIVE_OPTION_FIELDS.has(key) || key === "department" || key === "currency") {
       const options = procoreOptions[key];
-      if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>Loading options…</div>;
+      if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>Loading options…</div>;
       if (key === "currency") return editSelect(key, options, "id", (o) => o.label);
       return editSelect(key, options, "id", (o) => o.name);
     }
@@ -2420,7 +2420,7 @@ export default function PunchBubbles() {
 
     if (key === "address") {
       if (addressSuggestLoading) {
-        return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>Checking known locations…</div>;
+        return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>Checking known locations…</div>;
       }
       if (!showManualAddress && addressSuggestions && addressSuggestions.length > 0) {
         return (
@@ -2436,12 +2436,12 @@ export default function PunchBubbles() {
                   padding: "6px 8px",
                   border: "1px solid #C9C0AC",
                   borderRadius: 4,
-                  background: "#F1ECE1",
+                  background: "var(--text-primary)",
                 }}
               >
                 <div style={{ fontFamily: FONT_BODY, fontSize: SIZE_XS, color: "#2A2419" }}>
                   <div style={{ fontWeight: 700 }}>{loc.name}</div>
-                  <div style={{ color: "#8A8375" }}>
+                  <div style={{ color: "var(--text-secondary)" }}>
                     {loc.address}
                     {loc.city ? `, ${loc.city}` : ""}
                     {loc.province ? `, ${loc.province}` : ""}
@@ -2457,7 +2457,7 @@ export default function PunchBubbles() {
                     borderRadius: 4,
                     border: "1px solid #5B8C5A",
                     background: "#5B8C5A",
-                    color: "#F1ECE1",
+                    color: "var(--text-primary)",
                     fontFamily: FONT_MONO,
                     fontWeight: 700,
                     fontSize: SIZE_XS,
@@ -2476,7 +2476,7 @@ export default function PunchBubbles() {
                 border: "1px dashed #C9C0AC",
                 background: "transparent",
                 borderRadius: 4,
-                color: "#8A8375",
+                color: "var(--text-secondary)",
                 fontFamily: FONT_MONO,
                 fontSize: SIZE_XS,
                 cursor: "pointer",
@@ -2543,7 +2543,7 @@ export default function PunchBubbles() {
                 ))}
               </select>
             ) : (
-              <div style={{ ...editInputStyle, maxWidth: 140, color: "#8A8375" }}>Loading countries…</div>
+              <div style={{ ...editInputStyle, maxWidth: 140, color: "var(--text-secondary)" }}>Loading countries…</div>
             )}
           </div>
         </div>
@@ -2560,7 +2560,7 @@ export default function PunchBubbles() {
             onChange={(e) => setEditDraft((d) => ({ ...d, startDate: e.target.value }))}
             style={editInputStyle}
           />
-          <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>→</span>
+          <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>→</span>
           <input
             type="date"
             value={editDraft.endDate || ""}
@@ -3087,7 +3087,7 @@ export default function PunchBubbles() {
     <div
       style={{
         minHeight: "100%",
-        background: "#1E1C1A",
+        background: "var(--bg-page)",
         backgroundImage:
           "radial-gradient(circle at 20% 15%, rgba(226,135,26,0.05), transparent 45%)",
         padding: "36px 20px",
@@ -3106,7 +3106,7 @@ export default function PunchBubbles() {
         @keyframes burstOut { 0% { transform: translate(-50%,-50%) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.25); opacity: 0; } }
         @keyframes fireworkBurst { 0% { transform: translate(0,0) scale(1); opacity: 0; } 10% { opacity: 1; } 70% { opacity: 0.85; } 100% { transform: translate(var(--dx), var(--dy)) scale(0.3); opacity: 0; } }
         .punch-hover-edit { transition: border-color .12s ease, background-color .12s ease; }
-        .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: #4A473F !important; background-color: #1E1C1A !important; }
+        .punch-hover-edit:hover, .punch-hover-edit:focus { border-color: var(--border-input) !important; background-color: var(--bg-page) !important; }
         .punch-color-hover { position: relative; }
         .punch-color-popover { display: none; }
         .punch-color-hover:hover .punch-color-popover { display: flex; }
@@ -3160,20 +3160,20 @@ export default function PunchBubbles() {
                   fontWeight: 700,
                   fontSize: 36,
                   letterSpacing: "0.04em",
-                  color: "#F1ECE1",
+                  color: "var(--text-primary)",
                   textTransform: "uppercase",
                 }}
               >
                 Punch
               </div>
-              <span style={{ color: "#8A8375", fontSize: 12, transform: appSwitcherOpen ? "rotate(180deg)" : "none" }}>▾</span>
+              <span style={{ color: "var(--text-secondary)", fontSize: 12, transform: appSwitcherOpen ? "rotate(180deg)" : "none" }}>▾</span>
             </div>
             <span
               style={{
                 fontFamily: "'Inter', sans-serif",
                 fontSize: 9,
                 fontStyle: "italic",
-                color: "#8A8375",
+                color: "var(--text-secondary)",
                 opacity: 0.5,
                 display: "block",
                 marginTop: 2,
@@ -3216,7 +3216,7 @@ export default function PunchBubbles() {
                         fontWeight: 700,
                         letterSpacing: "0.05em",
                         textDecoration: "none",
-                        color: app.current ? app.color : app.comingSoon ? "#5C5850" : "#D9D2C4",
+                        color: app.current ? app.color : app.comingSoon ? "var(--text-tertiary)" : "#D9D2C4",
                         background: app.current ? "rgba(226,135,26,0.08)" : "transparent",
                         cursor: app.comingSoon ? "default" : "pointer",
                         borderBottom: "1px solid #2E2A24",
@@ -3224,7 +3224,7 @@ export default function PunchBubbles() {
                     >
                       {app.name}
                       {app.comingSoon && (
-                        <span style={{ fontSize: 9, color: "#5C5850", fontWeight: 400 }}>COMING SOON</span>
+                        <span style={{ fontSize: 9, color: "var(--text-tertiary)", fontWeight: 400 }}>COMING SOON</span>
                       )}
                     </a>
                   ))}
@@ -3238,7 +3238,7 @@ export default function PunchBubbles() {
             title="Check for new tasks now"
             style={{
               background: "transparent",
-              border: "1px solid #3A3733",
+              border: "1px solid var(--border-color)",
               borderRadius: "50%",
               width: 28,
               height: 28,
@@ -3293,8 +3293,8 @@ export default function PunchBubbles() {
                 style={{
                   padding: "6px 14px",
                   background: active ? "var(--accent)" : "transparent",
-                  color: active ? "#1E1C1A" : "#8B8680",
-                  border: `1px solid ${active ? "var(--accent)" : "#3A3733"}`,
+                  color: active ? "var(--bg-page)" : "#8B8680",
+                  border: `1px solid ${active ? "var(--accent)" : "var(--border-color)"}`,
                   borderRadius: 4,
                   fontFamily: "'JetBrains Mono', monospace",
                   fontWeight: 700,
@@ -3315,9 +3315,9 @@ export default function PunchBubbles() {
                 width: 26,
                 height: 26,
                 borderRadius: "50%",
-                background: addPanelOpen ? "#F1ECE1" : "transparent",
-                color: addPanelOpen ? "#1E1C1A" : "#8B8680",
-                border: "1px solid #3A3733",
+                background: addPanelOpen ? "var(--text-primary)" : "transparent",
+                color: addPanelOpen ? "var(--bg-page)" : "#8B8680",
+                border: "1px solid var(--border-color)",
                 cursor: "pointer",
                 fontSize: 15,
                 fontWeight: 700,
@@ -3335,7 +3335,7 @@ export default function PunchBubbles() {
                 padding: "6px 14px",
                 background: focusMode ? "#39FF14" : "transparent",
                 color: focusMode ? "#12140F" : "#8B8680",
-                border: `1px solid ${focusMode ? "#39FF14" : "#3A3733"}`,
+                border: `1px solid ${focusMode ? "#39FF14" : "var(--border-color)"}`,
                 borderRadius: 4,
                 fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 700,
@@ -3352,8 +3352,8 @@ export default function PunchBubbles() {
         {addPanelOpen && tab !== "snoozed" && tab !== "digest" && tab !== "searches" && !openedProjectId && (
           <div
             style={{
-              background: "#2A2724",
-              border: "1px solid #3A3733",
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
               borderRadius: 4,
               padding: 12,
               marginBottom: 20,
@@ -3373,9 +3373,9 @@ export default function PunchBubbles() {
                       style={{
                         padding: 8,
                         borderRadius: 4,
-                        border: "1px solid #4A473F",
-                        background: "#1E1C1A",
-                        color: "#F1ECE1",
+                        border: "1px solid var(--border-input)",
+                        background: "var(--bg-page)",
+                        color: "var(--text-primary)",
                         fontFamily: "'Inter', sans-serif",
                         fontSize: 13,
                       }}
@@ -3388,9 +3388,9 @@ export default function PunchBubbles() {
                       style={{
                         padding: 8,
                         borderRadius: 4,
-                        border: "1px solid #4A473F",
-                        background: "#1E1C1A",
-                        color: "#F1ECE1",
+                        border: "1px solid var(--border-input)",
+                        background: "var(--bg-page)",
+                        color: "var(--text-primary)",
                         fontFamily: "'Inter', sans-serif",
                         fontSize: 12.5,
                         resize: "vertical",
@@ -3407,7 +3407,7 @@ export default function PunchBubbles() {
                             height: 20,
                             borderRadius: "50%",
                             background: c,
-                            border: projectColor === c ? "2px solid #F1ECE1" : "1px solid #3A3733",
+                            border: projectColor === c ? "2px solid var(--text-primary)" : "1px solid var(--border-color)",
                             cursor: "pointer",
                             padding: 0,
                           }}
@@ -3419,7 +3419,7 @@ export default function PunchBubbles() {
                       style={{
                         padding: "8px 20px",
                         background: "var(--accent)",
-                        color: "#1E1C1A",
+                        color: "var(--bg-page)",
                         border: "none",
                         borderRadius: 4,
                         fontFamily: "'JetBrains Mono', monospace",
@@ -3441,9 +3441,9 @@ export default function PunchBubbles() {
                   style={{
                     padding: 8,
                     borderRadius: 4,
-                    border: "1px solid #4A473F",
-                    background: "#1E1C1A",
-                    color: "#F1ECE1",
+                    border: "1px solid var(--border-input)",
+                    background: "var(--bg-page)",
+                    color: "var(--text-primary)",
                     fontFamily: "'Inter', sans-serif",
                     fontSize: 13,
                   }}
@@ -3456,9 +3456,9 @@ export default function PunchBubbles() {
                       flex: 1,
                       padding: 8,
                       borderRadius: 4,
-                      border: "1px solid #4A473F",
-                      background: "#1E1C1A",
-                      color: "#F1ECE1",
+                      border: "1px solid var(--border-input)",
+                      background: "var(--bg-page)",
+                      color: "var(--text-primary)",
                       fontFamily: "'Inter', sans-serif",
                       fontSize: 12.5,
                     }}
@@ -3476,7 +3476,7 @@ export default function PunchBubbles() {
                       padding: 8,
                       borderRadius: 4,
                       border: `1px solid ${priorityColor[manualPriority]}`,
-                      background: "#1E1C1A",
+                      background: "var(--bg-page)",
                       color: priorityColor[manualPriority],
                       fontFamily: "'JetBrains Mono', monospace",
                       fontWeight: 700,
@@ -3499,9 +3499,9 @@ export default function PunchBubbles() {
                       flex: 1,
                       padding: 8,
                       borderRadius: 4,
-                      border: "1px solid #4A473F",
-                      background: "#1E1C1A",
-                      color: "#F1ECE1",
+                      border: "1px solid var(--border-input)",
+                      background: "var(--bg-page)",
+                      color: "var(--text-primary)",
                       fontFamily: "'Inter', sans-serif",
                       fontSize: 12.5,
                     }}
@@ -3514,9 +3514,9 @@ export default function PunchBubbles() {
                       width: 130,
                       padding: 8,
                       borderRadius: 4,
-                      border: "1px solid #4A473F",
-                      background: "#1E1C1A",
-                      color: "#F1ECE1",
+                      border: "1px solid var(--border-input)",
+                      background: "var(--bg-page)",
+                      color: "var(--text-primary)",
                       fontFamily: "'Inter', sans-serif",
                       fontSize: 12.5,
                     }}
@@ -3525,7 +3525,7 @@ export default function PunchBubbles() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {ASSIGNABLE_USERS.length > 1 && (
                     <>
-                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375" }}>
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)" }}>
                         ASSIGN TO
                       </span>
                       <select
@@ -3535,9 +3535,9 @@ export default function PunchBubbles() {
                           flex: 1,
                           padding: 7,
                           borderRadius: 4,
-                          border: "1px solid #4A473F",
-                          background: "#1E1C1A",
-                          color: "#F1ECE1",
+                          border: "1px solid var(--border-input)",
+                          background: "var(--bg-page)",
+                          color: "var(--text-primary)",
                           fontFamily: "'Inter', sans-serif",
                           fontSize: 12,
                         }}
@@ -3556,7 +3556,7 @@ export default function PunchBubbles() {
                     style={{
                       padding: "8px 20px",
                       background: "var(--accent)",
-                      color: "#1E1C1A",
+                      color: "var(--bg-page)",
                       border: "none",
                       borderRadius: 4,
                       fontFamily: "'JetBrains Mono', monospace",
@@ -3580,9 +3580,9 @@ export default function PunchBubbles() {
                   style={{
                     padding: 8,
                     borderRadius: 4,
-                    border: "1px solid #4A473F",
-                    background: "#1E1C1A",
-                    color: "#F1ECE1",
+                    border: "1px solid var(--border-input)",
+                    background: "var(--bg-page)",
+                    color: "var(--text-primary)",
                     fontFamily: "'Inter', sans-serif",
                     fontSize: 13,
                   }}
@@ -3594,9 +3594,9 @@ export default function PunchBubbles() {
                   style={{
                     padding: 8,
                     borderRadius: 4,
-                    border: "1px solid #4A473F",
-                    background: "#1E1C1A",
-                    color: "#F1ECE1",
+                    border: "1px solid var(--border-input)",
+                    background: "var(--bg-page)",
+                    color: "var(--text-primary)",
                     fontFamily: "'Inter', sans-serif",
                     fontSize: 12.5,
                   }}
@@ -3609,9 +3609,9 @@ export default function PunchBubbles() {
                       flex: 1,
                       padding: 8,
                       borderRadius: 4,
-                      border: "1px solid #4A473F",
-                      background: "#1E1C1A",
-                      color: "#F1ECE1",
+                      border: "1px solid var(--border-input)",
+                      background: "var(--bg-page)",
+                      color: "var(--text-primary)",
                       fontFamily: "'JetBrains Mono', monospace",
                       fontWeight: 700,
                       fontSize: 11,
@@ -3630,9 +3630,9 @@ export default function PunchBubbles() {
                       flex: 1,
                       padding: 8,
                       borderRadius: 4,
-                      border: "1px solid #4A473F",
-                      background: "#1E1C1A",
-                      color: "#F1ECE1",
+                      border: "1px solid var(--border-input)",
+                      background: "var(--bg-page)",
+                      color: "var(--text-primary)",
                       fontFamily: "'Inter', sans-serif",
                       fontSize: 12.5,
                     }}
@@ -3650,7 +3650,7 @@ export default function PunchBubbles() {
                       padding: 8,
                       borderRadius: 4,
                       border: `1px solid ${priorityColor[recurPriority]}`,
-                      background: "#1E1C1A",
+                      background: "var(--bg-page)",
                       color: priorityColor[recurPriority],
                       fontFamily: "'JetBrains Mono', monospace",
                       fontWeight: 700,
@@ -3669,7 +3669,7 @@ export default function PunchBubbles() {
                   style={{
                     padding: "8px 20px",
                     background: "var(--accent)",
-                    color: "#1E1C1A",
+                    color: "var(--bg-page)",
                     border: "none",
                     borderRadius: 4,
                     fontFamily: "'JetBrains Mono', monospace",
@@ -3690,9 +3690,9 @@ export default function PunchBubbles() {
                     flex: 1,
                     padding: 8,
                     borderRadius: 4,
-                    border: "1px solid #4A473F",
-                    background: "#1E1C1A",
-                    color: "#F1ECE1",
+                    border: "1px solid var(--border-input)",
+                    background: "var(--bg-page)",
+                    color: "var(--text-primary)",
                     fontFamily: "'Inter', sans-serif",
                     fontSize: 13,
                   }}
@@ -3713,8 +3713,8 @@ export default function PunchBubbles() {
                   disabled={pickedRecordIdx === ""}
                   style={{
                     padding: "8px 16px",
-                    background: pickedRecordIdx === "" ? "#4A473F" : "var(--accent)",
-                    color: pickedRecordIdx === "" ? "#8B8680" : "#1E1C1A",
+                    background: pickedRecordIdx === "" ? "var(--border-input)" : "var(--accent)",
+                    color: pickedRecordIdx === "" ? "#8B8680" : "var(--bg-page)",
                     border: "none",
                     borderRadius: 4,
                     fontFamily: "'JetBrains Mono', monospace",
@@ -3740,7 +3740,7 @@ export default function PunchBubbles() {
                 style={{
                   padding: "9px 16px",
                   background: pendingLoading ? "#E9E2D2" : "var(--accent)",
-                  color: "#1E1C1A",
+                  color: "var(--bg-page)",
                   border: "none",
                   borderRadius: 4,
                   fontFamily: "'JetBrains Mono', monospace",
@@ -3757,7 +3757,7 @@ export default function PunchBubbles() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>SORT: OLDEST RECORD FIRST</span>
+              <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>SORT: OLDEST RECORD FIRST</span>
               <button
                 onClick={() => setSavedSearchSortDesc((v) => !v)}
                 title={savedSearchSortDesc ? "Newest first — click for oldest first" : "Oldest first — click for newest first"}
@@ -3788,7 +3788,7 @@ export default function PunchBubbles() {
                 LOADING...
               </div>
             ) : pendingProjects.length === 0 ? (
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", color: "#5C5850", fontSize: 13 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", fontSize: 13 }}>
                 Nothing pending completion right now.
               </div>
             ) : (
@@ -3817,7 +3817,7 @@ export default function PunchBubbles() {
                   : portfolioComplete
                   ? "PORTFOLIO CHECKLIST COMPLETE"
                   : "PORTFOLIO CHECKLIST INCOMPLETE";
-                const portfolioColor = isCancelled ? "#8A8375" : portfolioComplete ? "#8FC742" : "#B8AF9E";
+                const portfolioColor = isCancelled ? "var(--text-secondary)" : portfolioComplete ? "#8FC742" : "#B8AF9E";
                 const portfolioNumber = portfolioTask ? projectNumberOf(portfolioTask) : "";
                 return (
                   <div
@@ -3827,7 +3827,7 @@ export default function PunchBubbles() {
                       display: "flex",
                       alignItems: "center",
                       gap: 12,
-                      background: "#2A2724",
+                      background: "var(--bg-card)",
                       border: `1px solid ${color}55`,
                       borderLeft: `4px solid ${color}`,
                       borderRadius: 4,
@@ -3836,13 +3836,13 @@ export default function PunchBubbles() {
                       cursor: "pointer",
                     }}
                   >
-                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: "1.5px solid #5C5850", flexShrink: 0 }} />
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: "1.5px solid var(--text-tertiary)", flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
                           fontFamily: "'Inter', sans-serif",
                           fontSize: 14.5,
-                          color: "#F1ECE1",
+                          color: "var(--text-primary)",
                           marginBottom: 3,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -3872,7 +3872,7 @@ export default function PunchBubbles() {
               style={{
                 padding: "9px 16px",
                 background: digestGenerating ? "#E9E2D2" : "var(--accent)",
-                color: "#1E1C1A",
+                color: "var(--bg-page)",
                 border: "none",
                 borderRadius: 4,
                 fontFamily: "'JetBrains Mono', monospace",
@@ -3903,7 +3903,7 @@ export default function PunchBubbles() {
                 LOADING...
               </div>
             ) : digests.length === 0 ? (
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", color: "#5C5850", fontSize: 13 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", fontSize: 13 }}>
                 No digests generated yet.
               </div>
             ) : (
@@ -3911,8 +3911,8 @@ export default function PunchBubbles() {
                 <div
                   key={d.id}
                   style={{
-                    background: "#2A2724",
-                    border: "1px solid #3A3733",
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border-color)",
                     borderRadius: 4,
                     padding: "14px 16px",
                     marginBottom: 12,
@@ -3932,7 +3932,7 @@ export default function PunchBubbles() {
                     style={{
                       fontFamily: "'Inter', sans-serif",
                       fontSize: 13.5,
-                      color: "#F1ECE1",
+                      color: "var(--text-primary)",
                       lineHeight: 1.5,
                       marginBottom: 10,
                     }}
@@ -3985,7 +3985,7 @@ export default function PunchBubbles() {
           <div
             style={{
               fontFamily: "'JetBrains Mono', monospace",
-              color: "#5C5850",
+              color: "var(--text-tertiary)",
               fontSize: 13,
               padding: "60px 0",
               textAlign: "center",
@@ -4011,7 +4011,7 @@ export default function PunchBubbles() {
                   left: 10,
                   zIndex: 5,
                   width: 250,
-                  background: "#2A2724",
+                  background: "var(--bg-card)",
                   border: `1px solid ${openedProject.color || DEFAULT_PROJECT_COLOR}`,
                   borderRadius: 6,
                   padding: 10,
@@ -4026,7 +4026,7 @@ export default function PunchBubbles() {
                         height: 14,
                         borderRadius: "50%",
                         background: openedProject.color || DEFAULT_PROJECT_COLOR,
-                        border: "1px solid #F1ECE1",
+                        border: "1px solid var(--text-primary)",
                         cursor: "pointer",
                       }}
                       title="Change color"
@@ -4041,8 +4041,8 @@ export default function PunchBubbles() {
                         flexWrap: "wrap",
                         gap: 4,
                         width: 96,
-                        background: "#1E1C1A",
-                        border: "1px solid #3A3733",
+                        background: "var(--bg-page)",
+                        border: "1px solid var(--border-color)",
                         borderRadius: 4,
                         padding: 6,
                       }}
@@ -4057,7 +4057,7 @@ export default function PunchBubbles() {
                             height: 16,
                             borderRadius: "50%",
                             background: c,
-                            border: (openedProject.color || DEFAULT_PROJECT_COLOR) === c ? "2px solid #F1ECE1" : "1px solid #3A3733",
+                            border: (openedProject.color || DEFAULT_PROJECT_COLOR) === c ? "2px solid var(--text-primary)" : "1px solid var(--border-color)",
                             cursor: "pointer",
                             padding: 0,
                           }}
@@ -4082,7 +4082,7 @@ export default function PunchBubbles() {
                       fontFamily: "'Inter', sans-serif",
                       fontWeight: 700,
                       fontSize: 13.5,
-                      color: "#F1ECE1",
+                      color: "var(--text-primary)",
                       background: "transparent",
                       border: "1px solid transparent",
                       borderRadius: 3,
@@ -4193,8 +4193,8 @@ export default function PunchBubbles() {
                   style={{
                     width: "100%",
                     padding: "6px 0",
-                    background: addTaskPanelOpen ? "#F1ECE1" : "transparent",
-                    color: addTaskPanelOpen ? "#1E1C1A" : "var(--accent)",
+                    background: addTaskPanelOpen ? "var(--text-primary)" : "transparent",
+                    color: addTaskPanelOpen ? "var(--bg-page)" : "var(--accent)",
                     border: "1px solid var(--accent)",
                     borderRadius: 4,
                     fontFamily: "'JetBrains Mono', monospace",
@@ -4217,8 +4217,8 @@ export default function PunchBubbles() {
                             flex: 1,
                             padding: "4px 0",
                             background: addTaskMode === mode ? "var(--accent)" : "transparent",
-                            color: addTaskMode === mode ? "#1E1C1A" : "#8B8680",
-                            border: `1px solid ${addTaskMode === mode ? "var(--accent)" : "#3A3733"}`,
+                            color: addTaskMode === mode ? "var(--bg-page)" : "#8B8680",
+                            border: `1px solid ${addTaskMode === mode ? "var(--accent)" : "var(--border-color)"}`,
                             borderRadius: 4,
                             fontFamily: "'JetBrains Mono', monospace",
                             fontWeight: 700,
@@ -4239,9 +4239,9 @@ export default function PunchBubbles() {
                           style={{
                             padding: 6,
                             borderRadius: 4,
-                            border: "1px solid #4A473F",
-                            background: "#1E1C1A",
-                            color: "#F1ECE1",
+                            border: "1px solid var(--border-input)",
+                            background: "var(--bg-page)",
+                            color: "var(--text-primary)",
                             fontFamily: "'Inter', sans-serif",
                             fontSize: 11.5,
                           }}
@@ -4263,8 +4263,8 @@ export default function PunchBubbles() {
                           disabled={!pickedChildIdx}
                           style={{
                             padding: "7px 0",
-                            background: pickedChildIdx ? "var(--accent)" : "#4A473F",
-                            color: "#1E1C1A",
+                            background: pickedChildIdx ? "var(--accent)" : "var(--border-input)",
+                            color: "var(--bg-page)",
                             border: "none",
                             borderRadius: 4,
                             fontFamily: "'JetBrains Mono', monospace",
@@ -4285,9 +4285,9 @@ export default function PunchBubbles() {
                           style={{
                             padding: 6,
                             borderRadius: 4,
-                            border: "1px solid #4A473F",
-                            background: "#1E1C1A",
-                            color: "#F1ECE1",
+                            border: "1px solid var(--border-input)",
+                            background: "var(--bg-page)",
+                            color: "var(--text-primary)",
                             fontFamily: "'Inter', sans-serif",
                             fontSize: 11.5,
                           }}
@@ -4300,9 +4300,9 @@ export default function PunchBubbles() {
                               flex: 1,
                               padding: 6,
                               borderRadius: 4,
-                              border: "1px solid #4A473F",
-                              background: "#1E1C1A",
-                              color: "#F1ECE1",
+                              border: "1px solid var(--border-input)",
+                              background: "var(--bg-page)",
+                              color: "var(--text-primary)",
                               fontFamily: "'Inter', sans-serif",
                               fontSize: 11,
                             }}
@@ -4320,7 +4320,7 @@ export default function PunchBubbles() {
                               padding: 6,
                               borderRadius: 4,
                               border: `1px solid ${priorityColor[manualPriority]}`,
-                              background: "#1E1C1A",
+                              background: "var(--bg-page)",
                               color: priorityColor[manualPriority],
                               fontFamily: "'JetBrains Mono', monospace",
                               fontWeight: 700,
@@ -4342,7 +4342,7 @@ export default function PunchBubbles() {
                           style={{
                             padding: "7px 0",
                             background: "var(--accent)",
-                            color: "#1E1C1A",
+                            color: "var(--bg-page)",
                             border: "none",
                             borderRadius: 4,
                             fontFamily: "'JetBrains Mono', monospace",
@@ -4370,7 +4370,7 @@ export default function PunchBubbles() {
                           style={{
                             padding: "5px 10px",
                             background: "#C1401C",
-                            color: "#F1ECE1",
+                            color: "var(--text-primary)",
                             border: "none",
                             borderRadius: 4,
                             fontFamily: "'JetBrains Mono', monospace",
@@ -4387,7 +4387,7 @@ export default function PunchBubbles() {
                             padding: "5px 10px",
                             background: "transparent",
                             color: "#8B8680",
-                            border: "1px solid #3A3733",
+                            border: "1px solid var(--border-color)",
                             borderRadius: 4,
                             fontFamily: "'JetBrains Mono', monospace",
                             fontWeight: 700,
@@ -4406,7 +4406,7 @@ export default function PunchBubbles() {
                         padding: "4px 8px",
                         background: "transparent",
                         color: "#8A5A4A",
-                        border: "1px solid #3A3733",
+                        border: "1px solid var(--border-color)",
                         borderRadius: 4,
                         fontFamily: "'JetBrains Mono', monospace",
                         fontWeight: 700,
@@ -4531,7 +4531,7 @@ export default function PunchBubbles() {
                   <foreignObject x={-110} y={hoveredNode.r + 8} width={220} height={tooltipHeight}>
                     <div
                       style={{
-                        background: "#F1ECE1",
+                        background: "var(--text-primary)",
                         border: `1px solid ${color}`,
                         borderRadius: 4,
                         padding: "8px 10px",
@@ -4578,7 +4578,7 @@ export default function PunchBubbles() {
                           gap: 6,
                           fontFamily: "'JetBrains Mono', monospace",
                           fontSize: 9,
-                          color: "#8A8375",
+                          color: "var(--text-secondary)",
                           marginBottom: latest ? 6 : 0,
                         }}
                       >
@@ -4607,7 +4607,7 @@ export default function PunchBubbles() {
                         <div
                           style={{
                             fontSize: 9.5,
-                            color: "#8A8375",
+                            color: "var(--text-secondary)",
                             lineHeight: 1.3,
                             borderTop: "1px dashed #C9C0AC",
                             paddingTop: 4,
@@ -4641,7 +4641,7 @@ export default function PunchBubbles() {
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
-                    background: "#2A2724",
+                    background: "var(--bg-card)",
                     border: `1px solid ${color}55`,
                     borderLeft: `4px solid ${color}`,
                     borderRadius: 4,
@@ -4656,7 +4656,7 @@ export default function PunchBubbles() {
                       style={{
                         fontFamily: "'Inter', sans-serif",
                         fontSize: 13.5,
-                        color: "#F1ECE1",
+                        color: "var(--text-primary)",
                         marginBottom: 2,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -4695,7 +4695,7 @@ export default function PunchBubbles() {
             {tab === "portfolio" && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>SORT: PROJECT #</span>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>SORT: PROJECT #</span>
                   <button
                     onClick={() => setPortfolioSortDesc((v) => !v)}
                     title={portfolioSortDesc ? "Newest first — click for oldest first" : "Oldest first — click for newest first"}
@@ -4715,7 +4715,7 @@ export default function PunchBubbles() {
                   </button>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#8A8375" }}>DEPARTMENT:</span>
+                  <span style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>DEPARTMENT:</span>
                   <select
                     value={portfolioDeptFilter}
                     onChange={(e) => setPortfolioDeptFilter(e.target.value)}
@@ -4724,7 +4724,7 @@ export default function PunchBubbles() {
                       borderRadius: 4,
                       border: "1px solid #3A3632",
                       background: "transparent",
-                      color: portfolioDeptFilter ? "var(--accent)" : "#8A8375",
+                      color: portfolioDeptFilter ? "var(--accent)" : "var(--text-secondary)",
                       fontFamily: FONT_MONO,
                       fontWeight: 700,
                       fontSize: SIZE_XS,
@@ -4755,7 +4755,7 @@ export default function PunchBubbles() {
                     display: "flex",
                     alignItems: "center",
                     gap: 12,
-                    background: "#2A2724",
+                    background: "var(--bg-card)",
                     border: `1px solid ${color}55`,
                     borderLeft: `4px solid ${color}`,
                     borderRadius: 4,
@@ -4770,7 +4770,7 @@ export default function PunchBubbles() {
                       width: 16,
                       height: 16,
                       borderRadius: "50%",
-                      border: "1.5px solid #5C5850",
+                      border: "1.5px solid var(--text-tertiary)",
                       flexShrink: 0,
                     }}
                   />
@@ -4779,7 +4779,7 @@ export default function PunchBubbles() {
                       style={{
                         fontFamily: "'Inter', sans-serif",
                         fontSize: 14.5,
-                        color: "#F1ECE1",
+                        color: "var(--text-primary)",
                         marginBottom: 3,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -4889,7 +4889,7 @@ export default function PunchBubbles() {
           >
             <div
               style={{
-                background: "#F1ECE1",
+                background: "var(--text-primary)",
                 width: 560,
                 maxWidth: "90vw",
                 borderRadius: 6,
@@ -4901,13 +4901,13 @@ export default function PunchBubbles() {
             >
               <button
                 onClick={() => setSelected(null)}
-                style={{ position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#8A8375" }}
+                style={{ position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }}
                 aria-label="Close"
               >
                 <X size={18} />
               </button>
 
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 4 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
                 #{selected.ticket} · STAGE REVIEW
               </div>
               <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 17, color: "#2A2419", marginBottom: 16, paddingRight: 24 }}>
@@ -4916,22 +4916,22 @@ export default function PunchBubbles() {
 
               {stageChange && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-                  <div style={{ padding: "6px 12px", borderRadius: 4, background: "#EDE6D6", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#5C5850" }}>
+                  <div style={{ padding: "6px 12px", borderRadius: 4, background: "#EDE6D6", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)" }}>
                     {stageChange.fromStage || "(unknown)"}
                   </div>
-                  <span style={{ color: "#8A8375", fontSize: 14 }}>→</span>
+                  <span style={{ color: "var(--text-secondary)", fontSize: 14 }}>→</span>
                   <div style={{ padding: "6px 12px", borderRadius: 4, background: "#C1401C22", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#C1401C" }}>
                     {stageChange.toStage}
                   </div>
                 </div>
               )}
 
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 6 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 6 }}>
                 RECORDS THAT TRIGGERED THIS ({recordRows.length})
               </div>
               <div style={{ border: "1px solid #C9C0AC", borderRadius: 4, marginBottom: 18, maxHeight: 260, overflowY: "auto" }}>
                 {recordRows.length === 0 ? (
-                  <div style={{ padding: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#8A8375" }}>
+                  <div style={{ padding: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--text-secondary)" }}>
                     Nothing itemized.
                   </div>
                 ) : (
@@ -4951,13 +4951,13 @@ export default function PunchBubbles() {
                         color: "inherit",
                       }}
                     >
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, color: "#8A8375", flexShrink: 0, width: 74 }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, color: "var(--text-secondary)", flexShrink: 0, width: 74 }}>
                         {(r.recordType || "").toUpperCase()}
                       </div>
                       <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "#2A2419", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {r.text}
                       </div>
-                      {r.source_url && <LinkIcon size={12} color="#8A8375" style={{ flexShrink: 0 }} />}
+                      {r.source_url && <LinkIcon size={12} color="var(--text-secondary)" style={{ flexShrink: 0 }} />}
                     </a>
                   ))
                 )}
@@ -4978,7 +4978,7 @@ export default function PunchBubbles() {
                     fontFamily: "'JetBrains Mono', monospace",
                     fontWeight: 700,
                     fontSize: 11,
-                    color: "#5C5850",
+                    color: "var(--text-tertiary)",
                     textDecoration: "none",
                   }}
                 >
@@ -4986,7 +4986,7 @@ export default function PunchBubbles() {
                 </a>
               )}
 
-              <label style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#5C5850", display: "block", marginBottom: 6 }}>
+              <label style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-tertiary)", display: "block", marginBottom: 6 }}>
                 NOTE
               </label>
               <textarea
@@ -5014,7 +5014,7 @@ export default function PunchBubbles() {
                   width: "100%",
                   padding: "10px 0",
                   background: "#5B8C5A",
-                  color: "#F1ECE1",
+                  color: "var(--text-primary)",
                   border: "none",
                   borderRadius: 4,
                   fontFamily: "'JetBrains Mono', monospace",
@@ -5046,7 +5046,7 @@ export default function PunchBubbles() {
         >
           <div
             style={{
-              background: "#F1ECE1",
+              background: "var(--text-primary)",
               width: 460,
               maxWidth: "90vw",
               borderRadius: 6,
@@ -5065,7 +5065,7 @@ export default function PunchBubbles() {
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                color: "#8A8375",
+                color: "var(--text-secondary)",
               }}
               aria-label="Close"
             >
@@ -5073,7 +5073,7 @@ export default function PunchBubbles() {
             </button>
 
             {selected.assignedByUsername && (
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: "#8A8375", marginBottom: 6 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-secondary)", marginBottom: 6 }}>
                 {tab === "outbox"
                   ? `ASSIGNED TO ${(ASSIGNABLE_USERS.find((u) => u.username === selected.ownerUsername)?.displayName || selected.ownerUsername || "?").toUpperCase()}`
                   : `ASSIGNED BY ${(ASSIGNABLE_USERS.find((u) => u.username === selected.assignedByUsername)?.displayName || selected.assignedByUsername).toUpperCase()}`}
@@ -5086,7 +5086,7 @@ export default function PunchBubbles() {
                 style={{
                   padding: "3px 10px",
                   background: modalTab === "details" ? "#2A2419" : "transparent",
-                  color: modalTab === "details" ? "#F1ECE1" : "#8A8375",
+                  color: modalTab === "details" ? "var(--text-primary)" : "var(--text-secondary)",
                   border: "none",
                   borderRadius: 3,
                   fontFamily: "'JetBrains Mono', monospace",
@@ -5102,7 +5102,7 @@ export default function PunchBubbles() {
                 style={{
                   padding: "3px 10px",
                   background: modalTab === "history" ? "#2A2419" : "transparent",
-                  color: modalTab === "history" ? "#F1ECE1" : "#8A8375",
+                  color: modalTab === "history" ? "var(--text-primary)" : "var(--text-secondary)",
                   border: "none",
                   borderRadius: 3,
                   fontFamily: "'JetBrains Mono', monospace",
@@ -5162,7 +5162,7 @@ export default function PunchBubbles() {
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 10,
-                        color: "#8A8375",
+                        color: "var(--text-secondary)",
                         marginBottom: 8,
                       }}
                     >
@@ -5208,7 +5208,7 @@ export default function PunchBubbles() {
                         width: "100%",
                         fontFamily: "'Inter', sans-serif",
                         fontSize: 13,
-                        color: "#5C5850",
+                        color: "var(--text-tertiary)",
                         marginBottom: 12,
                         lineHeight: 1.4,
                         border: "1px solid transparent",
@@ -5227,7 +5227,7 @@ export default function PunchBubbles() {
                         style={{
                           fontFamily: "'JetBrains Mono', monospace",
                           fontSize: 10,
-                          color: "#8A8375",
+                          color: "var(--text-secondary)",
                           marginBottom: 10,
                           lineHeight: 1.4,
                         }}
@@ -5236,7 +5236,7 @@ export default function PunchBubbles() {
                         {" · "}
                         {getLatestActionableEvent(selected.history).type.replace("_", " ").toUpperCase()}
                         {": "}
-                        <span style={{ color: "#5C5850" }}>
+                        <span style={{ color: "var(--text-tertiary)" }}>
                           {getLatestActionableEvent(selected.history).text}
                         </span>
                       </div>
@@ -5259,7 +5259,7 @@ export default function PunchBubbles() {
                           fontFamily: "'JetBrains Mono', monospace",
                           fontSize: 11,
                           fontWeight: 700,
-                          color: "#5C5850",
+                          color: "var(--text-tertiary)",
                         }}
                       >
                         {cadenceOptions.map((c) => (
@@ -5278,7 +5278,7 @@ export default function PunchBubbles() {
                           background: "transparent",
                           fontFamily: "'JetBrains Mono', monospace",
                           fontSize: 11,
-                          color: "#5C5850",
+                          color: "var(--text-tertiary)",
                         }}
                       >
                         {!categories.includes(selected.category) && (
@@ -5339,7 +5339,7 @@ export default function PunchBubbles() {
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 10,
-                        color: "#5C5850",
+                        color: "var(--text-tertiary)",
                         display: "block",
                         marginBottom: 6,
                       }}
@@ -5371,7 +5371,7 @@ export default function PunchBubbles() {
                         width: "100%",
                         padding: "10px 0",
                         background: "#5B8C5A",
-                        color: "#F1ECE1",
+                        color: "var(--text-primary)",
                         border: "none",
                         borderRadius: 4,
                         fontFamily: "'JetBrains Mono', monospace",
@@ -5393,7 +5393,7 @@ export default function PunchBubbles() {
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 10,
-                        color: "#5C5850",
+                        color: "var(--text-tertiary)",
                         display: "block",
                         marginBottom: 6,
                       }}
@@ -5425,7 +5425,7 @@ export default function PunchBubbles() {
                           style={{
                             flex: 1,
                             padding: "8px 0",
-                            background: note.trim() ? "#E9E2D2" : "#F1ECE1",
+                            background: note.trim() ? "#E9E2D2" : "var(--text-primary)",
                             color: note.trim() ? "#2A2419" : "#B8AF9E",
                             border: "1px solid #C9C0AC",
                             borderRadius: 4,
@@ -5442,14 +5442,14 @@ export default function PunchBubbles() {
 
                     {deletingConfirm ? (
                       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#5C5850", flex: 1 }}>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "var(--text-tertiary)", flex: 1 }}>
                           Stop this recurring task for good?
                         </span>
                         <button
                           onClick={deleteRecurring}
                           style={{
                             background: "#C1401C",
-                            color: "#F1ECE1",
+                            color: "var(--text-primary)",
                             border: "none",
                             borderRadius: 4,
                             padding: "6px 10px",
@@ -5465,7 +5465,7 @@ export default function PunchBubbles() {
                           onClick={() => setDeletingConfirm(false)}
                           style={{
                             background: "transparent",
-                            color: "#8A8375",
+                            color: "var(--text-secondary)",
                             border: "1px solid #C9C0AC",
                             borderRadius: 4,
                             padding: "6px 8px",
@@ -5509,7 +5509,7 @@ export default function PunchBubbles() {
                   fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 11,
                   fontWeight: 700,
-                  color: "#5C5850",
+                  color: "var(--text-tertiary)",
                   letterSpacing: "0.05em",
                 }}
               >
@@ -5557,7 +5557,7 @@ export default function PunchBubbles() {
                 style={{
                   fontFamily: FONT_MONO,
                   fontSize: SIZE_SM,
-                  color: "#8A8375",
+                  color: "var(--text-secondary)",
                 }}
               >
                 · {daysOpen(selected.createdAt)}D OPEN
@@ -5628,7 +5628,7 @@ export default function PunchBubbles() {
                 style={{
                   fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 10,
-                  color: "#8A8375",
+                  color: "var(--text-secondary)",
                   marginBottom: 10,
                   lineHeight: 1.4,
                 }}
@@ -5637,7 +5637,7 @@ export default function PunchBubbles() {
                 {" · "}
                 {getLatestActionableEvent(selected.history).type.replace("_", " ").toUpperCase()}
                 {": "}
-                <span style={{ color: "#5C5850" }}>
+                <span style={{ color: "var(--text-tertiary)" }}>
                   {getLatestActionableEvent(selected.history).text}
                 </span>
               </div>
@@ -5696,7 +5696,7 @@ export default function PunchBubbles() {
                     style={{
                       fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 10,
-                      color: "#8A8375",
+                      color: "var(--text-secondary)",
                       textTransform: "uppercase",
                       background: "transparent",
                       border: "1px solid transparent",
@@ -5758,7 +5758,7 @@ export default function PunchBubbles() {
                   onClick={saveSourceUrl}
                   style={{
                     background: "#5B8C5A",
-                    color: "#F1ECE1",
+                    color: "var(--text-primary)",
                     border: "none",
                     borderRadius: 4,
                     padding: "0 12px",
@@ -5774,7 +5774,7 @@ export default function PunchBubbles() {
                   onClick={() => setEditingLink(false)}
                   style={{
                     background: "transparent",
-                    color: "#8A8375",
+                    color: "var(--text-secondary)",
                     border: "1px solid #C9C0AC",
                     borderRadius: 4,
                     padding: "0 10px",
@@ -5819,7 +5819,7 @@ export default function PunchBubbles() {
                     border: "1px solid #C9C0AC",
                     borderRadius: 4,
                     padding: "0 10px",
-                    color: "#8A8375",
+                    color: "var(--text-secondary)",
                     fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 10,
                     cursor: "pointer",
@@ -5845,7 +5845,7 @@ export default function PunchBubbles() {
                   fontFamily: "'JetBrains Mono', monospace",
                   fontWeight: 700,
                   fontSize: 11,
-                  color: "#8A8375",
+                  color: "var(--text-secondary)",
                   cursor: "pointer",
                 }}
               >
@@ -5874,7 +5874,7 @@ export default function PunchBubbles() {
                       fontFamily: "'JetBrains Mono', monospace",
                       fontWeight: 700,
                       fontSize: 11,
-                      color: "#5C5850",
+                      color: "var(--text-tertiary)",
                     }}
                   >
                     <option value="">— SELECT TYPE —</option>
@@ -5891,7 +5891,7 @@ export default function PunchBubbles() {
                       gap: 5,
                       fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 10,
-                      color: "#5C5850",
+                      color: "var(--text-tertiary)",
                       cursor: "pointer",
                     }}
                   >
@@ -5935,7 +5935,7 @@ export default function PunchBubbles() {
                             width: 16,
                             height: 16,
                             borderRadius: 3,
-                            border: `1.5px solid ${item.done ? "#5B8C5A" : "#8A8375"}`,
+                            border: `1.5px solid ${item.done ? "#5B8C5A" : "var(--text-secondary)"}`,
                             background: item.done ? "#5B8C5A" : "transparent",
                             display: "flex",
                             alignItems: "center",
@@ -5943,14 +5943,14 @@ export default function PunchBubbles() {
                             flexShrink: 0,
                           }}
                         >
-                          {item.done && <Check size={11} color="#F1ECE1" strokeWidth={3} />}
+                          {item.done && <Check size={11} color="var(--text-primary)" strokeWidth={3} />}
                         </div>
                         <div
                           style={{
                             flex: 1,
                             fontFamily: FONT_BODY,
                             fontSize: SIZE_MD,
-                            color: item.done ? "#8A8375" : "#2A2419",
+                            color: item.done ? "var(--text-secondary)" : "#2A2419",
                             textDecoration: item.done ? "line-through" : "none",
                           }}
                         >
@@ -5974,7 +5974,7 @@ export default function PunchBubbles() {
                               fontFamily: FONT_MONO,
                               fontWeight: 700,
                               fontSize: SIZE_MD,
-                              color: "#8A8375",
+                              color: "var(--text-secondary)",
                               cursor: "pointer",
                               flexShrink: 0,
                             }}
@@ -6000,7 +6000,7 @@ export default function PunchBubbles() {
                               fontFamily: FONT_MONO,
                               fontWeight: 700,
                               fontSize: SIZE_XS,
-                              color: "#8A8375",
+                              color: "var(--text-secondary)",
                               cursor: "pointer",
                               flexShrink: 0,
                             }}
@@ -6027,7 +6027,7 @@ export default function PunchBubbles() {
                               fontFamily: FONT_MONO,
                               fontWeight: 700,
                               fontSize: SIZE_XS,
-                              color: budgetPopulating ? "#C9C0AC" : "#8A8375",
+                              color: budgetPopulating ? "#C9C0AC" : "var(--text-secondary)",
                               cursor: budgetPopulating ? "default" : "pointer",
                               flexShrink: 0,
                             }}
@@ -6050,7 +6050,7 @@ export default function PunchBubbles() {
                               background: "transparent",
                               border: "1px solid #C9C0AC",
                               borderRadius: 3,
-                              color: linkHref ? "#8A8375" : "#C9C0AC",
+                              color: linkHref ? "var(--text-secondary)" : "#C9C0AC",
                               cursor: linkHref ? "pointer" : "default",
                               flexShrink: 0,
                             }}
@@ -6070,7 +6070,7 @@ export default function PunchBubbles() {
                             borderRadius: 4,
                             fontFamily: FONT_MONO,
                             fontSize: SIZE_XS,
-                            color: "#5C5850",
+                            color: "var(--text-tertiary)",
                             lineHeight: 1.6,
                           }}
                         >
@@ -6092,7 +6092,7 @@ export default function PunchBubbles() {
                             borderRadius: 4,
                             fontFamily: FONT_MONO,
                             fontSize: SIZE_XS,
-                            color: "#5C5850",
+                            color: "var(--text-tertiary)",
                             lineHeight: 1.6,
                           }}
                         >
@@ -6145,7 +6145,7 @@ export default function PunchBubbles() {
                                 borderRadius: 4,
                                 border: "1px solid #5B8C5A",
                                 background: "#5B8C5A",
-                                color: "#F1ECE1",
+                                color: "var(--text-primary)",
                                 fontFamily: FONT_MONO,
                                 fontWeight: 700,
                                 fontSize: SIZE_MD,
@@ -6162,7 +6162,7 @@ export default function PunchBubbles() {
                                 borderRadius: 4,
                                 border: "1px solid #C9C0AC",
                                 background: "transparent",
-                                color: "#8A8375",
+                                color: "var(--text-secondary)",
                                 fontFamily: FONT_MONO,
                                 fontWeight: 700,
                                 fontSize: SIZE_MD,
@@ -6212,7 +6212,7 @@ export default function PunchBubbles() {
                       disabled={!note.trim()}
                       style={{
                         background: note.trim() ? "#5B8C5A" : "#E9E2D2",
-                        color: note.trim() ? "#F1ECE1" : "#B8AF9E",
+                        color: note.trim() ? "var(--text-primary)" : "#B8AF9E",
                         border: "none",
                         borderRadius: 4,
                         padding: "6px 10px",
@@ -6228,7 +6228,7 @@ export default function PunchBubbles() {
                       onClick={() => setForceCompleteConfirm(false)}
                       style={{
                         background: "transparent",
-                        color: "#8A8375",
+                        color: "var(--text-secondary)",
                         border: "1px solid #C9C0AC",
                         borderRadius: 4,
                         padding: "6px 8px",
@@ -6273,7 +6273,7 @@ export default function PunchBubbles() {
                     style={{
                       fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 10,
-                      color: "#5C5850",
+                      color: "var(--text-tertiary)",
                       marginBottom: 4,
                     }}
                   >
@@ -6283,7 +6283,7 @@ export default function PunchBubbles() {
                     style={{
                       fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 10,
-                      color: "#8A8375",
+                      color: "var(--text-secondary)",
                     }}
                   >
                     Due back: {new Date(selected.dueDate).toLocaleDateString()}
@@ -6295,7 +6295,7 @@ export default function PunchBubbles() {
                     width: "100%",
                     padding: "10px 0",
                     background: "#6B7A8C",
-                    color: "#F1ECE1",
+                    color: "var(--text-primary)",
                     border: "none",
                     borderRadius: 4,
                     fontFamily: "'JetBrains Mono', monospace",
@@ -6315,7 +6315,7 @@ export default function PunchBubbles() {
                     style={{
                       fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 10,
-                      color: "#5C5850",
+                      color: "var(--text-tertiary)",
                     }}
                   >
                     NOTE
@@ -6386,7 +6386,7 @@ export default function PunchBubbles() {
                           flex: 1,
                           padding: "10px 0",
                           background: "#5B8C5A",
-                          color: "#F1ECE1",
+                          color: "var(--text-primary)",
                           border: "none",
                           borderRadius: 4,
                           fontFamily: "'JetBrains Mono', monospace",
@@ -6403,7 +6403,7 @@ export default function PunchBubbles() {
                           flex: 1,
                           padding: "10px 0",
                           background: "transparent",
-                          color: "#8A8375",
+                          color: "var(--text-secondary)",
                           border: "1px solid #C9C0AC",
                           borderRadius: 4,
                           fontFamily: "'JetBrains Mono', monospace",
@@ -6422,7 +6422,7 @@ export default function PunchBubbles() {
                         width: "100%",
                         padding: "10px 0",
                         background: "#5B8C5A",
-                        color: "#F1ECE1",
+                        color: "var(--text-primary)",
                         border: "none",
                         borderRadius: 4,
                         fontFamily: "'JetBrains Mono', monospace",
@@ -6464,8 +6464,8 @@ export default function PunchBubbles() {
                         style={{
                           flex: 1,
                           padding: "8px 4px",
-                          background: snoozeMenuOpen ? "#6B7A8C" : snoozeReady ? "#E9E2D2" : "#F1ECE1",
-                          color: snoozeMenuOpen ? "#F1ECE1" : snoozeReady ? "#2A2419" : "#B8AF9E",
+                          background: snoozeMenuOpen ? "#6B7A8C" : snoozeReady ? "#E9E2D2" : "var(--text-primary)",
+                          color: snoozeMenuOpen ? "var(--text-primary)" : snoozeReady ? "#2A2419" : "#B8AF9E",
                           border: "1px solid #C9C0AC",
                           borderRadius: 4,
                           fontFamily: "'JetBrains Mono', monospace",
@@ -6489,7 +6489,7 @@ export default function PunchBubbles() {
                     style={{
                       flex: 1,
                       padding: "8px 4px",
-                      background: note.trim() ? "#E9E2D2" : "#F1ECE1",
+                      background: note.trim() ? "#E9E2D2" : "var(--text-primary)",
                       color: note.trim() ? "#2A2419" : "#B8AF9E",
                       border: "1px solid #C9C0AC",
                       borderRadius: 4,
@@ -6511,7 +6511,7 @@ export default function PunchBubbles() {
                       flex: 1,
                       padding: "8px 4px",
                       background: deletingConfirm ? "#C1401C" : "#E9E2D2",
-                      color: deletingConfirm ? "#F1ECE1" : "#2A2419",
+                      color: deletingConfirm ? "var(--text-primary)" : "#2A2419",
                       border: "1px solid #C9C0AC",
                       borderRadius: 4,
                       fontFamily: "'JetBrains Mono', monospace",
@@ -6529,7 +6529,7 @@ export default function PunchBubbles() {
                     style={{
                       flex: 1,
                       padding: "8px 4px",
-                      background: note.trim() ? "#E9E2D2" : "#F1ECE1",
+                      background: note.trim() ? "#E9E2D2" : "var(--text-primary)",
                       color: note.trim() ? "#2A2419" : "#B8AF9E",
                       border: "1px solid #C9C0AC",
                       borderRadius: 4,
@@ -6548,7 +6548,7 @@ export default function PunchBubbles() {
                 </div>
 
                 {focusMode && focusIds.includes(selected.id) && (
-                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "#8A8375", textAlign: "center", marginTop: -2, marginBottom: 10 }}>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: "var(--text-secondary)", textAlign: "center", marginTop: -2, marginBottom: 10 }}>
                     Focus Mode: RESOLVE completes it for real. SNOOZE just clears it from this round — the task itself is untouched.
                   </div>
                 )}
@@ -6576,7 +6576,7 @@ export default function PunchBubbles() {
 
                 {selected.list === "inbox" && tab !== "outbox" && ASSIGNABLE_USERS.length > 1 && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", whiteSpace: "nowrap" }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
                       REASSIGN TO
                     </span>
                     <select
@@ -6659,7 +6659,7 @@ export default function PunchBubbles() {
                       onClick={() => deleteTask(deleteReason.trim() || "Not specified")}
                       style={{
                         background: "#C1401C",
-                        color: "#F1ECE1",
+                        color: "var(--text-primary)",
                         border: "none",
                         borderRadius: 4,
                         padding: "6px 10px",
@@ -6675,7 +6675,7 @@ export default function PunchBubbles() {
                       onClick={() => setDeletingConfirm(false)}
                       style={{
                         background: "transparent",
-                        color: "#8A8375",
+                        color: "var(--text-secondary)",
                         border: "1px solid #C9C0AC",
                         borderRadius: 4,
                         padding: "6px 8px",
@@ -6728,7 +6728,7 @@ export default function PunchBubbles() {
                         width: "100%",
                         padding: "6px 0",
                         background: "transparent",
-                        color: "#8A8375",
+                        color: "var(--text-secondary)",
                         border: "1px solid #C9C0AC",
                         borderRadius: 4,
                         fontFamily: "'JetBrains Mono', monospace",
@@ -6773,7 +6773,7 @@ export default function PunchBubbles() {
                           flex: 1,
                           padding: "8px 0",
                           background: "#6B7A8C",
-                          color: "#F1ECE1",
+                          color: "var(--text-primary)",
                           border: "none",
                           borderRadius: 4,
                           fontFamily: "'JetBrains Mono', monospace",
@@ -6790,7 +6790,7 @@ export default function PunchBubbles() {
                           flex: 1,
                           padding: "8px 0",
                           background: "transparent",
-                          color: "#8A8375",
+                          color: "var(--text-secondary)",
                           border: "1px solid #C9C0AC",
                           borderRadius: 4,
                           fontFamily: "'JetBrains Mono', monospace",
@@ -6867,14 +6867,14 @@ export default function PunchBubbles() {
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <button
                 onClick={exitFocusMode}
-                style={{ padding: "11px 18px", background: "transparent", color: "#B8AF9E", border: "1px solid #4A473F", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: "pointer" }}
+                style={{ padding: "11px 18px", background: "transparent", color: "#B8AF9E", border: "1px solid var(--border-input)", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: "pointer" }}
               >
                 TURN OFF FOCUS MODE
               </button>
               <button
                 onClick={focusLoadMore}
                 disabled={focusPool.length === 0}
-                style={{ padding: "11px 18px", background: focusPool.length === 0 ? "#2A2724" : "var(--accent)", color: focusPool.length === 0 ? "#5C5850" : "#1E1C1A", border: "none", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: focusPool.length === 0 ? "default" : "pointer" }}
+                style={{ padding: "11px 18px", background: focusPool.length === 0 ? "var(--bg-card)" : "var(--accent)", color: focusPool.length === 0 ? "var(--text-tertiary)" : "var(--bg-page)", border: "none", borderRadius: 6, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", cursor: focusPool.length === 0 ? "default" : "pointer" }}
               >
                 LOAD 5 MORE
               </button>
@@ -6919,7 +6919,7 @@ export default function PunchBubbles() {
           style={{
             position: "fixed", top: 10, right: 16, zIndex: 500,
             display: "flex", alignItems: "center", gap: 8,
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375",
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)",
           }}
         >
           {authUser && <span>{(authUser.displayName || authUser.username || "").toUpperCase()}</span>}
@@ -6931,7 +6931,7 @@ export default function PunchBubbles() {
               setAuth(null, null);
             }}
             style={{
-              background: "transparent", border: "1px solid #3A352C", color: "#8A8375",
+              background: "transparent", border: "1px solid #3A352C", color: "var(--text-secondary)",
               borderRadius: 4, padding: "4px 8px", fontFamily: "inherit", fontSize: 10, cursor: "pointer",
             }}
           >
@@ -6986,7 +6986,7 @@ export default function PunchBubbles() {
           >
             <div
               style={{
-                background: "#F1ECE1",
+                background: "var(--text-primary)",
                 width: 460,
                 maxWidth: "90vw",
                 borderRadius: 6,
@@ -6998,7 +6998,7 @@ export default function PunchBubbles() {
             >
               <button
                 onClick={() => setOpenedPendingId(null)}
-                style={{ position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "#8A8375" }}
+                style={{ position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }}
                 aria-label="Close"
               >
                 <X size={18} />
@@ -7007,7 +7007,7 @@ export default function PunchBubbles() {
               <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 15, color: "#2A2419", marginBottom: 2, paddingRight: 24 }}>
                 {portfolioNumber ? `${portfolioNumber} — ${p.name}` : p.name}
               </div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375", marginBottom: 4 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
                 {p.procoreId ? `#${p.procoreId}` : "NO PROCORE ID"}
               </div>
               {p.procoreId && (
@@ -7016,7 +7016,7 @@ export default function PunchBubbles() {
                     fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 10,
                     fontWeight: 700,
-                    color: isCancelled ? "#8A8375" : portfolioComplete ? "#5B8C5A" : "#8A8375",
+                    color: isCancelled ? "var(--text-secondary)" : portfolioComplete ? "#5B8C5A" : "var(--text-secondary)",
                     marginBottom: 12,
                   }}
                 >
@@ -7028,14 +7028,14 @@ export default function PunchBubbles() {
                   here usually means nobody's actually opened this project's admin page
                   in Procore yet, worth knowing before completing it in NetSuite. */}
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 }}>
                   ADDRESS (READ-ONLY, FROM PROCORE)
                 </div>
                 <div
                   style={{
                     fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 11,
-                    color: addressLine ? "#5C5850" : "#C1401C",
+                    color: addressLine ? "var(--text-tertiary)" : "#C1401C",
                     fontWeight: addressLine ? 400 : 700,
                   }}
                 >
@@ -7050,14 +7050,14 @@ export default function PunchBubbles() {
                 const dept = procoreDepartments[p.id];
                 return (
                   <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 }}>
                       PROCORE DEPARTMENT / PM (READ-ONLY)
                     </div>
                     <div
                       style={{
                         fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 11,
-                        color: dept === "loading" ? "#8A8375" : dept ? "#5C5850" : "#C1401C",
+                        color: dept === "loading" ? "var(--text-secondary)" : dept ? "var(--text-tertiary)" : "#C1401C",
                         fontWeight: dept && dept !== "loading" ? 400 : 700,
                         fontStyle: dept === "loading" ? "italic" : "normal",
                       }}
@@ -7070,7 +7070,7 @@ export default function PunchBubbles() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                 <div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>CUSTOMER</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 }}>CUSTOMER</div>
                   <Autocomplete
                     options={customerResults[p.id] || []}
                     filterOptions={false}
@@ -7086,7 +7086,7 @@ export default function PunchBubbles() {
                 </div>
 
                 <div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>PROJECT MANAGER</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 }}>PROJECT MANAGER</div>
                   <select
                     value={fieldValue("projectManager", "projectManagerId")}
                     onChange={(e) => updatePendingEdit(p.id, "projectManager", e.target.value)}
@@ -7100,7 +7100,7 @@ export default function PunchBubbles() {
                 </div>
 
                 <div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>CLASS</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 }}>CLASS</div>
                   <select
                     value={fieldValue("class", "classId")}
                     onChange={(e) => updatePendingEdit(p.id, "class", e.target.value)}
@@ -7114,7 +7114,7 @@ export default function PunchBubbles() {
                 </div>
 
                 <div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>LOCATION</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 }}>LOCATION</div>
                   <select
                     value={fieldValue("location", "locationId")}
                     onChange={(e) => updatePendingEdit(p.id, "location", e.target.value)}
@@ -7128,7 +7128,7 @@ export default function PunchBubbles() {
                 </div>
 
                 <div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "#8A8375", marginBottom: 3 }}>APPROVAL STATUS</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 }}>APPROVAL STATUS</div>
                   <select
                     value={fieldValue("approvalStatus", "approvalStatusId") || "4"}
                     onChange={(e) => updatePendingEdit(p.id, "approvalStatus", e.target.value)}
@@ -7148,7 +7148,7 @@ export default function PunchBubbles() {
                   style={{
                     padding: "10px 18px",
                     background: hasDraft && pendingSavingId !== p.id ? "#5B8C5A" : "#D8D0BE",
-                    color: hasDraft && pendingSavingId !== p.id ? "#F1ECE1" : "#8A8375",
+                    color: hasDraft && pendingSavingId !== p.id ? "var(--text-primary)" : "var(--text-secondary)",
                     border: "none",
                     borderRadius: 4,
                     fontFamily: "'JetBrains Mono', monospace",
@@ -7173,13 +7173,13 @@ export default function PunchBubbles() {
       {(authChecking || !authToken) && (
         <div
           style={{
-            position: "fixed", inset: 0, zIndex: 100000, background: "#1E1C1A",
+            position: "fixed", inset: 0, zIndex: 100000, background: "var(--bg-page)",
             display: "flex", alignItems: "center", justifyContent: "center",
             fontFamily: "'Inter', sans-serif",
           }}
         >
           {authChecking ? (
-            <div style={{ color: "#8A8375", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.05em" }}>
+            <div style={{ color: "var(--text-secondary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.05em" }}>
               CHECKING SESSION…
             </div>
           ) : (
@@ -7192,7 +7192,7 @@ export default function PunchBubbles() {
               </div>
               <div
                 style={{
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8A8375",
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)",
                   marginBottom: 20, textTransform: "uppercase", letterSpacing: "0.08em",
                 }}
               >
@@ -7207,8 +7207,8 @@ export default function PunchBubbles() {
                 required
                 style={{
                   width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 10,
-                  background: "#1E1C1A", border: "1px solid #3A352C", borderRadius: 4,
-                  color: "#F1ECE1", fontFamily: "'Inter', sans-serif", fontSize: 13,
+                  background: "var(--bg-page)", border: "1px solid #3A352C", borderRadius: 4,
+                  color: "var(--text-primary)", fontFamily: "'Inter', sans-serif", fontSize: 13,
                 }}
               />
               <input
@@ -7220,15 +7220,15 @@ export default function PunchBubbles() {
                 required
                 style={{
                   width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 14,
-                  background: "#1E1C1A", border: "1px solid #3A352C", borderRadius: 4,
-                  color: "#F1ECE1", fontFamily: "'Inter', sans-serif", fontSize: 13,
+                  background: "var(--bg-page)", border: "1px solid #3A352C", borderRadius: 4,
+                  color: "var(--text-primary)", fontFamily: "'Inter', sans-serif", fontSize: 13,
                 }}
               />
               <button
                 type="submit"
                 disabled={loginSubmitting}
                 style={{
-                  width: "100%", padding: "10px 0", background: "var(--accent)", color: "#1E1C1A",
+                  width: "100%", padding: "10px 0", background: "var(--accent)", color: "var(--bg-page)",
                   border: "none", borderRadius: 4, fontFamily: "'JetBrains Mono', monospace",
                   fontWeight: 700, fontSize: 12, letterSpacing: "0.05em",
                   cursor: loginSubmitting ? "default" : "pointer", opacity: loginSubmitting ? 0.6 : 1,
