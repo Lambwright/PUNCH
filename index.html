@@ -1908,7 +1908,20 @@ function PunchBubbles() {
     if (detailType === "drawings" || detailType === "po_on_file") {
       if (!detail.found) return `Folder "${detail.folderName}" not found in Procore Documents`;
       if (!detail.files || !detail.files.length) return `${detail.folderName}: no files yet`;
-      return /* @__PURE__ */ React.createElement("div", null, detail.files.map((f, i) => /* @__PURE__ */ React.createElement("div", { key: i }, f.name)));
+      return /* @__PURE__ */ React.createElement("div", null, detail.files.map(
+        (f, i) => f.url ? /* @__PURE__ */ React.createElement(
+          "a",
+          {
+            key: i,
+            href: f.url,
+            target: "_blank",
+            rel: "noreferrer",
+            style: { display: "block", color: "#8FC742", textDecoration: "none" }
+          },
+          f.name,
+          " \u2197"
+        ) : /* @__PURE__ */ React.createElement("div", { key: i }, f.name)
+      ));
     }
     if (detailType === "forms") {
       if (!detail.forms || !detail.forms.length) return "No forms found on this project";

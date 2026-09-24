@@ -2311,9 +2311,21 @@ export default function PunchBubbles() {
       if (!detail.files || !detail.files.length) return `${detail.folderName}: no files yet`;
       return (
         <div>
-          {detail.files.map((f, i) => (
-            <div key={i}>{f.name}</div>
-          ))}
+          {detail.files.map((f, i) =>
+            f.url ? (
+              <a
+                key={i}
+                href={f.url}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: "block", color: "#8FC742", textDecoration: "none" }}
+              >
+                {f.name} ↗
+              </a>
+            ) : (
+              <div key={i}>{f.name}</div>
+            )
+          )}
         </div>
       );
     }
