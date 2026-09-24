@@ -871,6 +871,10 @@ function PunchBubbles() {
   }
   const [draftSummary, setDraftSummary] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+  const [portfolioNameEditing, setPortfolioNameEditing] = useState(false);
+  const [portfolioNameDraft, setPortfolioNameDraft] = useState("");
+  const [portfolioNameSaving, setPortfolioNameSaving] = useState(false);
+  const [portfolioNameError, setPortfolioNameError] = useState(null);
   const [availableRecords, setAvailableRecords] = useState(initialAvailableRecords);
   const [addPanelOpen, setAddPanelOpen] = useState(false);
   const [manualText, setManualText] = useState("");
@@ -1787,6 +1791,8 @@ function PunchBubbles() {
     setEditDraft({});
     setChecklistFieldError(null);
     setAddressSuggestions(null);
+    setPortfolioNameEditing(false);
+    setPortfolioNameError(null);
     setShowManualAddress(false);
     if (task.list === "portfolio" && task.checklist && task.sourceUrl) {
       apiGet(`/portfolio/procore-refresh?task_id=${task.id}`).then((row) => {
@@ -2248,6 +2254,31 @@ function PunchBubbles() {
     );
     setTasks((prev) => prev.filter((t) => t.id !== selected.id));
     setSelected(null);
+  }
+  function splitSummaryPrefix(summary) {
+    const idx = (summary || "").indexOf(" \u2014 ");
+    return idx >= 0 ? { prefix: summary.slice(0, idx), name: summary.slice(idx + 3) } : { prefix: "", name: summary || "" };
+  }
+  function startPortfolioNameEdit() {
+    setPortfolioNameDraft(splitSummaryPrefix(selected.summary).name);
+    setPortfolioNameError(null);
+    setPortfolioNameEditing(true);
+  }
+  function cancelPortfolioNameEdit() {
+    setPortfolioNameEditing(false);
+    setPortfolioNameError(null);
+  }
+  function savePortfolioNameToProcore() {
+    const trimmed = portfolioNameDraft.trim();
+    if (!trimmed) return;
+    setPortfolioNameSaving(true);
+    setPortfolioNameError(null);
+    apiPatch(`/portfolio/procore-rename?task_id=${selected.id}`, { name: trimmed }).then((updated) => {
+      updateStore(selected.id, (t) => ({ ...t, summary: updated.summary }));
+      setSelected((prev) => ({ ...prev, summary: updated.summary }));
+      pushHistory(selected.id, "procore_writeback", `Renamed in Procore: ${updated.summary}`);
+      setPortfolioNameEditing(false);
+    }).catch((err) => setPortfolioNameError(err.message || "Couldn't save to Procore")).finally(() => setPortfolioNameSaving(false));
   }
   function saveTitle() {
     const trimmed = draftSummary.trim();
@@ -4721,7 +4752,116 @@ function PunchBubbles() {
               }
             }
           ))
+        ), selected.list === "portfolio" ? /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 4 } }, portfolioNameEditing ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            style: {
+              display: "flex",
+              alignItems: "baseline",
+              flexWrap: "wrap",
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 600,
+              fontSize: 16,
+              lineHeight: 1.4
+            }
+          },
+          splitSummaryPrefix(selected.summary).prefix && /* @__PURE__ */ React.createElement("span", { style: { color: "var(--text-secondary)", whiteSpace: "nowrap", marginRight: 4 } }, splitSummaryPrefix(selected.summary).prefix, " \u2014"),
+          /* @__PURE__ */ React.createElement(
+            "input",
+            {
+              value: portfolioNameDraft,
+              onChange: (e) => setPortfolioNameDraft(e.target.value),
+              onKeyDown: (e) => {
+                if (e.key === "Enter") savePortfolioNameToProcore();
+                if (e.key === "Escape") cancelPortfolioNameEdit();
+              },
+              autoFocus: true,
+              style: {
+                flex: 1,
+                minWidth: 160,
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 600,
+                fontSize: 16,
+                color: "#2A2419",
+                border: "1px solid #C9C0AC",
+                borderRadius: 3,
+                padding: "2px 4px",
+                background: "var(--bg-input, #FBF9F4)",
+                outline: "none"
+              }
+            }
+          )
+        ), portfolioNameError && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#C1401C", marginTop: 4 } }, portfolioNameError), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 6 } }, /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: savePortfolioNameToProcore,
+            disabled: portfolioNameSaving || !portfolioNameDraft.trim(),
+            style: {
+              padding: "6px 12px",
+              borderRadius: 4,
+              border: "1px solid #5B8C5A",
+              background: "#5B8C5A",
+              color: "var(--text-primary)",
+              fontFamily: FONT_MONO,
+              fontWeight: 700,
+              fontSize: SIZE_SM,
+              cursor: "pointer",
+              opacity: portfolioNameSaving ? 0.6 : 1
+            }
+          },
+          portfolioNameSaving ? "SAVING\u2026" : "SAVE TO PROCORE"
         ), /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: cancelPortfolioNameEdit,
+            style: {
+              padding: "6px 12px",
+              borderRadius: 4,
+              border: "1px solid #C9C0AC",
+              background: "transparent",
+              color: "var(--text-secondary)",
+              fontFamily: FONT_MONO,
+              fontWeight: 700,
+              fontSize: SIZE_SM,
+              cursor: "pointer"
+            }
+          },
+          "\u2715 CANCEL"
+        ))) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            style: {
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 600,
+              fontSize: 16,
+              color: "#2A2419",
+              lineHeight: 1.4
+            }
+          },
+          selected.summary
+        ), /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            onClick: startPortfolioNameEdit,
+            title: "Rename in Procore \u2014 this project's name, not PUNCH's local copy",
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "3px 8px",
+              background: "transparent",
+              border: "1px solid #C9C0AC",
+              borderRadius: 3,
+              fontFamily: FONT_MONO,
+              fontWeight: 700,
+              fontSize: SIZE_XS,
+              color: "var(--text-secondary)",
+              cursor: "pointer",
+              flexShrink: 0
+            }
+          },
+          "\u270E EDIT"
+        ))) : /* @__PURE__ */ React.createElement(
           "textarea",
           {
             value: draftSummary,

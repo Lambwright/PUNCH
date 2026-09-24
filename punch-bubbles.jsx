@@ -904,6 +904,15 @@ export default function PunchBubbles() {
   }
   const [draftSummary, setDraftSummary] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+  // Portfolio's project name is a distinct, deliberate action (writes to Procore
+  // itself, not just PUNCH's local copy) — separate state from the free-text
+  // draftSummary editor every other task type uses, since this one needs an
+  // explicit Edit -> Save to Procore flow rather than click-to-edit-on-blur, and
+  // only ever edits the descriptive name portion, never the prefix.
+  const [portfolioNameEditing, setPortfolioNameEditing] = useState(false);
+  const [portfolioNameDraft, setPortfolioNameDraft] = useState("");
+  const [portfolioNameSaving, setPortfolioNameSaving] = useState(false);
+  const [portfolioNameError, setPortfolioNameError] = useState(null);
   const [availableRecords, setAvailableRecords] = useState(initialAvailableRecords);
   const [addPanelOpen, setAddPanelOpen] = useState(false);
   const [manualText, setManualText] = useState("");
@@ -2147,6 +2156,8 @@ export default function PunchBubbles() {
     setEditDraft({});
     setChecklistFieldError(null);
     setAddressSuggestions(null);
+    setPortfolioNameEditing(false);
+    setPortfolioNameError(null);
     setShowManualAddress(false);
 
     // Portfolio records are a live mirror of Procore, not PUNCH's own data — refresh
@@ -2752,6 +2763,43 @@ export default function PunchBubbles() {
     );
     setTasks((prev) => prev.filter((t) => t.id !== selected.id));
     setSelected(null);
+  }
+
+  // Splits "{prefix} — {name}" on the FIRST " — " — mirrors the worker's own
+  // splitSummaryPrefix exactly, so what's shown as the read-only prefix here is
+  // always whatever the worker will actually preserve on save.
+  function splitSummaryPrefix(summary) {
+    const idx = (summary || "").indexOf(" — ");
+    return idx >= 0
+      ? { prefix: summary.slice(0, idx), name: summary.slice(idx + 3) }
+      : { prefix: "", name: summary || "" };
+  }
+
+  function startPortfolioNameEdit() {
+    setPortfolioNameDraft(splitSummaryPrefix(selected.summary).name);
+    setPortfolioNameError(null);
+    setPortfolioNameEditing(true);
+  }
+
+  function cancelPortfolioNameEdit() {
+    setPortfolioNameEditing(false);
+    setPortfolioNameError(null);
+  }
+
+  function savePortfolioNameToProcore() {
+    const trimmed = portfolioNameDraft.trim();
+    if (!trimmed) return;
+    setPortfolioNameSaving(true);
+    setPortfolioNameError(null);
+    apiPatch(`/portfolio/procore-rename?task_id=${selected.id}`, { name: trimmed })
+      .then((updated) => {
+        updateStore(selected.id, (t) => ({ ...t, summary: updated.summary }));
+        setSelected((prev) => ({ ...prev, summary: updated.summary }));
+        pushHistory(selected.id, "procore_writeback", `Renamed in Procore: ${updated.summary}`);
+        setPortfolioNameEditing(false);
+      })
+      .catch((err) => setPortfolioNameError(err.message || "Couldn't save to Procore"))
+      .finally(() => setPortfolioNameSaving(false));
   }
 
   function saveTitle() {
@@ -5597,36 +5645,160 @@ export default function PunchBubbles() {
               )}
             </div>
 
-            <textarea
-              value={draftSummary}
-              onChange={(e) => setDraftSummary(e.target.value)}
-              onBlur={saveTitle}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  saveTitle();
-                  e.target.blur();
-                }
-              }}
-              rows={2}
-              style={{
-                width: "100%",
-                fontFamily: "'Inter', sans-serif",
-                fontWeight: 600,
-                fontSize: 16,
-                color: "#2A2419",
-                marginBottom: 4,
-                lineHeight: 1.4,
-                border: "1px solid transparent",
-                borderRadius: 3,
-                padding: "2px 4px",
-                marginLeft: -4,
-                background: "transparent",
-                resize: "none",
-                outline: "none",
-              }}
-              onFocus={(e) => (e.target.style.border = "1px solid #C9C0AC")}
-            />
+            {selected.list === "portfolio" ? (
+              <div style={{ marginBottom: 4 }}>
+                {portfolioNameEditing ? (
+                  <>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "baseline",
+                        flexWrap: "wrap",
+                        fontFamily: "'Inter', sans-serif",
+                        fontWeight: 600,
+                        fontSize: 16,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {splitSummaryPrefix(selected.summary).prefix && (
+                        <span style={{ color: "var(--text-secondary)", whiteSpace: "nowrap", marginRight: 4 }}>
+                          {splitSummaryPrefix(selected.summary).prefix} —
+                        </span>
+                      )}
+                      <input
+                        value={portfolioNameDraft}
+                        onChange={(e) => setPortfolioNameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") savePortfolioNameToProcore();
+                          if (e.key === "Escape") cancelPortfolioNameEdit();
+                        }}
+                        autoFocus
+                        style={{
+                          flex: 1,
+                          minWidth: 160,
+                          fontFamily: "'Inter', sans-serif",
+                          fontWeight: 600,
+                          fontSize: 16,
+                          color: "#2A2419",
+                          border: "1px solid #C9C0AC",
+                          borderRadius: 3,
+                          padding: "2px 4px",
+                          background: "var(--bg-input, #FBF9F4)",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+                    {portfolioNameError && (
+                      <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "#C1401C", marginTop: 4 }}>
+                        {portfolioNameError}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                      <button
+                        onClick={savePortfolioNameToProcore}
+                        disabled={portfolioNameSaving || !portfolioNameDraft.trim()}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 4,
+                          border: "1px solid #5B8C5A",
+                          background: "#5B8C5A",
+                          color: "var(--text-primary)",
+                          fontFamily: FONT_MONO,
+                          fontWeight: 700,
+                          fontSize: SIZE_SM,
+                          cursor: "pointer",
+                          opacity: portfolioNameSaving ? 0.6 : 1,
+                        }}
+                      >
+                        {portfolioNameSaving ? "SAVING…" : "SAVE TO PROCORE"}
+                      </button>
+                      <button
+                        onClick={cancelPortfolioNameEdit}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 4,
+                          border: "1px solid #C9C0AC",
+                          background: "transparent",
+                          color: "var(--text-secondary)",
+                          fontFamily: FONT_MONO,
+                          fontWeight: 700,
+                          fontSize: SIZE_SM,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ✕ CANCEL
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        fontWeight: 600,
+                        fontSize: 16,
+                        color: "#2A2419",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {selected.summary}
+                    </div>
+                    <button
+                      onClick={startPortfolioNameEdit}
+                      title="Rename in Procore — this project's name, not PUNCH's local copy"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        padding: "3px 8px",
+                        background: "transparent",
+                        border: "1px solid #C9C0AC",
+                        borderRadius: 3,
+                        fontFamily: FONT_MONO,
+                        fontWeight: 700,
+                        fontSize: SIZE_XS,
+                        color: "var(--text-secondary)",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    >
+                      ✎ EDIT
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <textarea
+                value={draftSummary}
+                onChange={(e) => setDraftSummary(e.target.value)}
+                onBlur={saveTitle}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    saveTitle();
+                    e.target.blur();
+                  }
+                }}
+                rows={2}
+                style={{
+                  width: "100%",
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 600,
+                  fontSize: 16,
+                  color: "#2A2419",
+                  marginBottom: 4,
+                  lineHeight: 1.4,
+                  border: "1px solid transparent",
+                  borderRadius: 3,
+                  padding: "2px 4px",
+                  marginLeft: -4,
+                  background: "transparent",
+                  resize: "none",
+                  outline: "none",
+                }}
+                onFocus={(e) => (e.target.style.border = "1px solid #C9C0AC")}
+              />
+            )}
             {getLatestActionableEvent(selected.history) && (
               <div
                 style={{
