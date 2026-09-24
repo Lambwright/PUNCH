@@ -631,7 +631,9 @@ const APP_SWITCHER_LINKS = [
   { name: "SCOUT", url: "https://lambwright.github.io/scout-addin/app.html", color: "#8FC742", current: false },
   { name: "INTAKE", url: "https://lambwright.github.io/scout-intake/", color: "#8FC742", current: false },
   { name: "TALLY", url: "https://lambwright.github.io/tally/", color: "#E2871A", current: false },
+  { name: "HANDOFF", url: "https://lambwright.github.io/handoff/", color: "#1CA594", current: false },
   { name: "HELM", url: "https://lambwright.github.io/helm/", color: "#9BA8B5", current: false },
+  { name: "CRM", url: "https://lambwright.github.io/crm/", color: "#8B5CF6", current: false },
 ];
 
 // The real Project Manager roster, as read off Procore's own live PM dropdown —
