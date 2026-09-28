@@ -622,20 +622,31 @@ const PROJECT_COLORS = [
 ];
 const DEFAULT_PROJECT_COLOR = PROJECT_COLORS[0];
 
-// The app-switcher dropdown, mirrored across PUNCH/SCOUT/INTAKE. PUNCH is
-// Ben's personal tool (see the username check in punch-worker) so it's listed
-// but not linked from the other two — everyone can see it exists, only Ben
-// can actually get in.
-const APP_SWITCHER_LINKS = [
-  { name: "PUNCH", url: "https://lambwright.github.io/PUNCH/", color: "#E2871A", current: true },
-  { name: "SCOUT", url: "https://lambwright.github.io/scout-addin/app.html", color: "#8FC742", current: false },
-  { name: "INTAKE", url: "https://lambwright.github.io/scout-intake/", color: "#8FC742", current: false },
-  { name: "TALLY", url: "https://lambwright.github.io/tally/", color: "#E2871A", current: false },
-  { name: "HANDOFF", url: "https://lambwright.github.io/handoff/", color: "#1CA594", current: false },
-  { name: "LEDGER", url: "https://lambwright.github.io/ledger/", color: "#5B9BE0", current: false },
-  { name: "HELM", url: "https://lambwright.github.io/helm/", color: "#9BA8B5", current: false },
-  { name: "CRM", url: "https://lambwright.github.io/crm/", color: "#8B5CF6", current: false },
+// The app-switcher dropdown, same suite switcher every other app carries —
+// keep the list and the visibility rule below identical across apps.
+const APP_LINKS = [
+  { name: "PUNCH", url: "https://lambwright.github.io/PUNCH/", color: "#E2871A" },
+  { name: "SCOUT", url: "https://lambwright.github.io/scout-addin/app.html", color: "#8FC742" },
+  { name: "INTAKE", url: "https://lambwright.github.io/scout-intake/", color: "#8FC742" },
+  { name: "TALLY", url: "https://lambwright.github.io/tally/", color: "#E2871A" },
+  { name: "HANDOFF", url: "https://lambwright.github.io/handoff/", color: "#1CA594" },
+  { name: "LEDGER", url: "https://lambwright.github.io/ledger/", color: "#5B9BE0" },
+  { name: "CRM", url: "https://lambwright.github.io/crm/", color: "#8B5CF6" },
 ];
+const HELM_LINK = { name: "HELM", url: "https://lambwright.github.io/helm/", color: "#9BA8B5" };
+const CURRENT_APP = "PUNCH";
+
+// Only apps this user can open, then HELM always last (it's where settings
+// live). No apps granted = nothing but this app and HELM (access fails
+// closed — see auth-worker/README.md).
+function appSwitcherLinks(user) {
+  const apps = (Array.isArray(user?.apps) ? user.apps : []).map((a) => String(a).toUpperCase());
+  const allowed = (name) => apps.includes(name);
+  return [...APP_LINKS.filter((a) => a.name === CURRENT_APP || allowed(a.name)), HELM_LINK].map((a) => ({
+    ...a,
+    current: a.name === CURRENT_APP,
+  }));
+}
 
 // The real Project Manager roster, as read off Procore's own live PM dropdown —
 // Einbau ID accounts a task can be assigned to/from — hand-maintained, same
@@ -833,6 +844,9 @@ export default function PunchBubbles() {
           setAuth(fresh, data.user);
         } else {
           localStorage.removeItem(PUNCH_TOKEN_KEY);
+          if (data.error === "no_app_access") {
+            setLoginError("Your account doesn't have access to any apps yet. Ask an admin to grant you access in HELM.");
+          }
         }
       })
       .catch(() => localStorage.removeItem(PUNCH_TOKEN_KEY))
@@ -851,7 +865,11 @@ export default function PunchBubbles() {
       });
       const data = await res.json();
       if (!res.ok || !data.token) {
-        setLoginError("Invalid username or password.");
+        setLoginError(
+          data.error === "no_app_access"
+            ? "Your account doesn't have access to any apps yet. Ask an admin to grant you access in HELM."
+            : "Invalid username or password."
+        );
         return;
       }
       localStorage.setItem(PUNCH_TOKEN_KEY, data.token);
@@ -3267,7 +3285,7 @@ export default function PunchBubbles() {
                     boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
                   }}
                 >
-                  {APP_SWITCHER_LINKS.map((app) => (
+                  {appSwitcherLinks(authUser).map((app) => (
                     <a
                       key={app.name}
                       href={app.comingSoon ? undefined : app.url}
