@@ -648,17 +648,23 @@ function appSwitcherLinks(user) {
   }));
 }
 
-// The real Project Manager roster, as read off Procore's own live PM dropdown —
-// Einbau ID accounts a task can be assigned to/from — hand-maintained, same
-// tradeoff as KNOWN_PM_NAMES below (no small-roster directory endpoint exists to
-// query this live). username must be the real Einbau ID login name — confirmed
-// live against auth-worker's own user list that these accounts use their email as
-// the login name (Ben's "ben" is the one legacy exception).
-const ASSIGNABLE_USERS = [
-  { username: "ben", displayName: "Ben" },
-  { username: "josh@einbau.ca", displayName: "Josh" },
-  { username: "devid@einbau.ca", displayName: "Devid" },
-];
+// What this signed-in account may do in PUNCH, from the Einbau ID role matrix
+// (auth-worker/README.md "Role matrix"): "owner" (full PUNCH, incl. ingestion),
+// "restricted", or null = no access. Mirrors isAuthorized() in punch-worker —
+// keep the two identical. "access" means PUNCH's matrix row isn't Live yet, so
+// the pre-matrix rule applies unchanged (legacy admin = owner, else restricted).
+// Anything else, including a missing user or key, is NO access — never owner.
+const NO_PUNCH_ACCESS_MSG = "You don't have access to PUNCH, ask Ben.";
+function punchAccess(user) {
+  if (!user) return null;
+  if (!Array.isArray(user.apps) || !user.apps.includes("PUNCH")) return null;
+  const raw = user.appRoles && user.appRoles.PUNCH;
+  const level = typeof raw === "string" ? raw.toLowerCase() : null;
+  if (level === "admin") return "owner";
+  if (level === "restricted") return "restricted";
+  if (level === "access") return user.role === "admin" ? "owner" : "restricted";
+  return null;
+}
 
 // NetSuite's employee list has no field distinguishing these ~6 from the other
 // ~44 active employees, so this is filtered client-side against a maintained
@@ -838,7 +844,10 @@ export default function PunchBubbles() {
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.valid) {
+        if (data.valid && !punchAccess(data.user)) {
+          localStorage.removeItem(PUNCH_TOKEN_KEY);
+          setLoginError(NO_PUNCH_ACCESS_MSG);
+        } else if (data.valid) {
           const fresh = data.refreshedToken || stored;
           if (data.refreshedToken) localStorage.setItem(PUNCH_TOKEN_KEY, data.refreshedToken);
           setAuth(fresh, data.user);
@@ -870,6 +879,10 @@ export default function PunchBubbles() {
             ? "Your account doesn't have access to any apps yet. Ask an admin to grant you access in HELM."
             : "Invalid username or password."
         );
+        return;
+      }
+      if (!punchAccess(data.user)) {
+        setLoginError(NO_PUNCH_ACCESS_MSG);
         return;
       }
       localStorage.setItem(PUNCH_TOKEN_KEY, data.token);
@@ -928,6 +941,10 @@ export default function PunchBubbles() {
   // draftSummary editor every other task type uses, since this one needs an
   // explicit Edit -> Save to Procore flow rather than click-to-edit-on-blur, and
   // only ever edits the descriptive name portion, never the prefix.
+  // Who a task can be handed to: everyone who can open PUNCH, live from the Einbau
+  // ID role matrix via punch-worker's /assignable-users (replaced a hand-kept list).
+  const [assignableUsers, setAssignableUsers] = useState([]);
+  const assignTargets = assignableUsers.filter((u) => u.username !== authUser?.username);
   const [portfolioNameEditing, setPortfolioNameEditing] = useState(false);
   const [portfolioNameDraft, setPortfolioNameDraft] = useState("");
   const [portfolioNameSaving, setPortfolioNameSaving] = useState(false);
@@ -1098,13 +1115,12 @@ export default function PunchBubbles() {
   }, [openedPendingId, pendingEdits, customerQuery]);
 
   async function fetchAndMergeTasks(replaceAll) {
-    // /recurring is Ben-only data (the backend hardcodes it to env.CURRENT_USER,
-    // not the caller) and isn't in the restricted-route allowlist — a restricted
-    // account hit a 403 on it every load and every 15-min poll before this guard.
+    // /recurring is private per person (owner_username-scoped server-side) and open
+    // to restricted accounts too, so everyone fetches their own.
     const [openRows, snoozedRows, recurRows] = await Promise.all([
       apiGet("/tasks?status=open"),
       apiGet("/tasks?status=snoozed"),
-      isOwner ? apiGet("/recurring") : Promise.resolve([]),
+      apiGet("/recurring"),
     ]);
     const normalizedTasks = [...openRows, ...snoozedRows].map(normalizeTask);
     const normalizedRecur = recurRows.map(normalizeRecurring);
@@ -1144,6 +1160,7 @@ export default function PunchBubbles() {
       }
     }
     load();
+    loadAssignableUsers();
     // Fired here too, not just when the Saved Searches tab is opened — otherwise the
     // tab's count badge reads 0 on the main page until someone actually clicks into
     // it once, since pendingProjects starts empty and nothing else populates it.
@@ -1180,6 +1197,17 @@ export default function PunchBubbles() {
       console.error("Manual refresh failed:", err);
     } finally {
       setIsRefreshing(false);
+    }
+  }
+
+  async function loadAssignableUsers() {
+    try {
+      const data = await apiGet("/assignable-users");
+      setAssignableUsers(Array.isArray(data.users) ? data.users : []);
+    } catch (err) {
+      // Non-fatal: the hand-off pickers just stay empty and labels fall back to the
+      // raw username — nothing else in PUNCH depends on this list.
+      console.error("Failed to load assignable users:", err);
     }
   }
 
@@ -1362,14 +1390,17 @@ export default function PunchBubbles() {
 
   // A restricted (non-admin) Einbau ID account gets its OWN private Inbox/Projects
   // (own bubbles, own manual-only tasks — never Ben's, never another restricted
-  // account's) plus the shared/operational tabs and Outbox. Snoozed/Digest/
-  // Recurring stay hidden — not asked for, easy to add later (just add to this
-  // set) since the backend's ownership scoping already covers them regardless.
-  // This is just the UI half — punch-worker enforces real ownership at the query
-  // level (owner_username), so even a direct API call from a restricted account
-  // can't reach anyone else's personal tasks.
-  const RESTRICTED_TAB_IDS = new Set(["inbox", "projects", "portfolio", "searches", "stage_review", "outbox"]);
-  const isOwner = !authUser || authUser.role === "admin";
+  // account's) plus the shared/operational tabs, Outbox, and their own private
+  // Recurring and Snoozed (Ben signed these off 2026-09-30). Digest stays
+  // owner-only. This is just the UI half — punch-worker enforces real ownership
+  // at the query level (owner_username), so even a direct API call from a
+  // restricted account can't reach anyone else's personal tasks.
+  const RESTRICTED_TAB_IDS = new Set([
+    "inbox", "projects", "portfolio", "searches", "stage_review", "outbox", "recurring", "snoozed",
+  ]);
+  // A missing authUser is NOT owner (it used to be): nothing owner-only should
+  // render before a verified session says so.
+  const isOwner = punchAccess(authUser) === "owner";
   const visibleTabs = isOwner ? tabs : tabs.filter((t) => RESTRICTED_TAB_IDS.has(t.id));
 
   // Default tab is "inbox", which a restricted account never sees — bounce to the
@@ -3606,7 +3637,7 @@ export default function PunchBubbles() {
                   />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {ASSIGNABLE_USERS.length > 1 && (
+                  {assignTargets.length > 0 && (
                     <>
                       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)" }}>
                         ASSIGN TO
@@ -3626,7 +3657,7 @@ export default function PunchBubbles() {
                         }}
                       >
                         <option value="">Myself</option>
-                        {ASSIGNABLE_USERS.filter((u) => u.username !== authUser?.username).map((u) => (
+                        {assignTargets.map((u) => (
                           <option key={u.username} value={u.username}>
                             {u.displayName}
                           </option>
@@ -5158,8 +5189,8 @@ export default function PunchBubbles() {
             {selected.assignedByUsername && (
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-secondary)", marginBottom: 6 }}>
                 {tab === "outbox"
-                  ? `ASSIGNED TO ${(ASSIGNABLE_USERS.find((u) => u.username === selected.ownerUsername)?.displayName || selected.ownerUsername || "?").toUpperCase()}`
-                  : `ASSIGNED BY ${(ASSIGNABLE_USERS.find((u) => u.username === selected.assignedByUsername)?.displayName || selected.assignedByUsername).toUpperCase()}`}
+                  ? `ASSIGNED TO ${(assignableUsers.find((u) => u.username === selected.ownerUsername)?.displayName || selected.ownerUsername || "?").toUpperCase()}`
+                  : `ASSIGNED BY ${(assignableUsers.find((u) => u.username === selected.assignedByUsername)?.displayName || selected.assignedByUsername).toUpperCase()}`}
               </div>
             )}
 
@@ -6791,7 +6822,7 @@ export default function PunchBubbles() {
                   </button>
                 )}
 
-                {selected.list === "inbox" && tab !== "outbox" && ASSIGNABLE_USERS.length > 1 && (
+                {selected.list === "inbox" && tab !== "outbox" && assignTargets.length > 0 && (
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
                       REASSIGN TO
@@ -6811,7 +6842,7 @@ export default function PunchBubbles() {
                       }}
                     >
                       <option value="">— pick someone —</option>
-                      {ASSIGNABLE_USERS.filter((u) => u.username !== authUser?.username).map((u) => (
+                      {assignTargets.map((u) => (
                         <option key={u.username} value={u.username}>
                           {u.displayName}
                         </option>

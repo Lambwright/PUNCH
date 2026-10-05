@@ -671,11 +671,17 @@ function appSwitcherLinks(user) {
     current: a.name === CURRENT_APP
   }));
 }
-const ASSIGNABLE_USERS = [
-  { username: "ben", displayName: "Ben" },
-  { username: "josh@einbau.ca", displayName: "Josh" },
-  { username: "devid@einbau.ca", displayName: "Devid" }
-];
+const NO_PUNCH_ACCESS_MSG = "You don't have access to PUNCH, ask Ben.";
+function punchAccess(user) {
+  if (!user) return null;
+  if (!Array.isArray(user.apps) || !user.apps.includes("PUNCH")) return null;
+  const raw = user.appRoles && user.appRoles.PUNCH;
+  const level = typeof raw === "string" ? raw.toLowerCase() : null;
+  if (level === "admin") return "owner";
+  if (level === "restricted") return "restricted";
+  if (level === "access") return user.role === "admin" ? "owner" : "restricted";
+  return null;
+}
 const KNOWN_PM_NAMES = [
   "Ben Wright",
   "Chris Hong",
@@ -815,7 +821,10 @@ function PunchBubbles() {
       headers: { Authorization: `Bearer ${stored}`, "Content-Type": "application/json" },
       body: "{}"
     }).then((res) => res.json()).then((data) => {
-      if (data.valid) {
+      if (data.valid && !punchAccess(data.user)) {
+        localStorage.removeItem(PUNCH_TOKEN_KEY);
+        setLoginError(NO_PUNCH_ACCESS_MSG);
+      } else if (data.valid) {
         const fresh = data.refreshedToken || stored;
         if (data.refreshedToken) localStorage.setItem(PUNCH_TOKEN_KEY, data.refreshedToken);
         setAuth(fresh, data.user);
@@ -842,6 +851,10 @@ function PunchBubbles() {
         setLoginError(
           data.error === "no_app_access" ? "Your account doesn't have access to any apps yet. Ask an admin to grant you access in HELM." : "Invalid username or password."
         );
+        return;
+      }
+      if (!punchAccess(data.user)) {
+        setLoginError(NO_PUNCH_ACCESS_MSG);
         return;
       }
       localStorage.setItem(PUNCH_TOKEN_KEY, data.token);
@@ -886,6 +899,8 @@ function PunchBubbles() {
   }
   const [draftSummary, setDraftSummary] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+  const [assignableUsers, setAssignableUsers] = useState([]);
+  const assignTargets = assignableUsers.filter((u) => u.username !== authUser?.username);
   const [portfolioNameEditing, setPortfolioNameEditing] = useState(false);
   const [portfolioNameDraft, setPortfolioNameDraft] = useState("");
   const [portfolioNameSaving, setPortfolioNameSaving] = useState(false);
@@ -1009,7 +1024,7 @@ function PunchBubbles() {
     const [openRows, snoozedRows, recurRows] = await Promise.all([
       apiGet("/tasks?status=open"),
       apiGet("/tasks?status=snoozed"),
-      isOwner ? apiGet("/recurring") : Promise.resolve([])
+      apiGet("/recurring")
     ]);
     const normalizedTasks = [...openRows, ...snoozedRows].map(normalizeTask);
     const normalizedRecur = recurRows.map(normalizeRecurring);
@@ -1044,6 +1059,7 @@ function PunchBubbles() {
       }
     }
     load();
+    loadAssignableUsers();
     loadPendingProjects();
     loadPmOptions();
     return () => {
@@ -1066,6 +1082,14 @@ function PunchBubbles() {
       console.error("Manual refresh failed:", err);
     } finally {
       setIsRefreshing(false);
+    }
+  }
+  async function loadAssignableUsers() {
+    try {
+      const data = await apiGet("/assignable-users");
+      setAssignableUsers(Array.isArray(data.users) ? data.users : []);
+    } catch (err) {
+      console.error("Failed to load assignable users:", err);
     }
   }
   async function loadDigests() {
@@ -1200,8 +1224,17 @@ function PunchBubbles() {
       loadOutbox();
     }
   }, [tab, outboxFetched]);
-  const RESTRICTED_TAB_IDS = /* @__PURE__ */ new Set(["inbox", "projects", "portfolio", "searches", "stage_review", "outbox"]);
-  const isOwner = !authUser || authUser.role === "admin";
+  const RESTRICTED_TAB_IDS = /* @__PURE__ */ new Set([
+    "inbox",
+    "projects",
+    "portfolio",
+    "searches",
+    "stage_review",
+    "outbox",
+    "recurring",
+    "snoozed"
+  ]);
+  const isOwner = punchAccess(authUser) === "owner";
   const visibleTabs = isOwner ? tabs : tabs.filter((t) => RESTRICTED_TAB_IDS.has(t.id));
   useEffect(() => {
     if (authUser && !isOwner && !RESTRICTED_TAB_IDS.has(tab)) {
@@ -3002,7 +3035,7 @@ function PunchBubbles() {
             fontSize: 12.5
           }
         }
-      )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, ASSIGNABLE_USERS.length > 1 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)" } }, "ASSIGN TO"), /* @__PURE__ */ React.createElement(
+      )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, assignTargets.length > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)" } }, "ASSIGN TO"), /* @__PURE__ */ React.createElement(
         "select",
         {
           value: manualAssignTo,
@@ -3019,7 +3052,7 @@ function PunchBubbles() {
           }
         },
         /* @__PURE__ */ React.createElement("option", { value: "" }, "Myself"),
-        ASSIGNABLE_USERS.filter((u) => u.username !== authUser?.username).map((u) => /* @__PURE__ */ React.createElement("option", { key: u.username, value: u.username }, u.displayName))
+        assignTargets.map((u) => /* @__PURE__ */ React.createElement("option", { key: u.username, value: u.username }, u.displayName))
       )), /* @__PURE__ */ React.createElement(
         "button",
         {
@@ -4299,7 +4332,7 @@ function PunchBubbles() {
           },
           /* @__PURE__ */ React.createElement(X, { size: 18 })
         ),
-        selected.assignedByUsername && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-secondary)", marginBottom: 6 } }, tab === "outbox" ? `ASSIGNED TO ${(ASSIGNABLE_USERS.find((u) => u.username === selected.ownerUsername)?.displayName || selected.ownerUsername || "?").toUpperCase()}` : `ASSIGNED BY ${(ASSIGNABLE_USERS.find((u) => u.username === selected.assignedByUsername)?.displayName || selected.assignedByUsername).toUpperCase()}`),
+        selected.assignedByUsername && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-secondary)", marginBottom: 6 } }, tab === "outbox" ? `ASSIGNED TO ${(assignableUsers.find((u) => u.username === selected.ownerUsername)?.displayName || selected.ownerUsername || "?").toUpperCase()}` : `ASSIGNED BY ${(assignableUsers.find((u) => u.username === selected.assignedByUsername)?.displayName || selected.assignedByUsername).toUpperCase()}`),
         /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 14 } }, /* @__PURE__ */ React.createElement(
           "button",
           {
@@ -5817,7 +5850,7 @@ function PunchBubbles() {
             }
           },
           "REMOVE FROM PROJECT"
-        ), selected.list === "inbox" && tab !== "outbox" && ASSIGNABLE_USERS.length > 1 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", whiteSpace: "nowrap" } }, "REASSIGN TO"), /* @__PURE__ */ React.createElement(
+        ), selected.list === "inbox" && tab !== "outbox" && assignTargets.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", whiteSpace: "nowrap" } }, "REASSIGN TO"), /* @__PURE__ */ React.createElement(
           "select",
           {
             value: "",
@@ -5834,7 +5867,7 @@ function PunchBubbles() {
             }
           },
           /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 pick someone \u2014"),
-          ASSIGNABLE_USERS.filter((u) => u.username !== authUser?.username).map((u) => /* @__PURE__ */ React.createElement("option", { key: u.username, value: u.username }, u.displayName))
+          assignTargets.map((u) => /* @__PURE__ */ React.createElement("option", { key: u.username, value: u.username }, u.displayName))
         )), snoozeMenuOpen && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10 } }, deferOptions.map((opt) => /* @__PURE__ */ React.createElement(
           "button",
           {
