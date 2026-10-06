@@ -104,8 +104,15 @@ async function apiPost(path, body) {
     body: JSON.stringify(body),
   });
   if (res.status === 401) return handleUnauthorized(res);
-  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
+  if (!res.ok) throw await apiError(res, `POST ${path} failed: ${res.status}`);
   return res.json();
+}
+// The generic message stays exactly as before (other callers show err.message);
+// the server's own explanation, when it sent one, rides along as serverMessage.
+async function apiError(res, message) {
+  const err = new Error(message);
+  err.serverMessage = (await res.json().catch(() => null))?.error || null;
+  return err;
 }
 async function apiPatch(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -114,7 +121,7 @@ async function apiPatch(path, body) {
     body: JSON.stringify(body),
   });
   if (res.status === 401) return handleUnauthorized(res);
-  if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
+  if (!res.ok) throw await apiError(res, `PATCH ${path} failed: ${res.status}`);
   return res.json();
 }
 async function apiDelete(path) {
@@ -1829,8 +1836,15 @@ export default function PunchBubbles() {
   // (those are owned by whoever they were handed to, not you anymore).
   function reassignTask(taskId, to) {
     if (!to) return;
+    const original = tasks.find((t) => t.id === taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId)); // leaves my board immediately
-    apiPatch(`/tasks/${taskId}/assign`, { to }).catch((err) => console.error("Reassign failed:", err));
+    apiPatch(`/tasks/${taskId}/assign`, { to }).catch((err) => {
+      console.error("Reassign failed:", err);
+      // The server refused (e.g. the target no longer has PUNCH access) — the task
+      // is still mine, so put it back instead of letting it silently vanish.
+      if (original) setTasks((prev) => (prev.some((t) => t.id === taskId) ? prev : [...prev, original]));
+      window.alert(err.serverMessage || "Couldn't send that task — it's still on your board. Try again.");
+    });
     if (selected && selected.id === taskId) setSelected(null);
   }
 
@@ -3097,6 +3111,9 @@ export default function PunchBubbles() {
       .catch((err) => {
         console.error("PUNCH sync failed:", err);
         if (!assignedToSomeoneElse) setTasks((prev) => prev.filter((t) => t.id !== tempId));
+        // No local bubble exists for a task sent to someone else, so a refusal
+        // (e.g. they don't have PUNCH access) would otherwise look like it worked.
+        else window.alert(err.serverMessage || "Couldn't send that task — nothing was created. Try again.");
       });
   }
 

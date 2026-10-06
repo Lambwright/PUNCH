@@ -124,8 +124,13 @@ async function apiPost(path, body) {
     body: JSON.stringify(body)
   });
   if (res.status === 401) return handleUnauthorized(res);
-  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
+  if (!res.ok) throw await apiError(res, `POST ${path} failed: ${res.status}`);
   return res.json();
+}
+async function apiError(res, message) {
+  const err = new Error(message);
+  err.serverMessage = (await res.json().catch(() => null))?.error || null;
+  return err;
 }
 async function apiPatch(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -134,7 +139,7 @@ async function apiPatch(path, body) {
     body: JSON.stringify(body)
   });
   if (res.status === 401) return handleUnauthorized(res);
-  if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
+  if (!res.ok) throw await apiError(res, `PATCH ${path} failed: ${res.status}`);
   return res.json();
 }
 async function apiDelete(path) {
@@ -1527,8 +1532,13 @@ function PunchBubbles() {
   }
   function reassignTask(taskId, to) {
     if (!to) return;
+    const original = tasks.find((t) => t.id === taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    apiPatch(`/tasks/${taskId}/assign`, { to }).catch((err) => console.error("Reassign failed:", err));
+    apiPatch(`/tasks/${taskId}/assign`, { to }).catch((err) => {
+      console.error("Reassign failed:", err);
+      if (original) setTasks((prev) => prev.some((t) => t.id === taskId) ? prev : [...prev, original]);
+      window.alert(err.serverMessage || "Couldn't send that task \u2014 it's still on your board. Try again.");
+    });
     if (selected && selected.id === taskId) setSelected(null);
   }
   function removeChildFromProject(taskId) {
@@ -2543,6 +2553,7 @@ function PunchBubbles() {
     }).catch((err) => {
       console.error("PUNCH sync failed:", err);
       if (!assignedToSomeoneElse) setTasks((prev) => prev.filter((t) => t.id !== tempId));
+      else window.alert(err.serverMessage || "Couldn't send that task \u2014 nothing was created. Try again.");
     });
   }
   function addFromRecord() {
