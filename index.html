@@ -2293,12 +2293,15 @@ function PunchBubbles() {
       pushHistory(taskId, "project_type_changed", `Project type cleared (was ${oldType})`);
       return;
     }
-    apiGet(`/portfolio/procore-refresh?task_id=${taskId}&type=${encodeURIComponent(newType)}`).then((row) => {
+    apiPatch(`/portfolio/procore-type?task_id=${taskId}`, { type: newType }).then(() => apiGet(`/portfolio/procore-refresh?task_id=${taskId}&type=${encodeURIComponent(newType)}`)).then((row) => {
       const refreshed = normalizeTask(row);
       updateStore(taskId, (t) => ({ ...t, ...refreshed }));
       setSelected((prev) => prev && prev.id === taskId ? { ...prev, ...refreshed } : prev);
-      pushHistory(taskId, "project_type_changed", `Project type set to ${newType} (was ${oldType}) \u2014 refreshed from Procore`);
-    }).catch((err) => console.error("Project type refresh failed:", err));
+      pushHistory(taskId, "project_type_changed", `Project type set to ${newType} in Procore (was ${oldType})`);
+    }).catch((err) => {
+      console.error("Project type change failed:", err);
+      window.alert(err.serverMessage || "Couldn't update the project type in Procore \u2014 nothing was changed. Try again.");
+    });
   }
   function toggleOntario() {
     const newVal = !selected.isOntario;

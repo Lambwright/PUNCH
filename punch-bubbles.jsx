@@ -2803,14 +2803,21 @@ export default function PunchBubbles() {
     // client-side-only path was how a project with no type set in Procore (which
     // starts with an empty checklist) ended up showing every field as blank after
     // picking a type, even when Procore genuinely had values for them.
-    apiGet(`/portfolio/procore-refresh?task_id=${taskId}&type=${encodeURIComponent(newType)}`)
+    // Write the pick to Procore first — this used to only store a local override, so
+    // the change never reached Procore (and Procore's own value won back on the next
+    // refresh). If Procore refuses, nothing changes locally and the reason is shown.
+    apiPatch(`/portfolio/procore-type?task_id=${taskId}`, { type: newType })
+      .then(() => apiGet(`/portfolio/procore-refresh?task_id=${taskId}&type=${encodeURIComponent(newType)}`))
       .then((row) => {
         const refreshed = normalizeTask(row);
         updateStore(taskId, (t) => ({ ...t, ...refreshed }));
         setSelected((prev) => (prev && prev.id === taskId ? { ...prev, ...refreshed } : prev));
-        pushHistory(taskId, "project_type_changed", `Project type set to ${newType} (was ${oldType}) — refreshed from Procore`);
+        pushHistory(taskId, "project_type_changed", `Project type set to ${newType} in Procore (was ${oldType})`);
       })
-      .catch((err) => console.error("Project type refresh failed:", err));
+      .catch((err) => {
+        console.error("Project type change failed:", err);
+        window.alert(err.serverMessage || "Couldn't update the project type in Procore — nothing was changed. Try again.");
+      });
   }
 
   function toggleOntario() {
