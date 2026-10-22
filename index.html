@@ -676,7 +676,7 @@ function appSwitcherLinks(user) {
     current: a.name === CURRENT_APP
   }));
 }
-const NO_PUNCH_ACCESS_MSG = "You don't have access to PUNCH, ask Ben.";
+const NO_PUNCH_ACCESS_MSG = "You don't have access to PUNCH, ask an administrator.";
 function punchAccess(user) {
   if (!user) return null;
   if (!Array.isArray(user.apps) || !user.apps.includes("PUNCH")) return null;
@@ -684,7 +684,6 @@ function punchAccess(user) {
   const level = typeof raw === "string" ? raw.toLowerCase() : null;
   if (level === "admin") return "owner";
   if (level === "restricted") return "restricted";
-  if (level === "access") return user.role === "admin" ? "owner" : "restricted";
   return null;
 }
 const KNOWN_PM_NAMES = [

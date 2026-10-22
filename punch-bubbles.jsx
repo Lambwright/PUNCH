@@ -658,10 +658,9 @@ function appSwitcherLinks(user) {
 // What this signed-in account may do in PUNCH, from the Einbau ID role matrix
 // (auth-worker/README.md "Role matrix"): "owner" (full PUNCH, incl. ingestion),
 // "restricted", or null = no access. Mirrors isAuthorized() in punch-worker —
-// keep the two identical. "access" means PUNCH's matrix row isn't Live yet, so
-// the pre-matrix rule applies unchanged (legacy admin = owner, else restricted).
-// Anything else, including a missing user or key, is NO access — never owner.
-const NO_PUNCH_ACCESS_MSG = "You don't have access to PUNCH, ask Ben.";
+// keep the two identical. Anything else, including a missing user or key, is NO
+// access — never owner.
+const NO_PUNCH_ACCESS_MSG = "You don't have access to PUNCH, ask an administrator.";
 function punchAccess(user) {
   if (!user) return null;
   if (!Array.isArray(user.apps) || !user.apps.includes("PUNCH")) return null;
@@ -669,7 +668,6 @@ function punchAccess(user) {
   const level = typeof raw === "string" ? raw.toLowerCase() : null;
   if (level === "admin") return "owner";
   if (level === "restricted") return "restricted";
-  if (level === "access") return user.role === "admin" ? "owner" : "restricted";
   return null;
 }
 
