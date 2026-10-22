@@ -549,35 +549,6 @@ const PROCORE_PROVINCES = [
   { id: "YT", name: "Yukon Territory" },
 ];
 
-// Confirmed with Ben directly — Einbau's Department list is really named after its
-// regional branches/roles, pulled from the live dropdown (F12) since there's no
-// public Procore endpoint for it.
-const PROCORE_DEPARTMENTS = [
-  { id: 562949953453259, name: "Warren Wagler" },
-  { id: 562949953487335, name: "Walter Corsetti" },
-  { id: 562949953507599, name: "Sunita Jackson" },
-  { id: 562949953498534, name: "Scot Carter-Nichols" },
-  { id: 562949953453256, name: "Rudi Dyck" },
-  { id: 562949953454803, name: "Project Management" },
-  { id: 562949953454805, name: "Project Logistics" },
-  { id: 562949953454802, name: "Project Estimation" },
-  { id: 562949953453255, name: "Peter Dyck" },
-  { id: 562949953454804, name: "Mel Gabriel" },
-  { id: 562949953492649, name: "Luigi Perna" },
-  { id: 562949953463907, name: "Kevin Smith" },
-  { id: 562949953453258, name: "Hal Rowan" },
-  { id: 562949953489165, name: "Elliot Natovitch" },
-  { id: 562949953482755, name: "Dwayne Rogers" },
-  { id: 562949953473800, name: "Devid Manzke" },
-  { id: 562949953489369, name: "Dave LeBlanc" },
-  { id: 562949953454806, name: "Danny Pagniello" },
-  { id: 562949953495200, name: "Chris Hong" },
-  { id: 562949953453257, name: "Ben Wright" },
-  { id: 562949953453261, name: "Back Log" },
-  { id: 562949953453265, name: "Alfonso Lopez" },
-  { id: 562949953497563, name: "Alex Reid" },
-];
-
 // Rails' standard timezone list, pulled from Ben's live dropdown (F12) — static,
 // Procore expects the name itself as the stored value (no separate id).
 const PROCORE_TIMEZONES = [
@@ -669,27 +640,6 @@ function punchAccess(user) {
   if (level === "admin") return "owner";
   if (level === "restricted") return "restricted";
   return null;
-}
-
-// NetSuite's employee list has no field distinguishing these ~6 from the other
-// ~44 active employees, so this is filtered client-side against a maintained
-// list rather than a query. See loadPmOptions.
-//
-// NetSuite stores employee entityid in an unpredictable format ("Last, First",
-// "First Last", sometimes with a middle initial or a trailing id), so matching is
-// done by name TOKENS — order-independent, punctuation-stripped — not exact string
-// equality, which silently filtered the entire list to empty the moment NetSuite's
-// format didn't match "FIRST LAST".
-const KNOWN_PM_NAMES = [
-  "Ben Wright", "Chris Hong", "Devid Manzke", "Peter Dyck", "Rudi Dyck", "Scot Carter-Nichols", // Hal Rowan no longer with the company
-];
-function pmNameTokens(s) {
-  return (s || "").toUpperCase().split(/[^A-Z]+/).filter(Boolean);
-}
-const KNOWN_PM_TOKEN_SETS = KNOWN_PM_NAMES.map(pmNameTokens);
-function isKnownPm(name) {
-  const toks = new Set(pmNameTokens(name));
-  return KNOWN_PM_TOKEN_SETS.some((known) => known.length > 0 && known.every((t) => toks.has(t)));
 }
 
 function daysOpen(createdAt) {
@@ -1101,7 +1051,7 @@ export default function PunchBubbles() {
   // load) — it's a live per-project Procore lookup, not something NetSuite's
   // Inbound Project record stores. { [recordId]: string | null | "loading" }
   const [procoreDepartments, setProcoreDepartments] = useState({});
-  const [pmOptions, setPmOptions] = useState([]); // full employee list (~50), fetched once
+  const [pmOptions, setPmOptions] = useState([]); // project managers from HELM, fetched once
   const [customerQuery, setCustomerQuery] = useState(() => loadSavedSearchDraft()?.customerQuery || {}); // { [recordId]: text typed so far }
   const [customerResults, setCustomerResults] = useState({}); // { [recordId]: [{id,name}] }
 
@@ -1278,27 +1228,12 @@ export default function PunchBubbles() {
       });
   }
 
-  // Project Manager (~50 active employees) is small enough to fetch in full once,
-  // rather than search-as-you-type like Customer (~1,500 records) needs.
+  // The project managers come from HELM (people with a department and a NetSuite
+  // link), already filtered by the worker; small enough to fetch once.
   async function loadPmOptions() {
     try {
       const data = await apiGet("/netsuite/pending-options?field=projectManager");
-      // The NetSuite query has no way to distinguish "is actually a PM" from "is any
-      // active employee" (~50 of them) — no PM/role field to filter on found in
-      // NetSuite's schema for this. Filtering client-side to the actual real PM
-      // roster instead (isKnownPm, token-based). Hand-maintained list, not a live
-      // query — if a PM is added/removed, edit KNOWN_PM_NAMES above.
-      const all = data.options || [];
-      const options = all.filter((o) => isKnownPm(o.name));
-      // Never leave the field unfillable: if the roster filter somehow matches
-      // nothing (NetSuite name format drifted again, roster out of date), fall back
-      // to the full employee list rather than hard-blocking checklist completion.
-      if (options.length === 0 && all.length > 0) {
-        console.warn("PM roster filter matched 0 of", all.length, "employees — falling back to full list. Check KNOWN_PM_NAMES vs NetSuite entityid format.");
-        setPmOptions(all);
-      } else {
-        setPmOptions(options);
-      }
+      setPmOptions(data.options || []);
     } catch (err) {
       console.error("Failed to load project manager list:", err);
     }
@@ -2677,7 +2612,7 @@ export default function PunchBubbles() {
 
   // Fields whose valid options live in Procore and can change over time — fetched
   // once per field and cached for the rest of the session.
-  const LIVE_OPTION_FIELDS = new Set(["stage", "region", "customer"]);
+  const LIVE_OPTION_FIELDS = new Set(["stage", "region", "customer", "department"]);
 
   function loadProcoreOptions(field) {
     if (procoreOptions[field] || procoreOptionsLoading.has(field)) return;
@@ -2699,9 +2634,6 @@ export default function PunchBubbles() {
     setEditDraft({});
     setChecklistFieldError(null);
     if (LIVE_OPTION_FIELDS.has(key)) loadProcoreOptions(key);
-    if (key === "department" && !procoreOptions.department) {
-      setProcoreOptions((prev) => ({ ...prev, department: PROCORE_DEPARTMENTS }));
-    }
     if (key === "currency" && !procoreOptions.currency) {
       setProcoreOptions((prev) => ({ ...prev, currency: PROCORE_CURRENCIES }));
     }
