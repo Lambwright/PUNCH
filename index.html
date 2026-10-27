@@ -646,12 +646,13 @@ const CURRENT_APP = "PUNCH";
 function appSwitcherLinks(user) {
   const apps = (Array.isArray(user?.apps) ? user.apps : []).map((a) => String(a).toUpperCase());
   const allowed = (name) => apps.includes(name);
-  return [...APP_LINKS.filter((a) => a.name === CURRENT_APP || allowed(a.name)), HELM_LINK].map((a) => ({
+  const helmLink = user?.helmName === "HELM" ? HELM_LINK : { ...HELM_LINK, name: "Settings" };
+  return [...APP_LINKS.filter((a) => a.name === CURRENT_APP || allowed(a.name)), helmLink].map((a) => ({
     ...a,
     current: a.name === CURRENT_APP
   }));
 }
-const NO_PUNCH_ACCESS_MSG = "You don't have access to PUNCH, ask an administrator.";
+const NO_PUNCH_ACCESS_MSG = "You don't have access to PUNCH, ask your admin.";
 function punchAccess(user) {
   if (!user) return null;
   if (!Array.isArray(user.apps) || !user.apps.includes("PUNCH")) return null;
@@ -793,7 +794,7 @@ function PunchBubbles() {
       } else {
         localStorage.removeItem(PUNCH_TOKEN_KEY);
         if (data.error === "no_app_access") {
-          setLoginError("Your account doesn't have access to any apps yet. Ask an admin to grant you access in HELM.");
+          setLoginError("Your account doesn't have access to any apps yet. Ask your admin to grant you access.");
         }
       }
     }).catch(() => localStorage.removeItem(PUNCH_TOKEN_KEY)).finally(() => setAuthChecking(false));
@@ -811,7 +812,7 @@ function PunchBubbles() {
       const data = await res.json();
       if (!res.ok || !data.token) {
         setLoginError(
-          data.error === "no_app_access" ? "Your account doesn't have access to any apps yet. Ask an admin to grant you access in HELM." : "Invalid username or password."
+          data.error === "no_app_access" ? "Your account doesn't have access to any apps yet. Ask your admin to grant you access." : "Invalid username or password."
         );
         return;
       }

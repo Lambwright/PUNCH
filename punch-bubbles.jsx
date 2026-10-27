@@ -615,12 +615,14 @@ const HELM_LINK = { name: "HELM", url: "https://lambwright.github.io/helm/", col
 const CURRENT_APP = "PUNCH";
 
 // Only apps this user can open, then HELM always last (it's where settings
-// live). No apps granted = nothing but this app and HELM (access fails
+// live). Its label is "HELM" only for people HELM says should see that name
+// (user.helmName); everyone else sees "Settings". No apps granted = nothing but this app and HELM (access fails
 // closed — see auth-worker/README.md).
 function appSwitcherLinks(user) {
   const apps = (Array.isArray(user?.apps) ? user.apps : []).map((a) => String(a).toUpperCase());
   const allowed = (name) => apps.includes(name);
-  return [...APP_LINKS.filter((a) => a.name === CURRENT_APP || allowed(a.name)), HELM_LINK].map((a) => ({
+  const helmLink = user?.helmName === "HELM" ? HELM_LINK : { ...HELM_LINK, name: "Settings" };
+  return [...APP_LINKS.filter((a) => a.name === CURRENT_APP || allowed(a.name)), helmLink].map((a) => ({
     ...a,
     current: a.name === CURRENT_APP,
   }));
@@ -631,7 +633,7 @@ function appSwitcherLinks(user) {
 // "restricted", or null = no access. Mirrors isAuthorized() in punch-worker —
 // keep the two identical. Anything else, including a missing user or key, is NO
 // access — never owner.
-const NO_PUNCH_ACCESS_MSG = "You don't have access to PUNCH, ask an administrator.";
+const NO_PUNCH_ACCESS_MSG = "You don't have access to PUNCH, ask your admin.";
 function punchAccess(user) {
   if (!user) return null;
   if (!Array.isArray(user.apps) || !user.apps.includes("PUNCH")) return null;
@@ -809,7 +811,7 @@ export default function PunchBubbles() {
         } else {
           localStorage.removeItem(PUNCH_TOKEN_KEY);
           if (data.error === "no_app_access") {
-            setLoginError("Your account doesn't have access to any apps yet. Ask an admin to grant you access in HELM.");
+            setLoginError("Your account doesn't have access to any apps yet. Ask your admin to grant you access.");
           }
         }
       })
@@ -831,7 +833,7 @@ export default function PunchBubbles() {
       if (!res.ok || !data.token) {
         setLoginError(
           data.error === "no_app_access"
-            ? "Your account doesn't have access to any apps yet. Ask an admin to grant you access in HELM."
+            ? "Your account doesn't have access to any apps yet. Ask your admin to grant you access."
             : "Invalid username or password."
         );
         return;
