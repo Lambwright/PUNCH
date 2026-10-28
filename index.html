@@ -7,6 +7,7 @@
 <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://lambwright.github.io/helm/einbau-festive.js"></script>
 <style>
   /* Shared suite token system (see auth-worker/README.md "themeAccent — personal
      per-app color") — values match PUNCH's own existing hardcoded palette exactly,
@@ -643,6 +644,19 @@ const APP_LINKS = [
 ];
 const HELM_LINK = { name: "HELM", url: "https://lambwright.github.io/helm/", color: "#9BA8B5" };
 const CURRENT_APP = "PUNCH";
+function Loading({ fallback = "Loading\u2026", size = 110, style }) {
+  const ref = useRef(null);
+  const F = typeof window !== "undefined" ? window.EinbauFestive : null;
+  useEffect(() => {
+    if (!F || !ref.current) return void 0;
+    const l = F.loader(ref.current, { size });
+    return () => l.remove();
+  }, [F, size]);
+  return /* @__PURE__ */ React.createElement("div", { ref, style }, F ? null : fallback);
+}
+function loadingPhrase(fallback) {
+  return typeof window !== "undefined" && window.EinbauFestive ? window.EinbauFestive.phrase() : fallback;
+}
 function appSwitcherLinks(user) {
   const apps = (Array.isArray(user?.apps) ? user.apps : []).map((a) => String(a).toUpperCase());
   const allowed = (name) => apps.includes(name);
@@ -751,6 +765,9 @@ function PunchBubbles() {
   const [authToken, setAuthToken] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
   const [authUser, setAuthUser] = useState(null);
+  useEffect(() => {
+    if (authUser && !loading && window.EinbauFestive) window.EinbauFestive.init({ app: "PUNCH" });
+  }, [authUser, loading]);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -1976,7 +1993,7 @@ function PunchBubbles() {
   function renderChecklistFieldEditor(key) {
     if (key === "customer") {
       const options = procoreOptions.customer;
-      if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "Loading options\u2026");
+      if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, loadingPhrase("Loading options\u2026"));
       const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name));
       return /* @__PURE__ */ React.createElement(
         Autocomplete,
@@ -1992,7 +2009,7 @@ function PunchBubbles() {
     }
     if (LIVE_OPTION_FIELDS.has(key) || key === "department" || key === "currency") {
       const options = procoreOptions[key];
-      if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "Loading options\u2026");
+      if (!options) return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, loadingPhrase("Loading options\u2026"));
       if (key === "currency") return editSelect(key, options, "id", (o) => o.label);
       return editSelect(key, options, "id", (o) => o.name);
     }
@@ -2011,7 +2028,7 @@ function PunchBubbles() {
     }
     if (key === "address") {
       if (addressSuggestLoading) {
-        return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "Checking known locations\u2026");
+        return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, loadingPhrase("Checking known locations\u2026"));
       }
       if (!showManualAddress && addressSuggestions && addressSuggestions.length > 0) {
         return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, addressSuggestions.map((loc) => /* @__PURE__ */ React.createElement(
@@ -2113,7 +2130,7 @@ function PunchBubbles() {
         },
         /* @__PURE__ */ React.createElement("option", { value: "" }, "Country"),
         countryOptions.map((c) => /* @__PURE__ */ React.createElement("option", { key: c.id, value: c.id }, c.name))
-      ) : /* @__PURE__ */ React.createElement("div", { style: { ...editInputStyle, maxWidth: 140, color: "var(--text-secondary)" } }, "Loading countries\u2026")));
+      ) : /* @__PURE__ */ React.createElement("div", { style: { ...editInputStyle, maxWidth: 140, color: "var(--text-secondary)" } }, loadingPhrase("Loading countries\u2026"))));
     }
     if (key === "dates") {
       return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center" } }, /* @__PURE__ */ React.createElement(
@@ -2616,17 +2633,12 @@ function PunchBubbles() {
         .punch-color-hover:hover .punch-color-popover { display: flex; }
       `),
     loading ? /* @__PURE__ */ React.createElement(
-      "div",
+      Loading,
       {
-        style: {
-          fontFamily: "'JetBrains Mono', monospace",
-          color: "#8B8680",
-          fontSize: 13,
-          textAlign: "center",
-          padding: "80px 0"
-        }
-      },
-      "LOADING PUNCH..."
+        fallback: "LOADING PUNCH...",
+        size: 140,
+        style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 13, textAlign: "center", padding: "60px 0" }
+      }
     ) : loadError ? /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -2642,7 +2654,7 @@ function PunchBubbles() {
       loadError,
       /* @__PURE__ */ React.createElement("br", null),
       /* @__PURE__ */ React.createElement("span", { style: { color: "#8B8680", fontSize: 11 } }, "Check the Worker's deployed, CORS is open, and the URL in API_BASE is correct.")
-    ) : /* @__PURE__ */ React.createElement("div", { style: { margin: "0" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 4 } }, /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, /* @__PURE__ */ React.createElement(
+    ) : /* @__PURE__ */ React.createElement("div", { style: { margin: "0" } }, /* @__PURE__ */ React.createElement("div", { "data-einbau-header": "", style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 4 } }, /* @__PURE__ */ React.createElement("div", { style: { position: "relative" } }, /* @__PURE__ */ React.createElement(
       "div",
       {
         onClick: () => setAppSwitcherOpen((v) => !v),
@@ -2657,6 +2669,7 @@ function PunchBubbles() {
       /* @__PURE__ */ React.createElement(
         "div",
         {
+          "data-einbau-logo": "",
           style: {
             fontFamily: "'Oswald', sans-serif",
             fontWeight: 700,
@@ -2754,6 +2767,7 @@ function PunchBubbles() {
     )), /* @__PURE__ */ React.createElement(
       "div",
       {
+        role: "tablist",
         style: {
           display: "flex",
           gap: 4,
@@ -3187,7 +3201,7 @@ function PunchBubbles() {
           cursor: pendingLoading ? "default" : "pointer"
         }
       },
-      pendingLoading ? "LOADING..." : "REFRESH FROM NETSUITE"
+      pendingLoading ? loadingPhrase("LOADING...").toUpperCase() : "REFRESH FROM NETSUITE"
     ), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680" } }, 'NetSuite Inbound Projects sitting at "Pending Completion" \u2014 read and written live, nothing cached here.')), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" } }, "SORT: OLDEST RECORD FIRST"), /* @__PURE__ */ React.createElement(
       "button",
       {
@@ -3206,7 +3220,7 @@ function PunchBubbles() {
         }
       },
       savedSearchSortDesc ? "\u2193" : "\u2191"
-    )), pendingError && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 } }, pendingError), pendingLoading && pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", fontSize: 13 } }, "Nothing pending completion right now.") : (
+    )), pendingError && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#C1401C", marginBottom: 14 } }, pendingError), pendingLoading && pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement(Loading, { fallback: "LOADING...", size: 110, style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }) : pendingProjects.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", fontSize: 13 } }, "Nothing pending completion right now.") : (
       // Compact row, same shape/spirit as Portfolio's list rows (colored left
       // border, single summary line, small metadata line, right-aligned status)
       // rather than an always-expanded card — click opens the actual editor
@@ -3276,7 +3290,7 @@ function PunchBubbles() {
           marginBottom: 14
         }
       },
-      digestGenerating ? "GENERATING..." : "GENERATE DIGEST NOW"
+      digestGenerating ? loadingPhrase("GENERATING...").toUpperCase() : "GENERATE DIGEST NOW"
     ), digestError && /* @__PURE__ */ React.createElement(
       "div",
       {
@@ -3288,7 +3302,7 @@ function PunchBubbles() {
         }
       },
       digestError
-    ), digestLoading ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }, "LOADING...") : digests.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", fontSize: 13 } }, "No digests generated yet.") : digests.map((d) => /* @__PURE__ */ React.createElement(
+    ), digestLoading ? /* @__PURE__ */ React.createElement(Loading, { fallback: "LOADING...", size: 110, style: { fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 } }) : digests.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", fontSize: 13 } }, "No digests generated yet.") : digests.map((d) => /* @__PURE__ */ React.createElement(
       "div",
       {
         key: d.id,
@@ -4832,7 +4846,7 @@ function PunchBubbles() {
               opacity: portfolioNameSaving ? 0.6 : 1
             }
           },
-          portfolioNameSaving ? "SAVING\u2026" : "SAVE TO PROCORE"
+          portfolioNameSaving ? loadingPhrase("SAVING\u2026").toUpperCase() : "SAVE TO PROCORE"
         ), /* @__PURE__ */ React.createElement(
           "button",
           {
@@ -5348,7 +5362,7 @@ function PunchBubbles() {
                   lineHeight: 1.6
                 }
               },
-              isLoading && "Loading from Procore\u2026",
+              isLoading && /* @__PURE__ */ React.createElement(Loading, { fallback: "Loading from Procore\u2026", size: 70 }),
               !isLoading && detail && detail.error && /* @__PURE__ */ React.createElement("span", { style: { color: "#C1401C" } }, detail.error),
               !isLoading && detail && !detail.error && renderProcoreDetail(detailType, detail)
             ), item.key === "budget_populated" && budgetPopulateResult && /* @__PURE__ */ React.createElement(
@@ -5398,7 +5412,7 @@ function PunchBubbles() {
                     opacity: savingChecklistField ? 0.6 : 1
                   }
                 },
-                savingChecklistField ? "SAVING\u2026" : "SAVE TO PROCORE"
+                savingChecklistField ? loadingPhrase("SAVING\u2026").toUpperCase() : "SAVE TO PROCORE"
               ), /* @__PURE__ */ React.createElement(
                 "button",
                 {
@@ -6251,7 +6265,7 @@ function PunchBubbles() {
                   fontStyle: dept === "loading" ? "italic" : "normal"
                 }
               },
-              dept === "loading" ? "loading\u2026" : dept || "NOT SET"
+              dept === "loading" ? loadingPhrase("loading\u2026") : dept || "NOT SET"
             ));
           })(),
           /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: "var(--text-secondary)", marginBottom: 3 } }, "CUSTOMER"), /* @__PURE__ */ React.createElement(
@@ -6340,7 +6354,14 @@ function PunchBubbles() {
           fontFamily: "'Inter', sans-serif"
         }
       },
-      authChecking ? /* @__PURE__ */ React.createElement("div", { style: { color: "var(--text-secondary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.05em" } }, "CHECKING SESSION\u2026") : /* @__PURE__ */ React.createElement(
+      authChecking ? /* @__PURE__ */ React.createElement(
+        Loading,
+        {
+          fallback: "CHECKING SESSION\u2026",
+          size: 130,
+          style: { color: "var(--text-secondary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.05em", textAlign: "center" }
+        }
+      ) : /* @__PURE__ */ React.createElement(
         "form",
         {
           onSubmit: doLogin,
@@ -6427,7 +6448,7 @@ function PunchBubbles() {
               opacity: loginSubmitting ? 0.6 : 1
             }
           },
-          loginSubmitting ? "SIGNING IN\u2026" : "SIGN IN"
+          loginSubmitting ? loadingPhrase("SIGNING IN\u2026").toUpperCase() : "SIGN IN"
         ),
         loginError && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 10, color: "#C1401C", fontFamily: "'JetBrains Mono', monospace", fontSize: 11 } }, loginError)
       )

@@ -614,6 +614,22 @@ const APP_LINKS = [
 const HELM_LINK = { name: "HELM", url: "https://lambwright.github.io/helm/", color: "#9BA8B5" };
 const CURRENT_APP = "PUNCH";
 
+// The suite's shared loading animation and seasonal loading lines (einbau-festive.js,
+// loaded from HELM). Both fall back to plain text if that script didn't load.
+function Loading({ fallback = "Loading…", size = 110, style }) {
+  const ref = useRef(null);
+  const F = typeof window !== "undefined" ? window.EinbauFestive : null;
+  useEffect(() => {
+    if (!F || !ref.current) return undefined;
+    const l = F.loader(ref.current, { size });
+    return () => l.remove();
+  }, [F, size]);
+  return <div ref={ref} style={style}>{F ? null : fallback}</div>;
+}
+function loadingPhrase(fallback) {
+  return typeof window !== "undefined" && window.EinbauFestive ? window.EinbauFestive.phrase() : fallback;
+}
+
 // Only apps this user can open, then HELM always last (it's where settings
 // live). Its label is "HELM" only for people HELM says should see that name
 // (user.helmName); everyone else sees "Settings". No apps granted = nothing but this app and HELM (access fails
@@ -757,6 +773,9 @@ export default function PunchBubbles() {
   const [authToken, setAuthToken] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
   const [authUser, setAuthUser] = useState(null);
+  useEffect(() => {
+    if (authUser && !loading && window.EinbauFestive) window.EinbauFestive.init({ app: "PUNCH" });
+  }, [authUser, loading]);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -2405,7 +2424,7 @@ export default function PunchBubbles() {
     // their option counts are small enough that jump-to-type isn't a real problem.
     if (key === "customer") {
       const options = procoreOptions.customer;
-      if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>Loading options…</div>;
+      if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>{loadingPhrase("Loading options…")}</div>;
       const sorted = [...options].sort((a, b) => a.name.localeCompare(b.name));
       return (
         <Autocomplete
@@ -2421,7 +2440,7 @@ export default function PunchBubbles() {
 
     if (LIVE_OPTION_FIELDS.has(key) || key === "department" || key === "currency") {
       const options = procoreOptions[key];
-      if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>Loading options…</div>;
+      if (!options) return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>{loadingPhrase("Loading options…")}</div>;
       if (key === "currency") return editSelect(key, options, "id", (o) => o.label);
       return editSelect(key, options, "id", (o) => o.name);
     }
@@ -2446,7 +2465,7 @@ export default function PunchBubbles() {
 
     if (key === "address") {
       if (addressSuggestLoading) {
-        return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>Checking known locations…</div>;
+        return <div style={{ fontFamily: FONT_MONO, fontSize: SIZE_XS, color: "var(--text-secondary)" }}>{loadingPhrase("Checking known locations…")}</div>;
       }
       if (!showManualAddress && addressSuggestions && addressSuggestions.length > 0) {
         return (
@@ -2569,7 +2588,7 @@ export default function PunchBubbles() {
                 ))}
               </select>
             ) : (
-              <div style={{ ...editInputStyle, maxWidth: 140, color: "var(--text-secondary)" }}>Loading countries…</div>
+              <div style={{ ...editInputStyle, maxWidth: 140, color: "var(--text-secondary)" }}>{loadingPhrase("Loading countries…")}</div>
             )}
           </div>
         </div>
@@ -3183,17 +3202,11 @@ export default function PunchBubbles() {
       `}</style>
 
       {loading ? (
-        <div
-          style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            color: "#8B8680",
-            fontSize: 13,
-            textAlign: "center",
-            padding: "80px 0",
-          }}
-        >
-          LOADING PUNCH...
-        </div>
+        <Loading
+          fallback="LOADING PUNCH..."
+          size={140}
+          style={{ fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 13, textAlign: "center", padding: "60px 0" }}
+        />
       ) : loadError ? (
         <div
           style={{
@@ -3212,7 +3225,7 @@ export default function PunchBubbles() {
         </div>
       ) : (
       <div style={{ margin: "0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+        <div data-einbau-header="" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <div style={{ position: "relative" }}>
             <div
               onClick={() => setAppSwitcherOpen((v) => !v)}
@@ -3225,6 +3238,7 @@ export default function PunchBubbles() {
               }}
             >
               <div
+                data-einbau-logo=""
                 style={{
                   fontFamily: "'Oswald', sans-serif",
                   fontWeight: 700,
@@ -3324,6 +3338,7 @@ export default function PunchBubbles() {
           </button>
         </div>
         <div
+          role="tablist"
           style={{
             display: "flex",
             gap: 4,
@@ -3819,7 +3834,7 @@ export default function PunchBubbles() {
                   cursor: pendingLoading ? "default" : "pointer",
                 }}
               >
-                {pendingLoading ? "LOADING..." : "REFRESH FROM NETSUITE"}
+                {pendingLoading ? loadingPhrase("LOADING...").toUpperCase() : "REFRESH FROM NETSUITE"}
               </button>
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#8B8680" }}>
                 NetSuite Inbound Projects sitting at "Pending Completion" — read and written live, nothing cached here.
@@ -3854,9 +3869,7 @@ export default function PunchBubbles() {
             )}
 
             {pendingLoading && pendingProjects.length === 0 ? (
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 }}>
-                LOADING...
-              </div>
+              <Loading fallback="LOADING..." size={110} style={{ fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 }} />
             ) : pendingProjects.length === 0 ? (
               <div style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", fontSize: 13 }}>
                 Nothing pending completion right now.
@@ -3952,7 +3965,7 @@ export default function PunchBubbles() {
                 marginBottom: 14,
               }}
             >
-              {digestGenerating ? "GENERATING..." : "GENERATE DIGEST NOW"}
+              {digestGenerating ? loadingPhrase("GENERATING...").toUpperCase() : "GENERATE DIGEST NOW"}
             </button>
 
             {digestError && (
@@ -3969,9 +3982,7 @@ export default function PunchBubbles() {
             )}
 
             {digestLoading ? (
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 }}>
-                LOADING...
-              </div>
+              <Loading fallback="LOADING..." size={110} style={{ fontFamily: "'JetBrains Mono', monospace", color: "#8B8680", fontSize: 12 }} />
             ) : digests.length === 0 ? (
               <div style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-tertiary)", fontSize: 13 }}>
                 No digests generated yet.
@@ -5728,7 +5739,7 @@ export default function PunchBubbles() {
                           opacity: portfolioNameSaving ? 0.6 : 1,
                         }}
                       >
-                        {portfolioNameSaving ? "SAVING…" : "SAVE TO PROCORE"}
+                        {portfolioNameSaving ? loadingPhrase("SAVING…").toUpperCase() : "SAVE TO PROCORE"}
                       </button>
                       <button
                         onClick={cancelPortfolioNameEdit}
@@ -6268,7 +6279,7 @@ export default function PunchBubbles() {
                             lineHeight: 1.6,
                           }}
                         >
-                          {isLoading && "Loading from Procore…"}
+                          {isLoading && <Loading fallback="Loading from Procore…" size={70} />}
                           {!isLoading && detail && detail.error && (
                             <span style={{ color: "#C1401C" }}>{detail.error}</span>
                           )}
@@ -6347,7 +6358,7 @@ export default function PunchBubbles() {
                                 opacity: savingChecklistField ? 0.6 : 1,
                               }}
                             >
-                              {savingChecklistField ? "SAVING…" : "SAVE TO PROCORE"}
+                              {savingChecklistField ? loadingPhrase("SAVING…").toUpperCase() : "SAVE TO PROCORE"}
                             </button>
                             <button
                               onClick={cancelEditChecklistField}
@@ -7266,7 +7277,7 @@ export default function PunchBubbles() {
                         fontStyle: dept === "loading" ? "italic" : "normal",
                       }}
                     >
-                      {dept === "loading" ? "loading…" : dept || "NOT SET"}
+                      {dept === "loading" ? loadingPhrase("loading…") : dept || "NOT SET"}
                     </div>
                   </div>
                 );
@@ -7383,9 +7394,11 @@ export default function PunchBubbles() {
           }}
         >
           {authChecking ? (
-            <div style={{ color: "var(--text-secondary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.05em" }}>
-              CHECKING SESSION…
-            </div>
+            <Loading
+              fallback="CHECKING SESSION…"
+              size={130}
+              style={{ color: "var(--text-secondary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.05em", textAlign: "center" }}
+            />
           ) : (
             <form
               onSubmit={doLogin}
@@ -7438,7 +7451,7 @@ export default function PunchBubbles() {
                   cursor: loginSubmitting ? "default" : "pointer", opacity: loginSubmitting ? 0.6 : 1,
                 }}
               >
-                {loginSubmitting ? "SIGNING IN…" : "SIGN IN"}
+                {loginSubmitting ? loadingPhrase("SIGNING IN…").toUpperCase() : "SIGN IN"}
               </button>
               {loginError && (
                 <div style={{ marginTop: 10, color: "#C1401C", fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}>
