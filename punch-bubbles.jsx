@@ -7397,7 +7397,8 @@ export default function PunchBubbles() {
       {(authChecking || !authToken) && (
         <div
           style={{
-            position: "fixed", inset: 0, zIndex: 100000, background: "var(--bg-page)",
+            // Below the seasonal decorations (z-index 250, click-through) so the login page shows them.
+            position: "fixed", inset: 0, zIndex: 200, background: "var(--bg-page)",
             display: "flex", alignItems: "center", justifyContent: "center",
             fontFamily: "'Inter', sans-serif",
           }}

@@ -6349,9 +6349,10 @@ function PunchBubbles() {
       "div",
       {
         style: {
+          // Below the seasonal decorations (z-index 250, click-through) so the login page shows them.
           position: "fixed",
           inset: 0,
-          zIndex: 1e5,
+          zIndex: 200,
           background: "var(--bg-page)",
           display: "flex",
           alignItems: "center",
