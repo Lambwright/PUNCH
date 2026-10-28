@@ -657,6 +657,11 @@ function Loading({ fallback = "Loading\u2026", size = 110, style }) {
 function loadingPhrase(fallback) {
   return typeof window !== "undefined" && window.EinbauFestive ? window.EinbauFestive.phrase() : fallback;
 }
+function shortPhrase(fallback) {
+  const F = typeof window !== "undefined" ? window.EinbauFestive : null;
+  const p = F && F.phrase({ short: true });
+  return typeof p === "string" && p.length <= 14 ? p : fallback;
+}
 function appSwitcherLinks(user) {
   const apps = (Array.isArray(user?.apps) ? user.apps : []).map((a) => String(a).toUpperCase());
   const allowed = (name) => apps.includes(name);
@@ -5322,7 +5327,7 @@ function PunchBubbles() {
                     flexShrink: 0
                   }
                 },
-                budgetPopulating ? "RUNNING\u2026" : "\u25B6 RUN"
+                budgetPopulating ? shortPhrase("RUNNING\u2026").toUpperCase() : "\u25B6 RUN"
               ),
               isLink && /* @__PURE__ */ React.createElement(
                 "button",
@@ -5806,7 +5811,7 @@ function PunchBubbles() {
           },
           /* @__PURE__ */ React.createElement(Bot, { size: 11 }),
           " ",
-          copilotLoading ? "..." : "COPILOT"
+          copilotLoading ? shortPhrase("...").toUpperCase() : "COPILOT"
         )), focusMode && focusIds.includes(selected.id) && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 11, color: "var(--text-secondary)", textAlign: "center", marginTop: -2, marginBottom: 10 } }, "Focus Mode: RESOLVE completes it for real. SNOOZE just clears it from this round \u2014 the task itself is untouched."), selected.parentTaskId && /* @__PURE__ */ React.createElement(
           "button",
           {
@@ -6335,7 +6340,7 @@ function PunchBubbles() {
                 cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default"
               }
             },
-            pendingSavingId === p.id ? "SAVING..." : "SAVE"
+            pendingSavingId === p.id ? shortPhrase("SAVING...").toUpperCase() : "SAVE"
           ), pendingSavedId === p.id && /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#5B8C5A" } }, "\u2713 SAVED"))
         )
       );

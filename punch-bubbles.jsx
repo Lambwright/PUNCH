@@ -629,6 +629,13 @@ function Loading({ fallback = "Loading…", size = 110, style }) {
 function loadingPhrase(fallback) {
   return typeof window !== "undefined" && window.EinbauFestive ? window.EinbauFestive.phrase() : fallback;
 }
+// One-word version for tiny buttons. Older copies of the shared file ignore the option
+// and return a long line, so only a genuinely short result is used.
+function shortPhrase(fallback) {
+  const F = typeof window !== "undefined" ? window.EinbauFestive : null;
+  const p = F && F.phrase({ short: true });
+  return typeof p === "string" && p.length <= 14 ? p : fallback;
+}
 
 // Only apps this user can open, then HELM always last (it's where settings
 // live). Its label is "HELM" only for people HELM says should see that name
@@ -6237,7 +6244,7 @@ export default function PunchBubbles() {
                               flexShrink: 0,
                             }}
                           >
-                            {budgetPopulating ? "RUNNING…" : "▶ RUN"}
+                            {budgetPopulating ? shortPhrase("RUNNING…").toUpperCase() : "▶ RUN"}
                           </button>
                         )}
                         {isLink && (
@@ -6758,7 +6765,7 @@ export default function PunchBubbles() {
                       gap: 3,
                     }}
                   >
-                    <Bot size={11} /> {copilotLoading ? "..." : "COPILOT"}
+                    <Bot size={11} /> {copilotLoading ? shortPhrase("...").toUpperCase() : "COPILOT"}
                   </button>
                 </div>
 
@@ -7372,7 +7379,7 @@ export default function PunchBubbles() {
                     cursor: hasDraft && pendingSavingId !== p.id ? "pointer" : "default",
                   }}
                 >
-                  {pendingSavingId === p.id ? "SAVING..." : "SAVE"}
+                  {pendingSavingId === p.id ? shortPhrase("SAVING...").toUpperCase() : "SAVE"}
                 </button>
                 {pendingSavedId === p.id && (
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, color: "#5B8C5A" }}>
