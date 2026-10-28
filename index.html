@@ -771,8 +771,8 @@ function PunchBubbles() {
   const [authChecking, setAuthChecking] = useState(true);
   const [authUser, setAuthUser] = useState(null);
   useEffect(() => {
-    if (authUser && !loading && window.EinbauFestive) window.EinbauFestive.init({ app: "PUNCH" });
-  }, [authUser, loading]);
+    if (!authChecking && window.EinbauFestive) window.EinbauFestive.init({ app: "PUNCH" });
+  }, [authChecking]);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");

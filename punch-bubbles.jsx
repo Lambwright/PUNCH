@@ -780,9 +780,11 @@ export default function PunchBubbles() {
   const [authToken, setAuthToken] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
   const [authUser, setAuthUser] = useState(null);
+  // Seasonal decorations start as soon as we know whether there's a session, so the
+  // login page gets them too; the header ones attach when the header appears.
   useEffect(() => {
-    if (authUser && !loading && window.EinbauFestive) window.EinbauFestive.init({ app: "PUNCH" });
-  }, [authUser, loading]);
+    if (!authChecking && window.EinbauFestive) window.EinbauFestive.init({ app: "PUNCH" });
+  }, [authChecking]);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
