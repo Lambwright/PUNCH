@@ -1077,6 +1077,9 @@ export default function PunchBubbles() {
   const [digestError, setDigestError] = useState(null);
   const [digestsFetched, setDigestsFetched] = useState(false);
   const [skippedMsgs, setSkippedMsgs] = useState([]);
+  // When each card last had a field saved to Procore, so a slower "refresh on open"
+  // that started earlier can't put its older values back on top of the save.
+  const savedAtRef = useRef({});
 
   // Outbox — what the viewer has handed off that isn't done yet. Cross-cutting
   // (spans whatever list the task actually lives on), so it's its own fetch
@@ -2228,8 +2231,10 @@ export default function PunchBubbles() {
     // on open so a PM's change made directly in Procore (not through PUNCH) is never
     // silently stale here. Manual checklist items are preserved server-side.
     if (task.list === "portfolio" && task.checklist && task.sourceUrl) {
+      const refreshStartedAt = Date.now();
       apiGet(`/portfolio/procore-refresh?task_id=${task.id}`)
         .then((row) => {
+          if ((savedAtRef.current[task.id] || 0) >= refreshStartedAt) return;
           const refreshed = normalizeTask(row);
           updateStore(task.id, (t) => ({ ...t, ...refreshed }));
           setSelected((prev) => (prev && prev.id === task.id ? { ...prev, ...refreshed } : prev));
@@ -2753,6 +2758,7 @@ export default function PunchBubbles() {
     setChecklistFieldError(null);
     apiPatch(`/portfolio/procore-writeback?task_id=${selected.id}`, { field, value: editDraft })
       .then((data) => {
+        savedAtRef.current[selected.id] = Date.now();
         setTasks((prev) => prev.map((t) => (t.id === selected.id ? { ...t, checklist: data.checklist } : t)));
         setSelected((prev) => ({ ...prev, checklist: data.checklist }));
         pushHistory(selected.id, "procore_writeback", `Updated in Procore: ${data.item.label}`);
@@ -2874,6 +2880,7 @@ export default function PunchBubbles() {
     setPortfolioNameError(null);
     apiPatch(`/portfolio/procore-rename?task_id=${selected.id}`, { name: trimmed })
       .then((updated) => {
+        savedAtRef.current[selected.id] = Date.now();
         updateStore(selected.id, (t) => ({ ...t, summary: updated.summary }));
         setSelected((prev) => ({ ...prev, summary: updated.summary }));
         pushHistory(selected.id, "procore_writeback", `Renamed in Procore: ${updated.summary}`);

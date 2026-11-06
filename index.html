@@ -996,6 +996,7 @@ function PunchBubbles() {
   const [digestError, setDigestError] = useState(null);
   const [digestsFetched, setDigestsFetched] = useState(false);
   const [skippedMsgs, setSkippedMsgs] = useState([]);
+  const savedAtRef = useRef({});
   const [outboxTasks, setOutboxTasks] = useState([]);
   const [outboxLoading, setOutboxLoading] = useState(false);
   const [outboxFetched, setOutboxFetched] = useState(false);
@@ -1857,7 +1858,9 @@ function PunchBubbles() {
     setPortfolioNameError(null);
     setShowManualAddress(false);
     if (task.list === "portfolio" && task.checklist && task.sourceUrl) {
+      const refreshStartedAt = Date.now();
       apiGet(`/portfolio/procore-refresh?task_id=${task.id}`).then((row) => {
+        if ((savedAtRef.current[task.id] || 0) >= refreshStartedAt) return;
         const refreshed = normalizeTask(row);
         updateStore(task.id, (t) => ({ ...t, ...refreshed }));
         setSelected((prev) => prev && prev.id === task.id ? { ...prev, ...refreshed } : prev);
@@ -2260,6 +2263,7 @@ function PunchBubbles() {
     setSavingChecklistField(true);
     setChecklistFieldError(null);
     apiPatch(`/portfolio/procore-writeback?task_id=${selected.id}`, { field, value: editDraft }).then((data) => {
+      savedAtRef.current[selected.id] = Date.now();
       setTasks((prev) => prev.map((t) => t.id === selected.id ? { ...t, checklist: data.checklist } : t));
       setSelected((prev) => ({ ...prev, checklist: data.checklist }));
       pushHistory(selected.id, "procore_writeback", `Updated in Procore: ${data.item.label}`);
@@ -2350,6 +2354,7 @@ function PunchBubbles() {
     setPortfolioNameSaving(true);
     setPortfolioNameError(null);
     apiPatch(`/portfolio/procore-rename?task_id=${selected.id}`, { name: trimmed }).then((updated) => {
+      savedAtRef.current[selected.id] = Date.now();
       updateStore(selected.id, (t) => ({ ...t, summary: updated.summary }));
       setSelected((prev) => ({ ...prev, summary: updated.summary }));
       pushHistory(selected.id, "procore_writeback", `Renamed in Procore: ${updated.summary}`);
