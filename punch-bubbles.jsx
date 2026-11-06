@@ -703,6 +703,11 @@ function daysOpen(createdAt) {
 
 // "When did this actually happen" stamps (history events, creation dates) show
 // the time alongside the date — same-day events were otherwise indistinguishable.
+// Follow-up requests that were added to a bubble from the same email conversation.
+function updateEventsOf(history) {
+  return (history || []).filter((e) => e.type === "update" || e.type === "new_reply");
+}
+
 function formatDateTime(dateStr) {
   return new Date(dateStr).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
@@ -1071,6 +1076,7 @@ export default function PunchBubbles() {
   const [digestGenerating, setDigestGenerating] = useState(false);
   const [digestError, setDigestError] = useState(null);
   const [digestsFetched, setDigestsFetched] = useState(false);
+  const [skippedMsgs, setSkippedMsgs] = useState([]);
 
   // Outbox — what the viewer has handed off that isn't done yet. Cross-cutting
   // (spans whatever list the task actually lives on), so it's its own fetch
@@ -1232,6 +1238,7 @@ export default function PunchBubbles() {
     try {
       const rows = await apiGet("/digest");
       setDigests(rows);
+      apiGet("/ingest/skipped?limit=40").then((r) => setSkippedMsgs(Array.isArray(r) ? r : [])).catch(() => setSkippedMsgs([]));
     } catch (err) {
       setDigestError(err.message);
     } finally {
@@ -4101,6 +4108,35 @@ export default function PunchBubbles() {
                 </div>
               ))
             )}
+            {skippedMsgs.length > 0 && (
+              <div style={{ marginTop: 28 }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--accent)", marginBottom: 6 }}>
+                  RECENTLY SKIPPED ({skippedMsgs.length})
+                </div>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "var(--text-tertiary)", marginBottom: 10, lineHeight: 1.4 }}>
+                  Messages the triage ignored in the last 30 days, and why. If one should have been a bubble, open the email and add it yourself.
+                </div>
+                {skippedMsgs.map((m) => (
+                  <div
+                    key={m.id}
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 4, padding: "8px 12px", marginBottom: 6 }}
+                  >
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", marginBottom: 3 }}>
+                      {formatDateTime(m.created_at)} · {String(m.source || "").toUpperCase()}
+                      {m.person ? ` · ${m.person}` : ""} · {m.reason}
+                      {m.source_url && (
+                        <a href={m.source_url} target="_blank" rel="noreferrer" style={{ marginLeft: 6, color: "#8FC742", textDecoration: "none" }}>
+                          ↗ view
+                        </a>
+                      )}
+                    </div>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                      {String(m.snippet || "").slice(0, 200)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : activeTasks.length === 0 ? (
           <div
@@ -5168,7 +5204,7 @@ export default function PunchBubbles() {
           <div
             style={{
               background: "var(--text-primary)",
-              width: 460,
+              width: updateEventsOf(selected.history).length > 0 ? 600 : 460,
               maxWidth: "90vw",
               borderRadius: 6,
               padding: 28,
@@ -5867,6 +5903,58 @@ export default function PunchBubbles() {
                 }}
                 onFocus={(e) => (e.target.style.border = "1px solid #C9C0AC")}
               />
+            )}
+            {selected.list !== "portfolio" && (
+              <>
+                <textarea
+                  value={draftDescription}
+                  onChange={(e) => setDraftDescription(e.target.value)}
+                  onBlur={saveDescription}
+                  placeholder="Description..."
+                  rows={updateEventsOf(selected.history).length > 0 ? 4 : 2}
+                  style={{
+                    width: "100%",
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 13,
+                    color: "var(--text-tertiary)",
+                    marginBottom: 8,
+                    lineHeight: 1.4,
+                    border: "1px solid transparent",
+                    borderRadius: 3,
+                    padding: "2px 4px",
+                    marginLeft: -4,
+                    background: "transparent",
+                    resize: "vertical",
+                    outline: "none",
+                  }}
+                  onFocus={(e) => (e.target.style.border = "1px solid #C9C0AC")}
+                  onBlurCapture={(e) => (e.target.style.border = "1px solid transparent")}
+                />
+                {updateEventsOf(selected.history).length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
+                      UPDATES ({updateEventsOf(selected.history).length})
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      {updateEventsOf(selected.history).map((ev, i) => (
+                        <li key={i} style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#2A2419", lineHeight: 1.4, marginBottom: 4 }}>
+                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680" }}>
+                            {formatDateTime(ev.at)}
+                            {ev.from ? ` · ${ev.from}` : ""}
+                            {" — "}
+                          </span>
+                          {String(ev.text || "").slice(0, 220)}
+                          {ev.source_url && (
+                            <a href={ev.source_url} target="_blank" rel="noreferrer" style={{ marginLeft: 6, color: "#5B8C5A", textDecoration: "none", fontSize: 11 }}>
+                              ↗ email
+                            </a>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
             )}
             {getLatestActionableEvent(selected.history) && (
               <div

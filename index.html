@@ -710,6 +710,9 @@ function punchAccess(user) {
 function daysOpen(createdAt) {
   return Math.max(0, Math.floor((now - new Date(createdAt)) / 864e5));
 }
+function updateEventsOf(history) {
+  return (history || []).filter((e) => e.type === "update" || e.type === "new_reply");
+}
 function formatDateTime(dateStr) {
   return new Date(dateStr).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
@@ -992,6 +995,7 @@ function PunchBubbles() {
   const [digestGenerating, setDigestGenerating] = useState(false);
   const [digestError, setDigestError] = useState(null);
   const [digestsFetched, setDigestsFetched] = useState(false);
+  const [skippedMsgs, setSkippedMsgs] = useState([]);
   const [outboxTasks, setOutboxTasks] = useState([]);
   const [outboxLoading, setOutboxLoading] = useState(false);
   const [outboxFetched, setOutboxFetched] = useState(false);
@@ -1109,6 +1113,7 @@ function PunchBubbles() {
     try {
       const rows = await apiGet("/digest");
       setDigests(rows);
+      apiGet("/ingest/skipped?limit=40").then((r) => setSkippedMsgs(Array.isArray(r) ? r : [])).catch(() => setSkippedMsgs([]));
     } catch (err) {
       setDigestError(err.message);
     } finally {
@@ -3404,7 +3409,15 @@ function PunchBubbles() {
           s
         )))) : null;
       })()
-    ))) : activeTasks.length === 0 ? /* @__PURE__ */ React.createElement(
+    )), skippedMsgs.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 28 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--accent)", marginBottom: 6 } }, "RECENTLY SKIPPED (", skippedMsgs.length, ")"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 12, color: "var(--text-tertiary)", marginBottom: 10, lineHeight: 1.4 } }, "Messages the triage ignored in the last 30 days, and why. If one should have been a bubble, open the email and add it yourself."), skippedMsgs.map((m) => /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        key: m.id,
+        style: { background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 4, padding: "8px 12px", marginBottom: 6 }
+      },
+      /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680", marginBottom: 3 } }, formatDateTime(m.created_at), " \xB7 ", String(m.source || "").toUpperCase(), m.person ? ` \xB7 ${m.person}` : "", " \xB7 ", m.reason, m.source_url && /* @__PURE__ */ React.createElement("a", { href: m.source_url, target: "_blank", rel: "noreferrer", style: { marginLeft: 6, color: "#8FC742", textDecoration: "none" } }, "\u2197 view")),
+      /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: "var(--text-primary)", lineHeight: 1.4 } }, String(m.snippet || "").slice(0, 200))
+    )))) : activeTasks.length === 0 ? /* @__PURE__ */ React.createElement(
       "div",
       {
         style: {
@@ -4314,7 +4327,7 @@ function PunchBubbles() {
         {
           style: {
             background: "var(--text-primary)",
-            width: 460,
+            width: updateEventsOf(selected.history).length > 0 ? 600 : 460,
             maxWidth: "90vw",
             borderRadius: 6,
             padding: 28,
@@ -4962,7 +4975,33 @@ function PunchBubbles() {
             },
             onFocus: (e) => e.target.style.border = "1px solid #C9C0AC"
           }
-        ), getLatestActionableEvent(selected.history) && /* @__PURE__ */ React.createElement(
+        ), selected.list !== "portfolio" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+          "textarea",
+          {
+            value: draftDescription,
+            onChange: (e) => setDraftDescription(e.target.value),
+            onBlur: saveDescription,
+            placeholder: "Description...",
+            rows: updateEventsOf(selected.history).length > 0 ? 4 : 2,
+            style: {
+              width: "100%",
+              fontFamily: "'Inter', sans-serif",
+              fontSize: 13,
+              color: "var(--text-tertiary)",
+              marginBottom: 8,
+              lineHeight: 1.4,
+              border: "1px solid transparent",
+              borderRadius: 3,
+              padding: "2px 4px",
+              marginLeft: -4,
+              background: "transparent",
+              resize: "vertical",
+              outline: "none"
+            },
+            onFocus: (e) => e.target.style.border = "1px solid #C9C0AC",
+            onBlurCapture: (e) => e.target.style.border = "1px solid transparent"
+          }
+        ), updateEventsOf(selected.history).length > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 } }, "UPDATES (", updateEventsOf(selected.history).length, ")"), /* @__PURE__ */ React.createElement("ul", { style: { margin: 0, paddingLeft: 18 } }, updateEventsOf(selected.history).map((ev, i) => /* @__PURE__ */ React.createElement("li", { key: i, style: { fontFamily: "'Inter', sans-serif", fontSize: 13, color: "#2A2419", lineHeight: 1.4, marginBottom: 4 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "#8B8680" } }, formatDateTime(ev.at), ev.from ? ` \xB7 ${ev.from}` : "", " \u2014 "), String(ev.text || "").slice(0, 220), ev.source_url && /* @__PURE__ */ React.createElement("a", { href: ev.source_url, target: "_blank", rel: "noreferrer", style: { marginLeft: 6, color: "#5B8C5A", textDecoration: "none", fontSize: 11 } }, "\u2197 email")))))), getLatestActionableEvent(selected.history) && /* @__PURE__ */ React.createElement(
           "div",
           {
             style: {
