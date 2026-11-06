@@ -626,6 +626,36 @@ function Loading({ fallback = "Loading…", size = 110, style }) {
   }, [F, size]);
   return <div ref={ref} style={style}>{F ? null : fallback}</div>;
 }
+// Prefill for the address editor from what Procore already has, so a partly filled
+// address only needs its missing pieces typed in. Uses the pieces stored on the item;
+// older cards only have the joined label ("Address Fields: street, city, [state], zip,
+// [country]"), which is read back best-effort.
+function addressDraftFromItem(item) {
+  const v = item && item.value;
+  if (v && typeof v === "object") {
+    return { street: v.street || "", city: v.city || "", state: v.state || "", zip: v.zip || "", country: v.country || "" };
+  }
+  const text = String((item && item.label) || "").replace(/^Address Fields:\s*/i, "");
+  if (!text || /—\s*missing$/i.test(text)) return {};
+  const parts = text.split(",").map((p) => p.trim()).filter(Boolean);
+  const isZip = (p) => /^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/.test(p) || /^\d{5}(-\d{4})?$/.test(p);
+  const isCode = (p) => /^[A-Za-z]{2}$/.test(p);
+  const d = {};
+  const zipAt = parts.findIndex(isZip);
+  let head = parts;
+  if (zipAt >= 0) {
+    d.zip = parts[zipAt];
+    if (isCode(parts[zipAt + 1] || "")) d.country = parts[zipAt + 1].toUpperCase();
+    head = parts.slice(0, zipAt);
+    if (head.length >= 3 && isCode(head[head.length - 1])) {
+      d.state = head[head.length - 1].toUpperCase();
+      head = head.slice(0, -1);
+    }
+  }
+  if (head[0]) d.street = head[0];
+  if (head[1]) d.city = head[1];
+  return d;
+}
 function loadingPhrase(fallback) {
   return typeof window !== "undefined" && window.EinbauFestive ? window.EinbauFestive.phrase() : fallback;
 }
@@ -2659,9 +2689,10 @@ export default function PunchBubbles() {
       );
   }
 
-  function startEditChecklistField(key, itemDone) {
+  function startEditChecklistField(key, itemDone, item) {
+    const prefill = key === "address" ? addressDraftFromItem(item) : {};
     setEditingChecklistField(key);
-    setEditDraft({});
+    setEditDraft(prefill);
     setChecklistFieldError(null);
     if (LIVE_OPTION_FIELDS.has(key)) loadProcoreOptions(key);
     if (key === "currency" && !procoreOptions.currency) {
@@ -2673,8 +2704,8 @@ export default function PunchBubbles() {
         setProcoreOptions((prev) => ({ ...prev, state: PROCORE_PROVINCES }));
       }
       setShowManualAddress(false);
-      if (itemDone) {
-        // Already has an address — nothing to suggest, go straight to the form.
+      if (itemDone || Object.values(prefill).some(Boolean)) {
+        // Already has (some of) an address — nothing to suggest, go straight to the form.
         setAddressSuggestions([]);
       } else {
         setAddressSuggestions(null);
@@ -6174,7 +6205,7 @@ export default function PunchBubbles() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              isEditingThis ? cancelEditChecklistField() : startEditChecklistField(item.key, item.done);
+                              isEditingThis ? cancelEditChecklistField() : startEditChecklistField(item.key, item.done, item);
                             }}
                             title="Update this in Procore"
                             style={{
