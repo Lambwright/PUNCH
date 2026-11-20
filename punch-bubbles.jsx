@@ -1035,6 +1035,8 @@ export default function PunchBubbles() {
   const [procoreDetailLoading, setProcoreDetailLoading] = useState(() => new Set());
   const [budgetPopulating, setBudgetPopulating] = useState(false);
   const [budgetPopulateResult, setBudgetPopulateResult] = useState(null);
+  // Which checklist item ("department" | "customer") is re-running its follow-on sync.
+  const [syncRetrying, setSyncRetrying] = useState(null);
 
   // Write-back editor for the 9 Procore-native admin fields — which one (if any) is
   // being edited, its dropdown options (fetched once per field and cached), and the
@@ -2368,6 +2370,71 @@ export default function PunchBubbles() {
       })
       .catch((err) => setBudgetPopulateResult({ error: err.message }))
       .finally(() => setBudgetPopulating(false));
+  }
+
+  // Department saves run the PM sync and Customer saves run the directory populate;
+  // the worker stores how each went on the item (`lastSync`). RETRY re-runs just that
+  // step from what Procore holds now — useful when a project built moments ago isn't
+  // ready to accept every write yet. Safe to repeat.
+  function setItemSyncStatus(taskId, itemKey, status) {
+    const apply = (checklist) => (checklist || []).map((c) => (c.key === itemKey ? { ...c, lastSync: status } : c));
+    updateStore(taskId, (t) => ({ ...t, checklist: apply(t.checklist) }));
+    setSelected((prev) => (prev && prev.id === taskId ? { ...prev, checklist: apply(prev.checklist) } : prev));
+  }
+
+  function retrySync(itemKey) {
+    const taskId = selected.id;
+    const route = itemKey === "department" ? "pm-sync" : "directory-sync";
+    setSyncRetrying(itemKey);
+    apiPost(`/portfolio/${route}?task_id=${taskId}`, {})
+      .then((data) => {
+        if (!data) return;
+        savedAtRef.current[taskId] = Date.now();
+        if (data.checklist) {
+          updateStore(taskId, (t) => ({ ...t, checklist: data.checklist }));
+          setSelected((prev) => (prev && prev.id === taskId ? { ...prev, checklist: data.checklist } : prev));
+        } else if (data.syncStatus) {
+          setItemSyncStatus(taskId, itemKey, data.syncStatus);
+        }
+      })
+      .catch((err) =>
+        setItemSyncStatus(taskId, itemKey, {
+          kind: itemKey === "department" ? "pm" : "directory",
+          at: new Date().toISOString(),
+          state: "failed",
+          message: err.serverMessage || err.message || "Retry failed",
+          steps: [],
+        })
+      )
+      .finally(() => setSyncRetrying(null));
+  }
+
+  // One short headline, per-step lines, and a colour for a stored sync status.
+  function describeSync(s) {
+    const tone = s.state === "ok" ? "#5B8C5A" : s.state === "failed" ? "#C1401C" : "#B26A00";
+    const mark = (st) => (st === "ok" ? "✓" : st === "failed" ? "✗" : "–");
+    let headline;
+    if (s.kind === "pm") {
+      headline =
+        s.state === "ok"
+          ? `PM ${s.pm || ""} applied`
+          : s.steps && s.steps.length
+          ? `PM ${s.pm || ""}: ${s.state === "failed" ? "something didn't apply" : "partly applied"}`
+          : `PM not applied: ${s.message || "no reason given"}`;
+    } else {
+      headline =
+        s.state === "ok"
+          ? `Directory: ${s.requested} ${s.requested === 1 ? "person" : "people"} sent to the project`
+          : `Directory ${s.state === "failed" ? "failed" : "not populated"}: ${s.message || "no reason given"}`;
+    }
+    const steps = (s.steps || []).map((st) => ({
+      text: `${mark(st.state)} ${st.label}${st.detail ? ` — ${st.detail}` : ""}`,
+      color: st.state === "ok" ? "var(--text-tertiary)" : st.state === "failed" ? "#C1401C" : "#B26A00",
+    }));
+    const when = s.at
+      ? new Date(s.at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+      : "";
+    return { tone, headline, steps, when };
   }
 
   // Renders the "take a peek" panel content for a checklist item wired to
@@ -6454,6 +6521,66 @@ export default function PunchBubbles() {
                           )}
                         </div>
                       )}
+
+                      {(item.key === "department" || item.key === "customer") && item.lastSync && !isEditingThis && (() => {
+                        const info = describeSync(item.lastSync);
+                        const running = syncRetrying === item.key;
+                        return (
+                          <div
+                            style={{
+                              marginLeft: 24,
+                              marginBottom: 8,
+                              padding: "6px 10px",
+                              background: "#EDE6D6",
+                              borderRadius: 4,
+                              fontFamily: FONT_MONO,
+                              fontSize: SIZE_XS,
+                              color: "var(--text-tertiary)",
+                              lineHeight: 1.6,
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <div style={{ color: running ? "var(--text-tertiary)" : info.tone, fontWeight: 700 }}>
+                                {running ? shortPhrase("RUNNING…").toUpperCase() : info.headline}
+                              </div>
+                              {!running &&
+                                info.steps.map((st, i) => (
+                                  <div key={i} style={{ color: st.color }}>
+                                    {st.text}
+                                  </div>
+                                ))}
+                              {!running && info.when && <div>last run {info.when}</div>}
+                            </div>
+                            {item.lastSync.state !== "ok" && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  retrySync(item.key);
+                                }}
+                                disabled={running}
+                                title="Run this step again from what Procore has now"
+                                style={{
+                                  padding: "2px 6px",
+                                  background: "transparent",
+                                  border: "1px solid #C9C0AC",
+                                  borderRadius: 3,
+                                  fontFamily: FONT_MONO,
+                                  fontWeight: 700,
+                                  fontSize: SIZE_XS,
+                                  color: running ? "#C9C0AC" : "var(--text-secondary)",
+                                  cursor: running ? "default" : "pointer",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                ↻ RETRY
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {isEditingThis && (
                         <div
